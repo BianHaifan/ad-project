@@ -58,8 +58,8 @@ fun ChatDetailScreen(
     onViewJob: (String) -> Unit,
     onSendMessage: (String) -> ChatMessage,
 ) {
-    val messages = remember(thread.id) { mutableStateListOf<ChatMessage>().apply { addAll(thread.messages) } }
-    var draft by remember(thread.id) { mutableStateOf("") }
+    val messages = remember(thread.conversationId) { mutableStateListOf<ChatMessage>().apply { addAll(thread.messages) } }
+    var draft by remember(thread.conversationId) { mutableStateOf("") }
 
     fun sendMessage() {
         val body = draft.trim()
@@ -142,7 +142,7 @@ private fun JobContext(thread: ChatThread, onViewJob: () -> Unit) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(thread.invitationLabel, color = AdTeal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                 Text(thread.jobTitle, color = AdText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text(thread.schedule, color = Color(0xFF6B7885), fontSize = 12.sp)
+                Text("${formatInterviewTime(thread.scheduledAt)} · ${thread.mode.name.lowercase().replaceFirstChar { it.uppercase() }}", color = Color(0xFF6B7885), fontSize = 12.sp)
             }
             Box(
                 Modifier.height(34.dp).clip(RoundedCornerShape(17.dp)).background(AdTealSoft).clickable(onClick = onViewJob)
@@ -155,20 +155,29 @@ private fun JobContext(thread: ChatThread, onViewJob: () -> Unit) {
 
 @Composable
 private fun MessageBubble(message: ChatMessage) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.sent) Arrangement.End else Arrangement.Start) {
+    val sent = message.senderType == com.adproject.candidate.data.contract.SenderType.CANDIDATE
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (sent) Arrangement.End else Arrangement.Start) {
         Column(
-            Modifier.width(if (message.sent) 260.dp else 306.dp)
-                .clip(if (message.sent) RoundedCornerShape(14.dp, 4.dp, 14.dp, 14.dp) else RoundedCornerShape(4.dp, 14.dp, 14.dp, 14.dp))
-                .background(if (message.sent) AdTeal else Color.White)
-                .then(if (message.sent) Modifier else Modifier.border(1.dp, Color(0xFFE8EDF0), RoundedCornerShape(4.dp, 14.dp, 14.dp, 14.dp)))
+            Modifier.width(if (sent) 260.dp else 306.dp)
+                .clip(if (sent) RoundedCornerShape(14.dp, 4.dp, 14.dp, 14.dp) else RoundedCornerShape(4.dp, 14.dp, 14.dp, 14.dp))
+                .background(if (sent) AdTeal else Color.White)
+                .then(if (sent) Modifier else Modifier.border(1.dp, Color(0xFFE8EDF0), RoundedCornerShape(4.dp, 14.dp, 14.dp, 14.dp)))
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            Text(message.body, color = if (message.sent) Color.White else AdText, fontSize = 13.sp, lineHeight = 18.sp)
-            Text(message.time, color = if (message.sent) Color(0xFFD4F5F2) else Color(0xFF6B7885), fontSize = 11.sp)
+            Text(message.body, color = if (sent) Color.White else AdText, fontSize = 13.sp, lineHeight = 18.sp)
+            Text(formatMessageTime(message.sentAt), color = if (sent) Color(0xFFD4F5F2) else Color(0xFF6B7885), fontSize = 11.sp)
         }
     }
 }
+
+private fun formatInterviewTime(value: String): String = runCatching {
+    java.time.OffsetDateTime.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMM d · h:mm a"))
+}.getOrDefault(value)
+
+private fun formatMessageTime(value: String): String = runCatching {
+    java.time.OffsetDateTime.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+}.getOrDefault(value)
 
 @Composable
 private fun MessageComposer(value: String, onValueChange: (String) -> Unit, onSend: () -> Unit) {

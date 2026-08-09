@@ -1,26 +1,28 @@
 package com.adproject.candidate
 
-import com.adproject.candidate.data.api.CandidateApi
-import com.adproject.candidate.data.api.FakeCandidateApi
+import com.adproject.candidate.data.api.CandidateRepository
+import com.adproject.candidate.data.api.FakeCandidateRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.adproject.candidate.data.contract.ApplicationStatus
+import com.adproject.candidate.data.contract.CandidateApiPaths
 
 class CandidateApiTest {
-    private val api: CandidateApi = FakeCandidateApi
+    private val api: CandidateRepository = FakeCandidateRepository
 
     @Test
     fun recommendationFeedIsRankedAndHasStableIds() {
         val jobs = api.getJobFeed().jobs
-        assertEquals(jobs.size, jobs.map { it.id }.distinct().size)
+        assertEquals(jobs.size, jobs.map { it.jobId }.distinct().size)
         assertTrue(jobs.zipWithNext().all { (left, right) -> left.match >= right.match })
     }
 
     @Test
     fun applicationsExposeThreeTimelineStepsAndResolvableJobs() {
-        val jobIds = api.getJobFeed().jobs.map { it.id }.toSet()
+        val jobIds = api.getJobFeed().jobs.map { it.jobId }.toSet()
         val applications = api.getApplications().applications
-        assertTrue(applications.all { it.steps.size == 3 })
+        assertTrue(applications.all { it.timeline.size == 3 })
         assertTrue(applications.all { it.jobId in jobIds })
     }
 
@@ -28,6 +30,24 @@ class CandidateApiTest {
     fun sentChatMessageIsReturnedAsOutgoing() {
         val message = api.sendMessage("mia", "Hello")
         assertEquals("Hello", message.body)
-        assertTrue(message.sent)
+        assertEquals(com.adproject.candidate.data.contract.SenderType.CANDIDATE, message.senderType)
+    }
+
+    @Test
+    fun applicationStatusesAndCandidatePathsMatchTheFinalContract() {
+        assertEquals(
+            listOf("APPLIED", "IN_REVIEW", "INTERVIEW", "REJECTED", "WITHDRAWN"),
+            ApplicationStatus.entries.map { it.name },
+        )
+        assertEquals("/jobs/job_001/applications", CandidateApiPaths.submitApplication("job_001"))
+        assertEquals("/candidate/applications/app_001/withdraw", CandidateApiPaths.withdrawApplication("app_001"))
+    }
+
+    @Test
+    fun fakeResumeSnapshotIsCompleteAndImmutableByIdentity() {
+        val submission = api.submitApplication("moonshot")
+        assertTrue(submission.resumeSnapshot.snapshotId.isNotBlank())
+        assertTrue(submission.resumeSnapshot.capturedAt.endsWith("Z"))
+        assertTrue(submission.resumeSnapshot.experiences.isNotEmpty())
     }
 }

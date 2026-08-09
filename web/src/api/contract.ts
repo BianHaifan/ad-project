@@ -1,0 +1,34 @@
+import type {DataEnvelope, ErrorEnvelope, ListEnvelope} from '../models/recruiter';
+
+export const API_BASE_URL = 'http://localhost:8080/api/v1';
+
+export const apiPaths = {
+  register: '/auth/register',
+  login: '/auth/login',
+  refresh: '/auth/refresh',
+  logout: '/auth/logout',
+  me: '/recruiter/me',
+  company: '/recruiter/company',
+  dashboard: '/recruiter/dashboard',
+  jobs: '/recruiter/jobs',
+  job: (jobId: string) => `/recruiter/jobs/${jobId}`,
+  publishJob: (jobId: string) => `/recruiter/jobs/${jobId}/publish`,
+  jobStatus: (jobId: string) => `/recruiter/jobs/${jobId}/status`,
+  applications: '/recruiter/applications',
+  application: (applicationId: string) => `/recruiter/applications/${applicationId}`,
+  transitions: (applicationId: string) => `/recruiter/applications/${applicationId}/transitions`,
+  owner: (applicationId: string) => `/recruiter/applications/${applicationId}/owner`,
+  notes: (applicationId: string) => `/recruiter/applications/${applicationId}/notes`,
+  resumeSnapshot: (applicationId: string) => `/recruiter/applications/${applicationId}/resume-snapshot`,
+  resumeSnapshotPdf: (applicationId: string) => `/recruiter/applications/${applicationId}/resume-snapshot/pdf`,
+  interviews: (applicationId: string) => `/recruiter/applications/${applicationId}/interviews`,
+  interview: (interviewId: string) => `/recruiter/interviews/${interviewId}`,
+  conversations: '/recruiter/conversations',
+  conversation: (conversationId: string) => `/recruiter/conversations/${conversationId}`,
+  messages: (conversationId: string) => `/recruiter/conversations/${conversationId}/messages`,
+  readState: (conversationId: string) => `/recruiter/conversations/${conversationId}/read-state`,
+} as const;
+
+export function readData<T>(response: DataEnvelope<T>): T { return response.data }
+export function readList<T, M>(response: ListEnvelope<T, M>): {data: T[]; meta: M} { return response }
+export function readApiError(response: ErrorEnvelope) { return response.error }

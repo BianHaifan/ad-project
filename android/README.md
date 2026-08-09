@@ -25,8 +25,8 @@ The debug APK is produced at `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## API contract
 
-- Human-readable contract: [`docs/API_V1.md`](docs/API_V1.md)
-- Swagger/Postman-compatible OpenAPI 3.1 file: [`docs/openapi-v1.yaml`](docs/openapi-v1.yaml)
+- Human-readable contract: [`../docs/API_CATALOG.zh-CN.md`](../docs/API_CATALOG.zh-CN.md)
+- Swagger/Postman-compatible OpenAPI 3.1 file: [`../docs/openapi-v1.yaml`](../docs/openapi-v1.yaml)
 - Current screen-to-data map: [`DATA_API.md`](DATA_API.md)
 
 `FakeCandidateApi` remains the active implementation until a Retrofit-backed implementation is connected to the v1 HTTP contract.

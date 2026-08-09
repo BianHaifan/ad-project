@@ -146,7 +146,7 @@ fun ApplicationSubmittedScreen(data: SubmissionData, onApplications: () -> Unit,
                 }
                 HorizontalDivider(color = Color(0xFFE7ECEF))
                 DetailRow("Submitted", data.submittedAt)
-                DetailRow("Resume", data.resumeSnapshot)
+                DetailRow("Resume", "${data.resumeSnapshot.fullName} · captured ${formatDateTime(data.resumeSnapshot.capturedAt)}")
                 DetailRow("Application ID", data.applicationId)
             }
         }
@@ -197,7 +197,7 @@ fun MyApplicationsScreen(data: ApplicationsData, onTab: (MainTab) -> Unit, onBac
                 }
             }
             LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                items(data.applications, key = { it.id }) { app -> ApplicationCard(app, onApplication) }
+                items(data.applications, key = { it.applicationId }) { app -> ApplicationCard(app, onApplication) }
             }
         }
     }
@@ -214,13 +214,25 @@ private fun ApplicationCard(application: Application, onApplication: (String) ->
                     Text(application.title, color = Color(0xFF111827), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Text(application.company, color = AdMuted, fontSize = 10.sp)
                 }
-                TagChip(application.status, accent = true)
+                TagChip(application.status.displayLabel(), accent = true)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(application.timing, color = Color(0xFF8A939C), fontSize = 9.sp)
+                Text(application.scheduledAt?.let { "Interview · ${formatDateTime(it)}" } ?: "Applied ${formatDateTime(application.appliedAt)}", color = Color(0xFF8A939C), fontSize = 9.sp)
                 Text("${application.match}% ML match", color = AdTealDark, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { application.steps.forEachIndexed { index, step -> StatusDot(step, index <= application.steps.indexOf(application.status)) } }
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { application.timeline.forEach { step -> StatusDot(step.status.displayLabel(), step.completed) } }
         }
     }
 }
+
+private fun com.adproject.candidate.data.contract.ApplicationStatus.displayLabel() = when (this) {
+    com.adproject.candidate.data.contract.ApplicationStatus.APPLIED -> "Applied"
+    com.adproject.candidate.data.contract.ApplicationStatus.IN_REVIEW -> "In review"
+    com.adproject.candidate.data.contract.ApplicationStatus.INTERVIEW -> "Interview"
+    com.adproject.candidate.data.contract.ApplicationStatus.REJECTED -> "Rejected"
+    com.adproject.candidate.data.contract.ApplicationStatus.WITHDRAWN -> "Withdrawn"
+}
+
+private fun formatDateTime(value: String): String = runCatching {
+    java.time.OffsetDateTime.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm"))
+}.getOrDefault(value)

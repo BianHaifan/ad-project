@@ -20,8 +20,14 @@ import com.adproject.candidate.data.model.ResumeData
 import com.adproject.candidate.data.model.ResumeExperience
 import com.adproject.candidate.data.model.SignInDefaults
 import com.adproject.candidate.data.model.SubmissionData
+import com.adproject.candidate.data.contract.ApplicationStatus
+import com.adproject.candidate.data.contract.Experience
+import com.adproject.candidate.data.contract.ResumeSnapshot
+import com.adproject.candidate.data.contract.SenderType
+import com.adproject.candidate.data.contract.TimelineStep
+import com.adproject.candidate.data.model.RecruiterContact
 
-interface CandidateApi {
+interface CandidateRepository {
     fun getSignInDefaults(): SignInDefaults
     fun getRegistrationDefaults(): RegistrationDefaults
     fun getJobFeed(): JobFeedData
@@ -40,13 +46,15 @@ interface CandidateApi {
 
 /**
  * The only source of frontend demo data. Replace this implementation with a
- * Retrofit-backed CandidateApi without changing the screen composables.
+ * Retrofit-backed CandidateRepository without changing the screen composables.
  */
-object FakeCandidateApi : CandidateApi {
+object FakeCandidateRepository : CandidateRepository {
+    private const val NOW = "2026-08-09T01:42:00Z"
+    private val recruiter = RecruiterContact("rec_001", "Mia Chen", "Hiring Manager")
     private val jobs = listOf(
-        Job("moonshot", "AI Backend Engineer", "Moonshot AI", "M", "Series B · 500–999", "\$42–68K", listOf("Python", "LLM", "K8s", "RAG"), 96, "Mia Chen", "Hiring Manager"),
-        Job("bytelab", "Machine Learning Platform", "ByteDance Seed", "B", "10000+", "\$50–70K", listOf("Intern", "PyTorch", "MLOps"), 91, "Mia Chen", "Hiring Manager"),
-        Job("minimax", "Full Stack Engineer, AI Tools", "MiniMax", "M", "No financing needed", "\$30–55K", listOf("React", "Node", "AI Agent"), 84, "Mia Chen", "Hiring Manager"),
+        Job("moonshot", "AI Backend Engineer", "Moonshot AI", "M", "Series B · 500–999", "SGD 5–8K", listOf("Python", "LLM", "K8s", "RAG"), 96, recruiter),
+        Job("bytelab", "Machine Learning Platform", "ByteDance Seed", "B", "10000+", "SGD 6–9K", listOf("Intern", "PyTorch", "MLOps"), 91, recruiter),
+        Job("minimax", "Full Stack Engineer, AI Tools", "MiniMax", "M", "No financing needed", "SGD 5–7K", listOf("React", "Node", "AI Agent"), 84, recruiter),
     )
 
     override fun getSignInDefaults() = SignInDefaults("bohao.yan@example.com", "password123")
@@ -64,7 +72,7 @@ object FakeCandidateApi : CandidateApi {
     )
 
     override fun getJobDetail(jobId: String): JobDetailData {
-        val job = jobs.firstOrNull { it.id == jobId } ?: jobs.first()
+        val job = jobs.firstOrNull { it.jobId == jobId } ?: jobs.first()
         return JobDetailData(
             job = job,
             location = "Shanghai",
@@ -84,36 +92,38 @@ object FakeCandidateApi : CandidateApi {
     )
 
     override fun getConversations() = listOf(
-        Conversation("mia", "M", "Mia Chen", "Moonshot AI · We'd like to invite you to interview.", "09:42", 2),
-        Conversation("daniel", "D", "Daniel Wu", "ByteLab · Your application has moved to Interview.", "Yesterday", 1),
-        Conversation("sophie", "S", "Sophie Lin", "MiniMax · Thanks for applying. We'll review your resume.", "Mon"),
-        Conversation("kevin", "K", "Kevin Zhao", "Talent Partner · Could you share your availability this week?", "Aug 3"),
-        Conversation("support", "AD", "AD Project Support", "Welcome! Your profile is ready.", "Aug 1"),
+        Conversation("mia", "M", "Mia Chen", "Moonshot AI · We'd like to invite you to interview.", NOW, 2),
+        Conversation("daniel", "D", "Daniel Wu", "ByteLab · Your application has moved to Interview.", "2026-08-08T02:00:00Z", 1),
+        Conversation("sophie", "S", "Sophie Lin", "MiniMax · Thanks for applying. We'll review your resume.", "2026-08-04T02:00:00Z"),
+        Conversation("kevin", "K", "Kevin Zhao", "Talent Partner · Could you share your availability this week?", "2026-08-03T02:00:00Z"),
+        Conversation("support", "AD", "AD Project Support", "Welcome! Your profile is ready.", "2026-08-01T02:00:00Z"),
     )
 
     override fun getChatThread(conversationId: String) = ChatThread(
-        id = conversationId,
+        conversationId = conversationId,
         participantInitial = "M",
         participantName = "Mia Chen",
         participantSubtitle = "Moonshot AI · Online",
         jobId = "moonshot",
         invitationLabel = "INTERVIEW INVITATION",
         jobTitle = "AI Backend Engineer",
-        schedule = "Tuesday, Aug 11 · 2:00 PM",
+        scheduledAt = "2026-08-11T06:00:00Z",
+        mode = com.adproject.candidate.data.contract.InterviewMode.ONLINE,
         dayLabel = "Today",
         messages = listOf(
-            ChatMessage("Hi Bohao, thanks for applying to the AI Backend Engineer role. We'd like to invite you to a 30-minute interview.", "09:36", false),
-            ChatMessage("Would Tuesday, Aug 11 at 2:00 PM work for you? The interview will be held online.", "09:37", false),
-            ChatMessage("Thank you! Tuesday at 2:00 PM works for me.", "09:40", true),
-            ChatMessage("Great — I’ve sent the meeting details. You can also view them in My Applications.", "09:42", false),
+            ChatMessage("msg_001", conversationId, "Hi Bohao, thanks for applying to the AI Backend Engineer role. We'd like to invite you to a 30-minute interview.", SenderType.RECRUITER, "2026-08-09T01:36:00Z"),
+            ChatMessage("msg_002", conversationId, "Would Tuesday, Aug 11 at 2:00 PM work for you? The interview will be held online.", SenderType.RECRUITER, "2026-08-09T01:37:00Z"),
+            ChatMessage("msg_003", conversationId, "Thank you! Tuesday at 2:00 PM works for me.", SenderType.CANDIDATE, "2026-08-09T01:40:00Z"),
+            ChatMessage("msg_004", conversationId, "Great — I’ve sent the meeting details. You can also view them in My Applications.", SenderType.RECRUITER, NOW),
         ),
         status = "✓ Interview scheduled · Tuesday, Aug 11",
     )
 
-    override fun sendMessage(conversationId: String, body: String) = ChatMessage(body, "Now", true)
+    override fun sendMessage(conversationId: String, body: String) =
+        ChatMessage("msg_local", conversationId, body, SenderType.CANDIDATE, NOW)
 
     override fun getProfile() = CandidateProfile(
-        name = "Yan Bohao",
+        fullName = "Yan Bohao",
         headline = "Online Resume - CS Student",
         stats = listOf(
             ProfileStat("14", "Chats"),
@@ -144,16 +154,16 @@ object FakeCandidateApi : CandidateApi {
         interviewCount = 1,
         archivedCount = 8,
         applications = listOf(
-            Application("APP-2026-0045", "moonshot", "M", "AI Backend Engineer", "Moonshot AI", "In review", "Applied today · 09:42", 96, listOf("Applied", "In review", "Interview")),
-            Application("APP-2026-0038", "bytelab", "B", "ML Platform Intern", "ByteLab", "Interview", "Interview · Aug 8, 14:00", 92, listOf("Applied", "Review", "Interview")),
-            Application("APP-2026-0031", "minimax", "M", "Full Stack Engineer, AI Tools", "MiniMax", "Applied", "Applied Aug 2", 84, listOf("Applied", "In review", "Interview")),
+            Application("APP-2026-0045", "moonshot", "M", "AI Backend Engineer", "Moonshot AI", ApplicationStatus.IN_REVIEW, NOW, null, 96, timeline(ApplicationStatus.IN_REVIEW, NOW)),
+            Application("APP-2026-0038", "bytelab", "B", "ML Platform Intern", "ByteLab", ApplicationStatus.INTERVIEW, "2026-08-02T07:00:00Z", "2026-08-11T06:00:00Z", 92, timeline(ApplicationStatus.INTERVIEW, "2026-08-02T07:00:00Z")),
+            Application("APP-2026-0031", "minimax", "M", "Full Stack Engineer, AI Tools", "MiniMax", ApplicationStatus.APPLIED, "2026-08-02T07:00:00Z", null, 84, timeline(ApplicationStatus.APPLIED, "2026-08-02T07:00:00Z")),
         ),
     )
 
     override fun getApplyConfirmation(jobId: String): ApplyConfirmationData {
         val detail = getJobDetail(jobId)
         return ApplyConfirmationData(
-            jobId = detail.job.id,
+            jobId = detail.job.jobId,
             companyInitial = detail.job.companyInitial,
             company = detail.job.company,
             companyMeta = "${detail.job.companyMeta} employees",
@@ -170,14 +180,14 @@ object FakeCandidateApi : CandidateApi {
     override fun submitApplication(jobId: String): SubmissionData {
         val detail = getJobDetail(jobId)
         return SubmissionData(
-            jobId = detail.job.id,
+            jobId = detail.job.jobId,
             companyInitial = detail.job.companyInitial,
             company = detail.job.company,
             jobTitle = detail.job.title,
             jobMeta = "${detail.job.company} · ${detail.location} · ${detail.workplace}",
             status = "Applied",
             submittedAt = "Today · 09:42",
-            resumeSnapshot = "Default resume snapshot",
+            resumeSnapshot = resumeSnapshot(),
             applicationId = "APP-2026-0045",
             nextSteps = listOf(
                 NextStep("Recruiter review", "${detail.job.company} reviews your resume snapshot."),
@@ -188,18 +198,49 @@ object FakeCandidateApi : CandidateApi {
     }
 
     override fun getResume() = ResumeData(
-        name = "Yan Bohao",
-        age = "27",
+        resumeId = "resume_001",
+        fullName = "Yan Bohao",
+        age = 27,
         location = "Shanghai",
         headline = "CS Student · AI Backend Engineer",
         summary = "Backend-focused CS student building RAG applications, evaluation pipelines, and distributed service demos.",
         experiences = listOf(
             ResumeExperience(
-                "AI Engineering Intern · ByteLab",
-                "Implemented FastAPI services, vector-search experiments, and monitoring dashboards with Python.",
+                experienceId = "exp_001",
+                title = "AI Engineering Intern",
+                company = "ByteLab",
+                description = "Implemented FastAPI services, vector-search experiments, and monitoring dashboards with Python.",
+                startDate = "2025-06",
+                endDate = "2025-12",
             ),
         ),
+        version = 3,
+        createdAt = "2026-01-10T02:00:00Z",
+        updatedAt = NOW,
     )
 
     override fun saveResume(resume: ResumeData) = resume
+
+    private fun timeline(current: ApplicationStatus, appliedAt: String): List<TimelineStep> {
+        val order = listOf(ApplicationStatus.APPLIED, ApplicationStatus.IN_REVIEW, ApplicationStatus.INTERVIEW)
+        val currentIndex = order.indexOf(current).coerceAtLeast(0)
+        return order.mapIndexed { index, status ->
+            TimelineStep(status, index <= currentIndex, if (index == 0) appliedAt else if (index <= currentIndex) NOW else null)
+        }
+    }
+
+    private fun resumeSnapshot() = ResumeSnapshot(
+        snapshotId = "snapshot_001",
+        capturedAt = NOW,
+        resumeId = "resume_001",
+        fullName = "Yan Bohao",
+        age = 27,
+        location = "Shanghai",
+        headline = "CS Student · AI Backend Engineer",
+        summary = "Backend-focused CS student building RAG applications.",
+        experiences = listOf(Experience("exp_001", "AI Engineering Intern", "ByteLab", "Built FastAPI services.", "2025-06", "2025-12")),
+        version = 3,
+        createdAt = "2026-01-10T02:00:00Z",
+        updatedAt = NOW,
+    )
 }

@@ -35,7 +35,7 @@ Static UI: navigation labels, headings, form labels, help copy, empty/error mess
 
 ## 4. Candidate API impact
 
-- Keep frozen `ApplicationStatus`: `APPLIED`, `IN_REVIEW`, `INTERVIEW`, `REJECTED`, `WITHDRAWN`; Figma “New” is a display label for `APPLIED`. `SCREENING` in the repository testing plan conflicts and should be corrected to `IN_REVIEW` in a separately reviewed documentation change.
+- Keep frozen `ApplicationStatus`: `APPLIED`, `IN_REVIEW`, `INTERVIEW`, `REJECTED`, `WITHDRAWN`; Figma “New” is a display label for `APPLIED`. The repository testing plan should use `IN_REVIEW` for the review stage in a separately reviewed documentation change.
 - Add job lifecycle `DRAFT`, `ACTIVE`, `PAUSED`, `CLOSED`; Candidate public job endpoints must return only `ACTIVE` and accepting jobs.
 - Reuse Candidate `Conversation`, `Message` and `SenderType`; Recruiter endpoints expose the same schema from the opposite participant perspective.
 - Extend application detail with a reusable interview object, resume snapshot, audit history and recruiter-only notes. Do not expose private notes to Candidate.

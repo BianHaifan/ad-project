@@ -77,7 +77,7 @@ fun JobFeedScreen(data: JobFeedData, onTab: (MainTab) -> Unit, onJob: (String) -
                 }
             }
             item { Text("Filter", Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 16.dp), color = Color(0xFF6E7781), fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.End) }
-            items(data.jobs, key = { it.id }) { job -> JobCard(job, onJob) }
+            items(data.jobs, key = { it.jobId }) { job -> JobCard(job, onJob) }
             item { Spacer(Modifier.height(18.dp)) }
         }
     }
@@ -85,7 +85,7 @@ fun JobFeedScreen(data: JobFeedData, onTab: (MainTab) -> Unit, onJob: (String) -
 
 @Composable
 private fun JobCard(job: Job, onJob: (String) -> Unit) {
-    AdCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp).clickable { onJob(job.id) }) {
+    AdCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp).clickable { onJob(job.jobId) }) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Text(job.title, Modifier.weight(1f), color = AdText, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold)
@@ -96,7 +96,7 @@ private fun JobCard(job: Job, onJob: (String) -> Unit) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 FigmaSvg(R.raw.recruiter_avatar, "Recruiter avatar", Modifier.size(28.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("${job.recruiterName} - ${job.recruiterRole}", Modifier.weight(1f), color = Color(0xFF34404B), fontSize = 12.sp)
+                Text("${job.recruiter.fullName} - ${job.recruiter.title}", Modifier.weight(1f), color = Color(0xFF34404B), fontSize = 12.sp)
                 TagChip("AI Match ${job.match}%", accent = true)
             }
         }
@@ -145,9 +145,9 @@ fun MessagesScreen(conversations: List<Conversation>, onTab: (MainTab) -> Unit, 
             }
             Spacer(Modifier.height(16.dp))
             LazyColumn(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(16.dp)).background(Color.White)) {
-                items(conversations, key = { it.id }) { conversation ->
+                items(conversations, key = { it.conversationId }) { conversation ->
                     Row(
-                        Modifier.fillMaxWidth().height(104.dp).clickable { onConversation(conversation.id) }.padding(14.dp),
+                        Modifier.fillMaxWidth().height(104.dp).clickable { onConversation(conversation.conversationId) }.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.size(48.dp).clip(CircleShape).background(AdTealSoft), contentAlignment = Alignment.Center) {
@@ -155,11 +155,11 @@ fun MessagesScreen(conversations: List<Conversation>, onTab: (MainTab) -> Unit, 
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(conversation.name, color = AdText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Text(conversation.fullName, color = AdText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                             Text(conversation.preview, color = AdMuted, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(conversation.time, color = Color(0xFF89939D), fontSize = 10.sp)
+                            Text(formatConversationTime(conversation.lastMessageAt), color = Color(0xFF89939D), fontSize = 10.sp)
                             if (conversation.unread > 0) Box(Modifier.size(22.dp).clip(CircleShape).background(AdTeal), contentAlignment = Alignment.Center) {
                                 Text(conversation.unread.toString(), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                             }
@@ -172,16 +172,20 @@ fun MessagesScreen(conversations: List<Conversation>, onTab: (MainTab) -> Unit, 
     }
 }
 
+private fun formatConversationTime(value: String): String = runCatching {
+    java.time.OffsetDateTime.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm"))
+}.getOrDefault(value)
+
 @Composable
 fun ProfileScreen(data: CandidateProfile, onTab: (MainTab) -> Unit, onApplications: () -> Unit, onResume: () -> Unit) {
     Scaffold(bottomBar = { AdBottomBar(MainTab.Me, onTab) }, containerColor = AdBackground) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
             Column(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    FigmaSvg(R.raw.profile_avatar, data.name, Modifier.size(72.dp))
+                    FigmaSvg(R.raw.profile_avatar, data.fullName, Modifier.size(72.dp))
                     Spacer(Modifier.width(16.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text(data.name, color = AdText, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                        Text(data.fullName, color = AdText, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                         Text(data.headline, color = Color(0xFF6E7781), fontSize = 15.sp)
                     }
                 }

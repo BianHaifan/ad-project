@@ -1,6 +1,7 @@
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
 import {recruiterRepository as repo} from './repository';
-import type {ApplicationStatus,JobDraft,JobStatus} from '../models/recruiter';
+import type {ApplicationStatus,CreateInterviewRequest,JobDraft,JobStatus} from '../models/recruiter';
+import type {RecruiterTransitionStatus} from './recruiterRepository';
 export const keys={me:['me'] as const,dashboard:['dashboard'] as const,jobs:['jobs'] as const,job:(id:string)=>['jobs',id] as const,counts:['application-counts'] as const,applications:(status?:ApplicationStatus,search='')=>['applications',status,search] as const,application:(id:string)=>['application',id] as const,conversations:['conversations'] as const,conversation:(id:string)=>['conversation',id] as const};
 export const useMe=()=>useQuery({queryKey:keys.me,queryFn:()=>repo.getMe()});
 export const useDashboard=()=>useQuery({queryKey:keys.dashboard,queryFn:()=>repo.getDashboard()});
@@ -11,9 +12,9 @@ export const useSetJobStatus=()=>{const qc=useQueryClient();return useMutation({
 export const useApplicationCounts=()=>useQuery({queryKey:keys.counts,queryFn:()=>repo.getApplicationCounts()});
 export const useApplications=(status?:ApplicationStatus,search='')=>useQuery({queryKey:keys.applications(status,search),queryFn:()=>repo.listApplications({status,search})});
 export const useApplication=(id:string)=>useQuery({queryKey:keys.application(id),queryFn:()=>repo.getApplication(id),enabled:!!id});
-export const useUpdateApplication=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,status}:{id:string;status:ApplicationStatus})=>repo.updateApplicationStatus(id,status),onSuccess:(a)=>{qc.invalidateQueries({queryKey:['applications']});qc.setQueryData(keys.application(a.id),a);qc.invalidateQueries({queryKey:keys.counts});}});};
-export const useSaveNote=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,note}:{id:string;note:string})=>repo.saveApplicationNote(id,note),onSuccess:a=>qc.setQueryData(keys.application(a.id),a)});};
-export const useScheduleInterview=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,scheduledAt}:{id:string;scheduledAt:string})=>repo.scheduleInterview(id,scheduledAt),onSuccess:a=>{qc.setQueryData(keys.application(a.id),a);qc.invalidateQueries({queryKey:['applications']});}});};
+export const useUpdateApplication=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,status}:{id:string;status:RecruiterTransitionStatus})=>repo.updateApplicationStatus(id,status),onSuccess:(a)=>{qc.invalidateQueries({queryKey:['applications']});qc.setQueryData(keys.application(a.applicationId),a);qc.invalidateQueries({queryKey:keys.counts});}});};
+export const useSaveNote=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,note}:{id:string;note:string})=>repo.saveApplicationNote(id,note),onSuccess:a=>qc.setQueryData(keys.application(a.applicationId),a)});};
+export const useScheduleInterview=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,request}:{id:string;request:CreateInterviewRequest})=>repo.scheduleInterview(id,request),onSuccess:a=>{qc.setQueryData(keys.application(a.applicationId),a);qc.invalidateQueries({queryKey:['applications']});}});};
 export const useConversations=()=>useQuery({queryKey:keys.conversations,queryFn:()=>repo.listConversations()});
 export const useConversation=(id:string)=>useQuery({queryKey:keys.conversation(id),queryFn:()=>repo.getConversation(id),enabled:!!id});
-export const useSendMessage=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,body}:{id:string;body:string})=>repo.sendMessage(id,body),onSuccess:r=>{qc.setQueryData(keys.conversation(r.conversation.id),r.conversation);qc.invalidateQueries({queryKey:keys.conversations});}});};
+export const useSendMessage=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,body}:{id:string;body:string})=>repo.sendMessage(id,body),onSuccess:r=>{qc.setQueryData(keys.conversation(r.conversation.conversationId),r.conversation);qc.invalidateQueries({queryKey:keys.conversations});}});};

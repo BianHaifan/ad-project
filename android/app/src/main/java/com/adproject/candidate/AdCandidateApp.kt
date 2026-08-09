@@ -23,8 +23,8 @@ import com.adproject.candidate.feature.jobs.MessagesScreen
 import com.adproject.candidate.feature.jobs.ProfileScreen
 import com.adproject.candidate.feature.jobs.ChatDetailScreen
 import com.adproject.candidate.feature.profile.ResumeEditScreen
-import com.adproject.candidate.data.api.CandidateApi
-import com.adproject.candidate.data.api.FakeCandidateApi
+import com.adproject.candidate.data.api.CandidateRepository
+import com.adproject.candidate.data.api.FakeCandidateRepository
 
 private object Route {
     const val SignIn = "sign-in"
@@ -47,7 +47,7 @@ private object Route {
 }
 
 @Composable
-fun AdCandidateApp(api: CandidateApi = FakeCandidateApi) {
+fun AdCandidateApp(repository: CandidateRepository = FakeCandidateRepository) {
     val navController = rememberNavController()
 
     fun navigateBack(fallbackRoute: String) {
@@ -74,35 +74,35 @@ fun AdCandidateApp(api: CandidateApi = FakeCandidateApi) {
         NavHost(navController = navController, startDestination = Route.SignIn) {
             composable(Route.SignIn) {
                 SignInScreen(
-                    data = api.getSignInDefaults(),
+                    data = repository.getSignInDefaults(),
                     onSignIn = { navController.navigate(Route.Jobs) { popUpTo(Route.SignIn) { inclusive = true } } },
                     onCreateAccount = { navController.navigate(Route.CreateAccount) },
                 )
             }
             composable(Route.CreateAccount) {
                 CreateAccountScreen(
-                    data = api.getRegistrationDefaults(),
+                    data = repository.getRegistrationDefaults(),
                     onCreate = { navController.navigate(Route.Jobs) { popUpTo(Route.SignIn) { inclusive = true } } },
                     onSignIn = { navController.popBackStack() },
                 )
             }
-            composable(Route.Jobs) { JobFeedScreen(api.getJobFeed(), ::openTab) { navController.navigate(Route.jobDetail(it)) } }
-            composable(Route.Learning) { LearningScreen(api.getLearning(), ::openTab) }
+            composable(Route.Jobs) { JobFeedScreen(repository.getJobFeed(), ::openTab) { navController.navigate(Route.jobDetail(it)) } }
+            composable(Route.Learning) { LearningScreen(repository.getLearning(), ::openTab) }
             composable(Route.Messages) {
-                MessagesScreen(api.getConversations(), ::openTab) { navController.navigate(Route.chatDetail(it)) }
+                MessagesScreen(repository.getConversations(), ::openTab) { navController.navigate(Route.chatDetail(it)) }
             }
             composable(Route.ChatDetail) { entry ->
                 val conversationId = entry.arguments?.getString("conversationId") ?: "mia"
                 ChatDetailScreen(
-                    thread = api.getChatThread(conversationId),
+                    thread = repository.getChatThread(conversationId),
                     onBack = { navigateBack(Route.Messages) },
                     onViewJob = { navController.navigate(Route.jobDetail(it)) },
-                    onSendMessage = { api.sendMessage(conversationId, it) },
+                    onSendMessage = { repository.sendMessage(conversationId, it) },
                 )
             }
             composable(Route.Profile) {
                 ProfileScreen(
-                    data = api.getProfile(),
+                    data = repository.getProfile(),
                     onTab = ::openTab,
                     onApplications = { navController.navigate(Route.Applications) },
                     onResume = { navController.navigate(Route.ResumeEdit) },
@@ -110,7 +110,7 @@ fun AdCandidateApp(api: CandidateApi = FakeCandidateApi) {
             }
             composable(Route.Applications) {
                 MyApplicationsScreen(
-                    data = api.getApplications(),
+                    data = repository.getApplications(),
                     onTab = ::openTab,
                     onBack = { navigateBack(Route.Profile) },
                     onApplication = { navController.navigate(Route.jobDetail(it)) },
@@ -119,7 +119,7 @@ fun AdCandidateApp(api: CandidateApi = FakeCandidateApi) {
             composable(Route.JobDetail) { entry ->
                 val jobId = entry.arguments?.getString("jobId") ?: "moonshot"
                 JobDetailScreen(
-                    data = api.getJobDetail(jobId),
+                    data = repository.getJobDetail(jobId),
                     onBack = { navigateBack(Route.Jobs) },
                     onApply = { navController.navigate(Route.apply(jobId)) },
                 )
@@ -127,7 +127,7 @@ fun AdCandidateApp(api: CandidateApi = FakeCandidateApi) {
             composable(Route.Apply) { entry ->
                 val jobId = entry.arguments?.getString("jobId") ?: "moonshot"
                 ApplyConfirmationScreen(
-                    data = api.getApplyConfirmation(jobId),
+                    data = repository.getApplyConfirmation(jobId),
                     onBack = { navigateBack(Route.jobDetail(jobId)) },
                     onSubmit = { navController.navigate(Route.submitted(jobId)) },
                 )
@@ -135,16 +135,16 @@ fun AdCandidateApp(api: CandidateApi = FakeCandidateApi) {
             composable(Route.Submitted) { entry ->
                 val jobId = entry.arguments?.getString("jobId") ?: "moonshot"
                 ApplicationSubmittedScreen(
-                    data = api.submitApplication(jobId),
+                    data = repository.submitApplication(jobId),
                     onApplications = { navController.navigate(Route.Applications) { popUpTo(Route.Jobs) } },
                     onJobs = { navController.navigate(Route.Jobs) { popUpTo(Route.Jobs) { inclusive = true } } },
                 )
             }
             composable(Route.ResumeEdit) {
                 ResumeEditScreen(
-                    data = api.getResume(),
+                    data = repository.getResume(),
                     onBack = { navigateBack(Route.Profile) },
-                    onSave = { api.saveResume(it) },
+                    onSave = { repository.saveResume(it) },
                 )
             }
         }

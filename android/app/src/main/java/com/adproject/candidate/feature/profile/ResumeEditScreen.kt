@@ -38,15 +38,15 @@ import com.adproject.candidate.data.model.ResumeData
 
 @Composable
 fun ResumeEditScreen(data: ResumeData, onBack: () -> Unit, onSave: (ResumeData) -> Unit) {
-    var name by remember(data) { mutableStateOf(data.name) }
-    var age by remember(data) { mutableStateOf(data.age) }
+    var fullName by remember(data) { mutableStateOf(data.fullName) }
+    var age by remember(data) { mutableStateOf(data.age.toString()) }
     var location by remember(data) { mutableStateOf(data.location) }
     var headline by remember(data) { mutableStateOf(data.headline) }
     var summary by remember(data) { mutableStateOf(data.summary) }
     var saved by remember(data) { mutableStateOf(true) }
 
     fun save() {
-        onSave(data.copy(name = name, age = age, location = location, headline = headline, summary = summary))
+        onSave(data.copy(fullName = fullName, age = age.toIntOrNull() ?: data.age, location = location, headline = headline, summary = summary))
         saved = true
     }
 
@@ -67,7 +67,7 @@ fun ResumeEditScreen(data: ResumeData, onBack: () -> Unit, onSave: (ResumeData) 
                         Text("Personal information", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                         Text("Required", color = Color(0xFF8A939C), fontSize = 9.sp)
                     }
-                    ResumeField("FULL NAME", name, Modifier.fillMaxWidth()) { name = it; saved = false }
+                    ResumeField("FULL NAME", fullName, Modifier.fillMaxWidth()) { fullName = it; saved = false }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         ResumeField("AGE", age, Modifier.width(100.dp)) { age = it; saved = false }
                         ResumeField("LOCATION", location, Modifier.weight(1f)) { location = it; saved = false }

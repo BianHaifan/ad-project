@@ -87,11 +87,11 @@ fun JobDetailScreen(data: JobDetailData, onBack: () -> Unit, onApply: () -> Unit
             }
             AdCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(AdTealSoft), contentAlignment = Alignment.Center) { Text(data.job.recruiterName.take(1), color = AdTeal) }
+                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(AdTealSoft), contentAlignment = Alignment.Center) { Text(data.job.recruiter.fullName.take(1), color = AdTeal) }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(data.job.recruiterName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text("${data.job.recruiterRole} · ${data.job.company}", color = AdMuted, fontSize = 10.sp)
+                        Text(data.job.recruiter.fullName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("${data.job.recruiter.title} · ${data.job.company}", color = AdMuted, fontSize = 10.sp)
                     }
                     Box(Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFFE5FAF7)).padding(horizontal = 18.dp, vertical = 12.dp)) { Text("Message", color = AdTealDark, fontSize = 11.sp) }
                 }

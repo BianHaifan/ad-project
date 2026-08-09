@@ -1,45 +1,46 @@
-Status,Category,Method,Path,Candidate,Recruiter,Sharing,Permission,Request,Candidate Response,Recruiter Response,Unified Response,Source Notes
-DRAFT,Auth,POST,/auth/register,YES,YES,SHARED_CONFLICT,Public,oneOf CandidateRegisterRequest | RecruiterRegisterRequest; discriminator=role,201 AuthResponse; user.role=CANDIDATE,201 AuthResponse; user.role=RECRUITER; company included,201 AuthResponse; role-aware user; company nullable/Recruiter-only,Conflict: role const and companyName/response company differ
-DRAFT,Auth,POST,/auth/login,YES,YES,SHARED_CONFLICT,Public,"LoginRequest {email,password}",200 AuthResponse; AuthUser.role only CANDIDATE in Candidate YAML,200 AuthResponse; AuthUser.role=RECRUITER supported,200 AuthResponse; UserRole=CANDIDATE|RECRUITER,Request is identical; response role enum conflicted
-DRAFT,Auth,POST,/auth/refresh,YES,YES,SHARED_COMPATIBLE,Public; valid refresh token,RefreshTokenRequest {refreshToken},200 TokenResponse,200 TokenResponse (reused),200 TokenResponse,Exact reusable contract
-DRAFT,Auth,POST,/auth/logout,YES,YES,SHARED_COMPATIBLE,Authenticated session,RefreshTokenRequest {refreshToken},204 no content,204 no content (reused),204 no content,Exact reusable contract
-DRAFT,Jobs,GET,/jobs,YES,NO,CANDIDATE_ONLY,Authenticated Candidate,"q, employmentType, category, page, pageSize",200 PageResponse<JobSummary>,—,200 PageResponse<CandidateJobSummary>,
-DRAFT,Jobs,GET,/jobs/{jobId},YES,NO,CANDIDATE_ONLY,Authenticated Candidate; public ACTIVE job,jobId,200 JobDetail,—,200 CandidateJobDetail,
-DRAFT,Applications,POST,/jobs/{jobId}/applications,YES,NO,CANDIDATE_ONLY,Candidate owner; Idempotency-Key required,SubmitApplicationRequest + Idempotency-Key,201 ApplicationDetail,—,201 CandidateApplicationDetail,
-DRAFT,Applications,GET,/candidate/applications,YES,NO,CANDIDATE_ONLY,Candidate self,"status display filter, page, pageSize",200 ApplicationListResponse,—,200 CandidateApplicationListResponse,"Filter ACTIVE|INTERVIEW|ARCHIVED is a display grouping, not ApplicationStatus"
-DRAFT,Applications,GET,/candidate/applications/{applicationId},YES,NO,CANDIDATE_ONLY,Candidate application owner,applicationId,200 ApplicationDetail,—,200 CandidateApplicationDetail,
-DRAFT,Conversations,GET,/candidate/conversations,YES,NO,CANDIDATE_ONLY,Candidate participant,"page, pageSize",200 PageResponse<ConversationSummary>,—,200 PageResponse<ConversationSummary>,
-DRAFT,Conversations,GET,/candidate/conversations/{conversationId},YES,NO,CANDIDATE_ONLY,Candidate participant,conversationId,200 ConversationDetail,—,200 ConversationDetail,
-DRAFT,Messages,GET,/candidate/conversations/{conversationId}/messages,YES,NO,CANDIDATE_ONLY,Candidate participant,"before, limit",200 MessageListResponse,—,200 MessageListResponse,
-DRAFT,Messages,POST,/candidate/conversations/{conversationId}/messages,YES,NO,CANDIDATE_ONLY,Candidate participant,SendMessageRequest,201 Message(senderType=CANDIDATE),—,201 Message,
-DRAFT,Conversations,PUT,/candidate/conversations/{conversationId}/read-state,YES,NO,CANDIDATE_ONLY,Candidate participant,ReadStateRequest,204 no content,—,204 no content,
-DRAFT,Profile,GET,/candidate/profile,YES,NO,CANDIDATE_ONLY,Candidate self,—,200 CandidateProfile,—,200 CandidateProfile,
-DRAFT,Profile,PATCH,/candidate/profile,YES,NO,CANDIDATE_ONLY,Candidate self,UpdateProfileRequest,200 CandidateProfile,—,200 CandidateProfile,
-DRAFT,Resume,GET,/candidate/resume,YES,NO,CANDIDATE_ONLY,Candidate self,—,200 Resume,—,200 Resume,
-DRAFT,Resume,PUT,/candidate/resume,YES,NO,CANDIDATE_ONLY,Candidate self,SaveResumeRequest,200 Resume,—,200 Resume,
-DRAFT,Features,GET,/features/learning,YES,NO,CANDIDATE_ONLY,Authenticated Candidate,—,200 LearningFeature,—,200 LearningFeature,
-DRAFT,Profile,GET,/recruiter/me,NO,YES,RECRUITER_ONLY,Recruiter self,—,—,200 RecruiterProfile,200 RecruiterProfile,
-DRAFT,Profile,GET,/recruiter/company,NO,YES,RECRUITER_ONLY,Recruiter company member,—,—,200 Company,200 Company,
-DRAFT,Profile,PATCH,/recruiter/company,NO,YES,RECRUITER_ONLY,Recruiter company admin capability,UpdateCompanyRequest,—,200 Company,200 Company,
-DRAFT,Profile,GET,/recruiter/dashboard,NO,YES,RECRUITER_ONLY,Recruiter; own-company aggregate,"from, to",—,200 RecruiterDashboard,200 RecruiterDashboard,
-DRAFT,Jobs,GET,/recruiter/jobs,NO,YES,RECRUITER_ONLY,Recruiter; own company,"q,status,employmentType,location,ownerId,page,pageSize",—,200 PageResponse<RecruiterJobSummary>,200 PageResponse<RecruiterJobSummary>,
-DRAFT,Jobs,POST,/recruiter/jobs,NO,YES,RECRUITER_ONLY,Recruiter; verified own company,CreateJobRequest,—,201 RecruiterJobDetail(status=DRAFT),201 RecruiterJobDetail,
-DRAFT,Jobs,GET,/recruiter/jobs/{jobId},NO,YES,RECRUITER_ONLY,Recruiter; own-company job,jobId,—,200 RecruiterJobDetail,200 RecruiterJobDetail,
-DRAFT,Jobs,PATCH,/recruiter/jobs/{jobId},NO,YES,RECRUITER_ONLY,Recruiter; own-company job + edit capability,UpdateJobRequest,—,200 RecruiterJobDetail,200 RecruiterJobDetail,
-DRAFT,Jobs,POST,/recruiter/jobs/{jobId}/publish,NO,YES,RECRUITER_ONLY,Recruiter; own company; verified company,PublishJobRequest,—,200 RecruiterJobDetail(status=ACTIVE),200 RecruiterJobDetail,
-DRAFT,Jobs,POST,/recruiter/jobs/{jobId}/status,NO,YES,RECRUITER_ONLY,Recruiter; own-company job,ChangeJobStatusRequest,—,200 RecruiterJobDetail,200 RecruiterJobDetail,
-DRAFT,Applications,GET,/recruiter/applications,NO,YES,RECRUITER_ONLY,Recruiter; applications to own-company jobs,"status,jobId,q,ownerId,minMatchScore,page,pageSize,sort",—,200 RecruiterApplicationListResponse,200 RecruiterApplicationListResponse,
-DRAFT,Applications,GET,/recruiter/applications/{applicationId},NO,YES,RECRUITER_ONLY,Recruiter; own-company application,applicationId,—,200 RecruiterApplicationDetail,200 RecruiterApplicationDetail,
-DRAFT,Applications,POST,/recruiter/applications/{applicationId}/transitions,NO,YES,RECRUITER_ONLY,Recruiter; own-company application; cannot set WITHDRAWN,ApplicationTransitionRequest,—,201 ApplicationTransitionResult,201 ApplicationTransitionResult,
-DRAFT,Applications,PUT,/recruiter/applications/{applicationId}/owner,NO,YES,RECRUITER_ONLY,Recruiter; own-company owner assignment,ApplicationOwnerRequest,—,200 RecruiterApplicationDetail,200 RecruiterApplicationDetail,
-DRAFT,Applications,GET,/recruiter/applications/{applicationId}/notes,NO,YES,RECRUITER_ONLY,Recruiter; own-company; private notes,applicationId,—,200 RecruiterNote[],200 RecruiterNote[],
-DRAFT,Applications,POST,/recruiter/applications/{applicationId}/notes,NO,YES,RECRUITER_ONLY,Recruiter; own-company; private notes,CreateNoteRequest,—,201 RecruiterNote,201 RecruiterNote,
-DRAFT,Resume,GET,/recruiter/applications/{applicationId}/resume-snapshot,NO,YES,RECRUITER_ONLY,Recruiter; own-company application,applicationId,—,200 ResumeSnapshot,200 ResumeSnapshot,
-DRAFT,Resume,GET,/recruiter/applications/{applicationId}/resume-snapshot/pdf,NO,YES,RECRUITER_ONLY,Recruiter; own-company application; short-lived URL,applicationId,—,200 DownloadResponse or 302 redirect,200 DownloadResponse or 302 redirect,
-DRAFT,Interviews,POST,/recruiter/applications/{applicationId}/interviews,NO,YES,RECRUITER_ONLY,Recruiter; own-company application,CreateInterviewRequest,—,201 Interview; application -> INTERVIEW atomically,201 Interview,
-DRAFT,Interviews,PATCH,/recruiter/interviews/{interviewId},NO,YES,RECRUITER_ONLY,Recruiter; own-company interview,UpdateInterviewRequest,—,200 Interview,200 Interview,
-DRAFT,Conversations,GET,/recruiter/conversations,NO,YES,RECRUITER_ONLY,Recruiter participant; own-company jobs,"q,unreadOnly,page,pageSize",—,200 PageResponse<ConversationSummary>,200 PageResponse<ConversationSummary>,
-DRAFT,Conversations,GET,/recruiter/conversations/{conversationId},NO,YES,RECRUITER_ONLY,Recruiter participant; own-company conversation,conversationId,—,200 ConversationDetail,200 ConversationDetail,
-DRAFT,Messages,GET,/recruiter/conversations/{conversationId}/messages,NO,YES,RECRUITER_ONLY,Recruiter participant; own-company conversation,"before,limit",—,200 MessageListResponse,200 MessageListResponse,
-DRAFT,Messages,POST,/recruiter/conversations/{conversationId}/messages,NO,YES,RECRUITER_ONLY,Recruiter participant; own-company conversation,SendMessageRequest,—,201 Message(senderType=RECRUITER),201 Message,
-DRAFT,Conversations,PUT,/recruiter/conversations/{conversationId}/read-state,NO,YES,RECRUITER_ONLY,Recruiter participant; own-company conversation,ReadStateRequest,—,204 no content,204 no content,
+Status,MVP Scope,Category,Method,Path,operationId,Candidate,Recruiter,Permission,Request,Success,Main Errors,Summary
+DRAFT,MVP,Auth,POST,/auth/register,registerUser,YES,YES,Public,body: RegisterRequest,201,"409, 422",Register Candidate or Recruiter
+DRAFT,MVP,Auth,POST,/auth/login,login,YES,YES,Public,body: LoginRequest,200,401,Log in with email and password
+DRAFT,MVP,Auth,POST,/auth/refresh,refreshToken,YES,YES,Public,body: RefreshTokenRequest,200,401,Rotate access and refresh tokens
+DRAFT,MVP,Auth,POST,/auth/logout,logout,YES,YES,Authenticated session,body: RefreshTokenRequest,204,"401, 403",Revoke the current refresh token
+DRAFT,MVP,Profile,GET,/candidate/profile,getCandidateProfile,YES,NO,Candidate self only,—,200,"401, 403",Get candidate profile and counters
+DRAFT,MVP,Profile,PATCH,/candidate/profile,updateCandidateProfile,YES,NO,Candidate self only,body: UpdateProfileRequest,200,"422, 401, 403, 409",Update candidate profile fields
+DRAFT,MVP,Profile,GET,/recruiter/me,getRecruiterMe,NO,YES,Recruiter self,—,200,"401, 404, 403",Get current recruiter
+DRAFT,MVP,Profile,GET,/recruiter/company,getRecruiterCompany,NO,YES,Recruiter company member; current company scope only,—,200,"401, 404, 403",Get recruiter company
+DRAFT,MVP,Profile,PATCH,/recruiter/company,updateRecruiterCompany,NO,YES,Recruiter company admin capability; current company scope only,body: UpdateCompanyRequest,200,"401, 404, 403, 409, 422",Update recruiter company
+DRAFT,MVP,Profile,GET,/recruiter/dashboard,getRecruiterDashboard,NO,YES,Recruiter; own-company aggregate,params: from/to,200,"401, 404, 403",Get own-company dashboard
+DRAFT,MVP,Jobs,GET,/jobs,listJobs,YES,NO,Candidate role; returns ACTIVE visible jobs only,params: q/employmentType/category/Page/PageSize,200,"401, 403",Search and filter jobs
+DRAFT,MVP,Jobs,GET,/jobs/{jobId},getJob,YES,NO,Candidate role; ACTIVE visible job only,params: JobId,200,"404, 401, 403",Get a job and candidate match analysis
+DRAFT,MVP,Jobs,GET,/recruiter/jobs,listRecruiterJobs,NO,YES,Recruiter; own company,params: q/status/employmentType/location/ownerId/Page/PageSize,200,"401, 404, 403",List own-company jobs
+DRAFT,MVP,Jobs,POST,/recruiter/jobs,createRecruiterJob,NO,YES,Recruiter; verified own company,body: CreateJobRequest,201,"401, 404, 403, 409, 422",Create job draft
+DRAFT,MVP,Jobs,GET,/recruiter/jobs/{jobId},getRecruiterJob,NO,YES,Recruiter; own-company job; cross-company resources return 404,params: JobId,200,"401, 404, 403",Get own-company job
+DRAFT,MVP,Jobs,PATCH,/recruiter/jobs/{jobId},updateRecruiterJob,NO,YES,Recruiter; own-company job + edit capability; cross-company resources return 404,params: JobId; body: UpdateJobRequest,200,"401, 404, 403, 409, 422",Update own-company job
+DRAFT,MVP,Jobs,POST,/recruiter/jobs/{jobId}/publish,publishRecruiterJob,NO,YES,Recruiter; own company; verified company; cross-company resources return 404,params: JobId; body: PublishJobRequest,200,"401, 404, 403, 409, 422",Publish job
+DRAFT,MVP,Jobs,POST,/recruiter/jobs/{jobId}/status,changeRecruiterJobStatus,NO,YES,Recruiter; own-company job; cross-company resources return 404,params: JobId; body: ChangeJobStatusRequest,200,"401, 404, 403, 409, 422",Change job lifecycle status
+DRAFT,MVP,Applications,POST,/jobs/{jobId}/applications,submitApplication,YES,NO,Candidate role; own Resume; target job must be ACTIVE and accepting applications,params: JobId/IdempotencyKey; body: SubmitApplicationRequest,201,"404, 409, 422, 401, 403",Submit an application
+DRAFT,MVP,Applications,GET,/candidate/applications,listApplications,YES,NO,Candidate self only,params: filter/Page/PageSize,200,"401, 403",List the current candidate's applications
+DRAFT,MVP,Applications,GET,/candidate/applications/{applicationId},getApplication,YES,NO,Candidate application owner only,params: applicationId,200,"404, 401, 403",Get an application
+DRAFT,MVP,Applications,GET,/recruiter/applications,listRecruiterApplications,NO,YES,Recruiter; applications to own-company jobs,params: status/jobId/q/ownerId/minMatchScore/Page/PageSize/sort,200,"401, 404, 403",List own-company applications
+DRAFT,MVP,Applications,GET,/recruiter/applications/{applicationId},getRecruiterApplication,NO,YES,Recruiter; own-company application; cross-company resources return 404,params: applicationId,200,"401, 404, 403",Get own-company application detail
+DRAFT,MVP,Applications,POST,/recruiter/applications/{applicationId}/transitions,transitionRecruiterApplication,NO,YES,Recruiter; own-company application; cannot set WITHDRAWN; cross-company resources return 404,params: applicationId; body: ApplicationTransitionRequest,201,"401, 404, 403, 409, 422",Transition application status
+DRAFT,MVP,Applications,PUT,/recruiter/applications/{applicationId}/owner,assignRecruiterApplicationOwner,NO,YES,Recruiter; own-company owner assignment; cross-company resources return 404,params: applicationId; body: ApplicationOwnerRequest,200,"401, 404, 403, 409, 422",Assign application owner
+DRAFT,MVP,Applications,GET,/recruiter/applications/{applicationId}/notes,listRecruiterApplicationNotes,NO,YES,Recruiter; own-company; private notes; cross-company resources return 404,params: applicationId/Page/PageSize,200,"401, 404, 403",List recruiter-only notes
+DRAFT,MVP,Applications,POST,/recruiter/applications/{applicationId}/notes,createRecruiterApplicationNote,NO,YES,Recruiter; own-company; private notes; cross-company resources return 404,params: applicationId; body: CreateNoteRequest,201,"401, 404, 403, 409, 422",Create recruiter-only note
+DRAFT,MVP,Applications,POST,/candidate/applications/{applicationId}/withdraw,withdrawCandidateApplication,YES,NO,Candidate application owner only,params: applicationId; body: WithdrawApplicationRequest,200,"401, 403, 404, 409, 422",Withdraw the current candidate's application
+DRAFT,MVP,Interviews,POST,/recruiter/applications/{applicationId}/interviews,createRecruiterInterview,NO,YES,Recruiter; own-company application; cross-company resources return 404,params: applicationId; body: CreateInterviewRequest,201,"401, 404, 403, 409, 422",Schedule interview and transition application
+DRAFT,MVP,Interviews,PATCH,/recruiter/interviews/{interviewId},updateRecruiterInterview,NO,YES,Recruiter; own-company interview; cross-company resources return 404,params: interviewId; body: UpdateInterviewRequest,200,"401, 404, 403, 409, 422",Update interview
+DRAFT,MVP,Conversations,GET,/candidate/conversations,listConversations,YES,NO,Candidate conversation participant only,params: Page/PageSize,200,"401, 403",List conversations
+DRAFT,MVP,Conversations,GET,/candidate/conversations/{conversationId},getConversation,YES,NO,Candidate conversation participant only,params: ConversationId,200,"404, 401, 403",Get conversation participant and business context
+DRAFT,MVP,Conversations,PUT,/candidate/conversations/{conversationId}/read-state,updateConversationReadState,YES,NO,Candidate conversation participant only,params: ConversationId; body: ReadStateRequest,204,"404, 401, 403, 409, 422",Set the last read message
+DRAFT,MVP,Conversations,GET,/recruiter/conversations,listRecruiterConversations,NO,YES,Recruiter participant; own-company jobs,params: q/unreadOnly/Page/PageSize,200,"401, 404, 403",List own-company conversations
+DRAFT,MVP,Conversations,GET,/recruiter/conversations/{conversationId},getRecruiterConversation,NO,YES,Recruiter participant; own-company conversation; cross-company resources return 404,params: conversationId,200,"401, 404, 403",Get recruiter conversation
+DRAFT,MVP,Conversations,PUT,/recruiter/conversations/{conversationId}/read-state,updateRecruiterConversationReadState,NO,YES,Recruiter participant; own-company conversation; cross-company resources return 404,params: conversationId; body: ReadStateRequest,204,"401, 403, 409, 422, 404",Update recruiter read state
+DRAFT,MVP,Messages,GET,/candidate/conversations/{conversationId}/messages,listMessages,YES,NO,Candidate conversation participant only,params: ConversationId/before/limit,200,"404, 401, 403",Get message history
+DRAFT,MVP,Messages,POST,/candidate/conversations/{conversationId}/messages,sendMessage,YES,NO,Candidate conversation participant only,params: ConversationId/IdempotencyKey; body: SendMessageRequest,201,"404, 422, 401, 403, 409",Send a message
+DRAFT,MVP,Messages,GET,/recruiter/conversations/{conversationId}/messages,listRecruiterMessages,NO,YES,Recruiter participant; own-company conversation; cross-company resources return 404,params: conversationId/before/limit,200,"401, 404, 403",Get recruiter message history
+DRAFT,MVP,Messages,POST,/recruiter/conversations/{conversationId}/messages,sendRecruiterMessage,NO,YES,Recruiter participant; own-company conversation; cross-company resources return 404,params: conversationId/IdempotencyKey; body: SendMessageRequest,201,"401, 404, 403, 409, 422",Send recruiter message
+DRAFT,MVP,Resume,GET,/candidate/resume,getResume,YES,NO,Candidate self only,—,200,"404, 401, 403",Get the candidate's online resume
+DRAFT,MVP,Resume,PUT,/candidate/resume,saveResume,YES,NO,Candidate self only,body: SaveResumeRequest,200,"422, 401, 403, 409",Replace the candidate's online resume
+DRAFT,MVP,Resume,GET,/recruiter/applications/{applicationId}/resume-snapshot,getRecruiterResumeSnapshot,NO,YES,Recruiter; own-company application; cross-company resources return 404,params: applicationId,200,"401, 404, 403",Get immutable resume snapshot
+DRAFT,P1_DEFERRED,Resume,GET,/recruiter/applications/{applicationId}/resume-snapshot/pdf,getRecruiterResumeSnapshotPdf,NO,YES,Recruiter; own-company application; cross-company resources return 404,params: applicationId,"200, 302","401, 404, 403",Get short-lived resume PDF URL
+DRAFT,MVP,Features,GET,/features/learning,getLearningFeature,YES,NO,Candidate role,—,200,"401, 403",Get Learning feature availability

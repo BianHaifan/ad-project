@@ -1,171 +1,162 @@
-# Unified API Catalog v1
+# Unified Candidate Android + Recruiter Web API v1 Contract
 
-> Status: **DRAFT**. Unique key: normalized **HTTP Method + Path**. Base path: `/api/v1`. This document does not authorize frontend or backend code changes.
+> Status: **DRAFT**. Base path: `/api/v1`. Unique operation identity: normalized **HTTP Method + Path**. OpenAPI is the sole machine-readable implementation and client-generation contract.
 
-## Summary
+## Summary and counting
 
-| Metric | Count |
+- Unique operations: **45**
+- Candidate operations: **20**
+- Recruiter operations: **29**
+- Shared operations: **4**
+
+Counting formula: `20 + 29 - 4 = 45`.
+
+## Frozen unified rules
+
+- JSON is camelCase only; every ID is an opaque string. Entity identifiers use userId/companyId/jobId/applicationId/conversationId/messageId/interviewId/resumeId/snapshotId.
+- Times are ISO-8601 UTC date-time values ending in `Z`. Ordinary responses use `data`; lists use `data + meta`; errors use `error.code/message/fieldErrors/requestId`.
+- ApplicationStatus=`APPLIED|IN_REVIEW|INTERVIEW|REJECTED|WITHDRAWN`; NOT_APPLIED belongs only to CandidateJobApplicationState; ACTIVE/INTERVIEW/ARCHIVED belong only to ApplicationListFilter.
+- JobStatus=`DRAFT|ACTIVE|PAUSED|CLOSED`; InterviewStatus=`SCHEDULED|COMPLETED|CANCELLED`; InterviewMode=`ONLINE|ONSITE|PHONE`; SenderType=`CANDIDATE|RECRUITER|SYSTEM`.
+- recruiter is the external recruiting contact; owner is the internal company assignee. A person's real name is fullName only.
+
+## Authorization, privacy, concurrency, audit, and idempotency
+
+- Candidate access is limited to their own Profile, Resume, Applications, and participated Conversations. Recruiter access is limited to their company's Jobs, Applications, Interviews, and Conversations; cross-company resources return 404.
+- RecruiterNote never appears in a Candidate response. MatchAnalysis is advisory display data only and cannot authorize or automatically decide hire, rejection, or a status transition.
+- Concurrent updates require expectedVersion (expectedApplicationVersion when creating an interview). The server compares atomically, increments version on success, and returns 409 VERSION_CONFLICT on mismatch.
+- Job publish/status, application transition/owner, and interview create/update operations audit actorId, companyId, before/after values, occurredAt, reason, and requestId.
+- Application submission and message sending require Idempotency-Key. Same key+payload returns the original result without a duplicate; a different payload returns 409 IDEMPOTENCY_KEY_REUSED. Messages also deduplicate clientMessageId per conversation; a new key for the same Candidate+job returns 409 APPLICATION_ALREADY_EXISTS.
+
+## Resolved source-contract conflicts
+
+- The four shared Auth Method+Paths now have one contract each: registration discriminates by role and AuthUser.role supports both clients.
+- Generic resource/user id and user name fields were replaced by explicit `*Id` and fullName; Company.name remains the company name.
+- interviewAt/interviewMode became scheduledAt/mode; SCREENING became IN_REVIEW.
+- The legacy Resume Snapshot `{id,name}` projection was removed in favor of full ResumeSnapshot + snapshotId/capturedAt.
+- submittedAt was removed; appliedAt is the sole application event time. List payloads are data arrays plus meta.
+- logoAssetId is mutation-only and Company returns logoUrl; recruiter and owner are separate concepts.
+- Every ID schema is string; concurrent mutations consistently use expectedVersion/version.
+
+## Shared models
+
+| Model | Canonical meaning |
 | --- | --- |
-| Unique operations | 44 |
-| Candidate operations | 19 |
-| Recruiter operations | 29 |
-| Shared operations | 4 |
-| Exact-compatible shared duplicates | 2 |
-| Shared operations with contract conflicts | 2 |
+| `User` | Canonical account identity: userId, role, fullName, email, timestamps. |
+| `AuthUser` | Authenticated User plus role-dependent Company. |
+| `Company` | companyId and returned logoUrl; logoAssetId exists only in update requests. |
+| `Job` | Canonical job, JobStatus, version and timestamps. |
+| `CandidateJobSummary` | Candidate projection; ACTIVE jobs only; recruiter is external contact. |
+| `RecruiterJobSummary` | Recruiter projection; owner is an internal company assignee. |
+| `Application` | applicationId, jobId, ApplicationStatus, appliedAt, updatedAt and version. |
+| `CandidateApplicationDetail` | Candidate-safe detail; structurally excludes RecruiterNote. |
+| `RecruiterApplicationDetail` | Company-scoped detail with snapshot, advisory analysis, audit and private notes. |
+| `Interview` | interviewId, scheduledAt, mode, status, version and timestamps. |
+| `InterviewContext` | Conversation projection using scheduledAt and mode only. |
+| `Conversation` | conversationId with application/job ownership context. |
+| `ConversationSummary` | List projection with opposite participant and last message. |
+| `ConversationDetail` | Detail projection with optional InterviewContext. |
+| `Message` | messageId, conversationId, SenderType and sentAt. |
+| `Resume` | Mutable resume with resumeId, version and timestamps. |
+| `ResumeSnapshot` | Immutable snapshotId/capturedAt application-time copy. |
+| `MatchAnalysis` | Advisory display data; never an authorization or automatic decision input. |
+| `RecruiterNote` | Recruiter-only private note; impossible in Candidate response graphs. |
+| `PageMeta` | Shared page/pageSize/total/hasNext pagination metadata. |
+| `ErrorResponse` | error.code/message/fieldErrors/requestId. |
 
-Counting formula: `19 + 29 - 4 = 44`. “Candidate/Recruiter operations” include shared operations; “Unique operations” deduplicates by Method + Path.
-
-## Sources and limitations
-
-- Candidate: `API_V1.md` and `openapi-v1.yaml`; 19 operations agree by Method + Path.
-- Recruiter: `RECRUITER_API_DRAFT.md` and `RECRUITER_WEB_ANALYSIS.md`; 29 operations were derived from the API draft and checked against the route/impact analysis.
-- The requested source `/Users/yezhian/code/adproject/web/docs/RECRUITER_WEB_ANALYSIS.yaml` was not present. No Recruiter YAML claims are made; the merged OpenAPI formalizes the two Recruiter Markdown sources.
-- Query strings in Markdown examples are normalized out of Path; for example `GET /jobs?q=...` is keyed as `GET /jobs`.
-
-## Duplicate, shared, and conflicting operations
-
-| Method + Path | Classification | Request comparison | Response comparison | Resolution |
-| --- | --- | --- | --- | --- |
-| POST /auth/register | Shared + conflict | Candidate requires role=CANDIDATE; Recruiter requires role=RECRUITER and companyName | Recruiter response adds company; Candidate role enum excluded RECRUITER | RegisterRequest oneOf by role; AuthUser uses UserRole; company is Recruiter-only/nullable |
-| POST /auth/login | Shared + response conflict | Same LoginRequest | Candidate AuthUser.role enum only allowed CANDIDATE | UserRole=CANDIDATE\|RECRUITER |
-| POST /auth/refresh | Shared exact-compatible duplicate | Same RefreshTokenRequest | Same TokenResponse | Reuse one operation/contract |
-| POST /auth/logout | Shared exact-compatible duplicate | Same RefreshTokenRequest | Same 204 response | Reuse one operation/contract |
-
-No other cross-client duplicate exists under the required Method + Path identity rule. Candidate and Recruiter conversation/message operations are structurally shared but have different audience-prefixed paths, so they remain distinct catalog operations.
-
-## Field, enum, and type conflicts
-
-| Area | Source conflict | Unified decision |
-| --- | --- | --- |
-| AuthUser.role | Candidate YAML: CANDIDATE only; Recruiter draft: RECRUITER | UserRole = CANDIDATE \| RECRUITER |
-| RegisterRequest | Recruiter adds companyName and a different role const | Discriminated oneOf CandidateRegisterRequest / RecruiterRegisterRequest |
-| ApplicationStatus | Candidate YAML includes NOT_APPLIED; analysis freezes lifecycle without it | ApplicationStatus = APPLIED \| IN_REVIEW \| INTERVIEW \| REJECTED \| WITHDRAWN; NOT_APPLIED moved to CandidateJobApplicationState |
-| Candidate application list status | ACTIVE \| INTERVIEW \| ARCHIVED are UI groupings, not lifecycle values | Keep as endpoint-specific display filter; do not reuse ApplicationStatus |
-| Repository test plan | SCREENING appears outside the supplied API contract | Use IN_REVIEW; SCREENING is not in v1 |
-| Job status | Candidate jobs had no lifecycle status; Recruiter requires DRAFT/ACTIVE/PAUSED/CLOSED | JobStatus added; Candidate public APIs expose only ACTIVE/accepting jobs |
-| Interview date/name | Candidate context used interviewAt/interviewMode; Recruiter uses scheduledAt/mode | Canonical Interview uses scheduledAt and mode; InterviewContext is a projection |
-| Resume snapshot ID | Candidate ApplicationDetail had resumeSnapshot.id/name; Recruiter requires full immutable Resume + snapshotId/capturedAt | ResumeSnapshot extends Resume with snapshotId/capturedAt; legacy id is Resume.id |
-| Company logo | Candidate Company returns logoUrl; Recruiter company PATCH accepts logoAssetId | Treat logoAssetId as mutation input and logoUrl as resolved response URL; persistence mapping remains an implementation decision |
-| Person display name | Embedded Candidate Recruiter uses name; Auth/Recruiter profile uses fullName | Use fullName for account/profile identity; keep name only as a legacy compact projection until clients migrate |
-| Job responsibility | Candidate JobSummary calls the contact recruiter; Recruiter JobSummary calls workflow assignee owner | Keep recruiter and owner separate: external contact versus internal application/job owner |
-| Application timestamps | Candidate exposes appliedAt and submittedAt without a stated distinction | appliedAt is the business event time; submittedAt is nullable transport/acceptance time until semantics are confirmed |
-| Participant semantics | Candidate sees Recruiter; Recruiter sees Candidate; current Participant requires companyName | Same Participant schema, opposite-party semantics; companyName should be nullable for Candidate participant |
-| Salary numeric type | Both drafts use whole-number examples and Candidate YAML uses integer | Keep integer minor/business units for v1; currency and period required |
-| Read-state response | Candidate source is 204 while Recruiter says request/response reuse | Both use ReadStateRequest and 204 no content |
-
-## Unified shared models
-
-| Model | Canonical core | Audience-specific projection / privacy rule |
-| --- | --- | --- |
-| Job | id,title,company,employmentType,workplaceType,location,salary,description,requirements,skills,deadline,visibility,status,publishedAt,version | CandidateJob adds matchScore/recruiter/applicationState; RecruiterJob adds owner/applicantCount. Candidate only receives ACTIVE public jobs. |
-| Application | id,jobId,status,appliedAt,submittedAt,updatedAt,version | Candidate view has company/timeline/nextSteps; Recruiter view adds candidate, owner, MatchAnalysis, ResumeSnapshot, audit, Interview and private notes. |
-| Interview | id,applicationId,scheduledAt,timezone,durationMinutes,mode,locationOrMeetingUrl,note,status | Conversation InterviewContext adds jobId/jobTitle/type. Recruiter controls lifecycle; Candidate consumes context. |
-| Conversation | id,participant,lastMessage/unreadCount or context; optional applicationId/jobId/jobTitle | participant means opposite party from current viewer; access always requires participant membership and, for Recruiter, company ownership. |
-| Message | id,body,senderType,sentAt,clientMessageId,deliveryStatus | Same schema; senderType disambiguates CANDIDATE/RECRUITER/SYSTEM. clientMessageId supplies idempotency. |
-| ResumeSnapshot | Resume + snapshotId + capturedAt | Immutable application-time copy; Candidate mutable Resume endpoints do not mutate historical snapshots. |
-
-## Authorization policy
-
-- Public: register, login, refresh (refresh token still required). Logout requires an authenticated session.
-- Candidate resources: self/ownership or conversation participation.
-- Recruiter resources: role RECRUITER plus company ownership; stronger capabilities apply to company update and selected job mutations. Cross-company resources should return 404 to reduce enumeration.
-- Recruiter-only notes never appear in Candidate responses. MatchAnalysis is advisory and cannot authorize decisions. Mutations should record actor, company, before/after state, time, and requestId.
-
-## Request and response comparison by operation
+## Operation contract table
 
 ### Auth
 
-| Status | Method | Path | Candidate | Recruiter | Sharing | Permission | Request | Candidate response | Recruiter response / unified response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | POST | `/auth/register` | YES | YES | SHARED_CONFLICT | Public | oneOf CandidateRegisterRequest \| RecruiterRegisterRequest; discriminator=role | 201 AuthResponse; user.role=CANDIDATE | 201 AuthResponse; user.role=RECRUITER; company included; unified: 201 AuthResponse; role-aware user; company nullable/Recruiter-only |
-| DRAFT | POST | `/auth/login` | YES | YES | SHARED_CONFLICT | Public | LoginRequest {email,password} | 200 AuthResponse; AuthUser.role only CANDIDATE in Candidate YAML | 200 AuthResponse; AuthUser.role=RECRUITER supported; unified: 200 AuthResponse; UserRole=CANDIDATE\|RECRUITER |
-| DRAFT | POST | `/auth/refresh` | YES | YES | SHARED_COMPATIBLE | Public; valid refresh token | RefreshTokenRequest {refreshToken} | 200 TokenResponse | 200 TokenResponse (reused); unified: 200 TokenResponse |
-| DRAFT | POST | `/auth/logout` | YES | YES | SHARED_COMPATIBLE | Authenticated session | RefreshTokenRequest {refreshToken} | 204 no content | 204 no content (reused); unified: 204 no content |
+| Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DRAFT | MVP | POST | `/auth/register` | `registerUser` | YES | YES | Public | body: RegisterRequest | 201 | 409, 422 |
+| DRAFT | MVP | POST | `/auth/login` | `login` | YES | YES | Public | body: LoginRequest | 200 | 401 |
+| DRAFT | MVP | POST | `/auth/refresh` | `refreshToken` | YES | YES | Public | body: RefreshTokenRequest | 200 | 401 |
+| DRAFT | MVP | POST | `/auth/logout` | `logout` | YES | YES | Authenticated session | body: RefreshTokenRequest | 204 | 401, 403 |
 
 ### Profile
 
-| Status | Method | Path | Candidate | Recruiter | Sharing | Permission | Request | Candidate response | Recruiter response / unified response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | GET | `/candidate/profile` | YES | NO | CANDIDATE_ONLY | Candidate self | — | 200 CandidateProfile | 200 CandidateProfile |
-| DRAFT | PATCH | `/candidate/profile` | YES | NO | CANDIDATE_ONLY | Candidate self | UpdateProfileRequest | 200 CandidateProfile | 200 CandidateProfile |
-| DRAFT | GET | `/recruiter/me` | NO | YES | RECRUITER_ONLY | Recruiter self | — | — | 200 RecruiterProfile; unified: 200 RecruiterProfile |
-| DRAFT | GET | `/recruiter/company` | NO | YES | RECRUITER_ONLY | Recruiter company member | — | — | 200 Company; unified: 200 Company |
-| DRAFT | PATCH | `/recruiter/company` | NO | YES | RECRUITER_ONLY | Recruiter company admin capability | UpdateCompanyRequest | — | 200 Company; unified: 200 Company |
-| DRAFT | GET | `/recruiter/dashboard` | NO | YES | RECRUITER_ONLY | Recruiter; own-company aggregate | from, to | — | 200 RecruiterDashboard; unified: 200 RecruiterDashboard |
+| Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DRAFT | MVP | GET | `/candidate/profile` | `getCandidateProfile` | YES | NO | Candidate self only | — | 200 | 401, 403 |
+| DRAFT | MVP | PATCH | `/candidate/profile` | `updateCandidateProfile` | YES | NO | Candidate self only | body: UpdateProfileRequest | 200 | 422, 401, 403, 409 |
+| DRAFT | MVP | GET | `/recruiter/me` | `getRecruiterMe` | NO | YES | Recruiter self | — | 200 | 401, 404, 403 |
+| DRAFT | MVP | GET | `/recruiter/company` | `getRecruiterCompany` | NO | YES | Recruiter company member; current company scope only | — | 200 | 401, 404, 403 |
+| DRAFT | MVP | PATCH | `/recruiter/company` | `updateRecruiterCompany` | NO | YES | Recruiter company admin capability; current company scope only | body: UpdateCompanyRequest | 200 | 401, 404, 403, 409, 422 |
+| DRAFT | MVP | GET | `/recruiter/dashboard` | `getRecruiterDashboard` | NO | YES | Recruiter; own-company aggregate | params: from/to | 200 | 401, 404, 403 |
 
 ### Jobs
 
-| Status | Method | Path | Candidate | Recruiter | Sharing | Permission | Request | Candidate response | Recruiter response / unified response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | GET | `/jobs` | YES | NO | CANDIDATE_ONLY | Authenticated Candidate | q, employmentType, category, page, pageSize | 200 PageResponse<JobSummary> | 200 PageResponse<CandidateJobSummary> |
-| DRAFT | GET | `/jobs/{jobId}` | YES | NO | CANDIDATE_ONLY | Authenticated Candidate; public ACTIVE job | jobId | 200 JobDetail | 200 CandidateJobDetail |
-| DRAFT | GET | `/recruiter/jobs` | NO | YES | RECRUITER_ONLY | Recruiter; own company | q,status,employmentType,location,ownerId,page,pageSize | — | 200 PageResponse<RecruiterJobSummary>; unified: 200 PageResponse<RecruiterJobSummary> |
-| DRAFT | POST | `/recruiter/jobs` | NO | YES | RECRUITER_ONLY | Recruiter; verified own company | CreateJobRequest | — | 201 RecruiterJobDetail(status=DRAFT); unified: 201 RecruiterJobDetail |
-| DRAFT | GET | `/recruiter/jobs/{jobId}` | NO | YES | RECRUITER_ONLY | Recruiter; own-company job | jobId | — | 200 RecruiterJobDetail; unified: 200 RecruiterJobDetail |
-| DRAFT | PATCH | `/recruiter/jobs/{jobId}` | NO | YES | RECRUITER_ONLY | Recruiter; own-company job + edit capability | UpdateJobRequest | — | 200 RecruiterJobDetail; unified: 200 RecruiterJobDetail |
-| DRAFT | POST | `/recruiter/jobs/{jobId}/publish` | NO | YES | RECRUITER_ONLY | Recruiter; own company; verified company | PublishJobRequest | — | 200 RecruiterJobDetail(status=ACTIVE); unified: 200 RecruiterJobDetail |
-| DRAFT | POST | `/recruiter/jobs/{jobId}/status` | NO | YES | RECRUITER_ONLY | Recruiter; own-company job | ChangeJobStatusRequest | — | 200 RecruiterJobDetail; unified: 200 RecruiterJobDetail |
+| Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DRAFT | MVP | GET | `/jobs` | `listJobs` | YES | NO | Candidate role; returns ACTIVE visible jobs only | params: q/employmentType/category/Page/PageSize | 200 | 401, 403 |
+| DRAFT | MVP | GET | `/jobs/{jobId}` | `getJob` | YES | NO | Candidate role; ACTIVE visible job only | params: JobId | 200 | 404, 401, 403 |
+| DRAFT | MVP | GET | `/recruiter/jobs` | `listRecruiterJobs` | NO | YES | Recruiter; own company | params: q/status/employmentType/location/ownerId/Page/PageSize | 200 | 401, 404, 403 |
+| DRAFT | MVP | POST | `/recruiter/jobs` | `createRecruiterJob` | NO | YES | Recruiter; verified own company | body: CreateJobRequest | 201 | 401, 404, 403, 409, 422 |
+| DRAFT | MVP | GET | `/recruiter/jobs/{jobId}` | `getRecruiterJob` | NO | YES | Recruiter; own-company job; cross-company resources return 404 | params: JobId | 200 | 401, 404, 403 |
+| DRAFT | MVP | PATCH | `/recruiter/jobs/{jobId}` | `updateRecruiterJob` | NO | YES | Recruiter; own-company job + edit capability; cross-company resources return 404 | params: JobId; body: UpdateJobRequest | 200 | 401, 404, 403, 409, 422 |
+| DRAFT | MVP | POST | `/recruiter/jobs/{jobId}/publish` | `publishRecruiterJob` | NO | YES | Recruiter; own company; verified company; cross-company resources return 404 | params: JobId; body: PublishJobRequest | 200 | 401, 404, 403, 409, 422 |
+| DRAFT | MVP | POST | `/recruiter/jobs/{jobId}/status` | `changeRecruiterJobStatus` | NO | YES | Recruiter; own-company job; cross-company resources return 404 | params: JobId; body: ChangeJobStatusRequest | 200 | 401, 404, 403, 409, 422 |
 
 ### Applications
 
-| Status | Method | Path | Candidate | Recruiter | Sharing | Permission | Request | Candidate response | Recruiter response / unified response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | POST | `/jobs/{jobId}/applications` | YES | NO | CANDIDATE_ONLY | Candidate owner; Idempotency-Key required | SubmitApplicationRequest + Idempotency-Key | 201 ApplicationDetail | 201 CandidateApplicationDetail |
-| DRAFT | GET | `/candidate/applications` | YES | NO | CANDIDATE_ONLY | Candidate self | status display filter, page, pageSize | 200 ApplicationListResponse | 200 CandidateApplicationListResponse |
-| DRAFT | GET | `/candidate/applications/{applicationId}` | YES | NO | CANDIDATE_ONLY | Candidate application owner | applicationId | 200 ApplicationDetail | 200 CandidateApplicationDetail |
-| DRAFT | GET | `/recruiter/applications` | NO | YES | RECRUITER_ONLY | Recruiter; applications to own-company jobs | status,jobId,q,ownerId,minMatchScore,page,pageSize,sort | — | 200 RecruiterApplicationListResponse; unified: 200 RecruiterApplicationListResponse |
-| DRAFT | GET | `/recruiter/applications/{applicationId}` | NO | YES | RECRUITER_ONLY | Recruiter; own-company application | applicationId | — | 200 RecruiterApplicationDetail; unified: 200 RecruiterApplicationDetail |
-| DRAFT | POST | `/recruiter/applications/{applicationId}/transitions` | NO | YES | RECRUITER_ONLY | Recruiter; own-company application; cannot set WITHDRAWN | ApplicationTransitionRequest | — | 201 ApplicationTransitionResult; unified: 201 ApplicationTransitionResult |
-| DRAFT | PUT | `/recruiter/applications/{applicationId}/owner` | NO | YES | RECRUITER_ONLY | Recruiter; own-company owner assignment | ApplicationOwnerRequest | — | 200 RecruiterApplicationDetail; unified: 200 RecruiterApplicationDetail |
-| DRAFT | GET | `/recruiter/applications/{applicationId}/notes` | NO | YES | RECRUITER_ONLY | Recruiter; own-company; private notes | applicationId | — | 200 RecruiterNote[]; unified: 200 RecruiterNote[] |
-| DRAFT | POST | `/recruiter/applications/{applicationId}/notes` | NO | YES | RECRUITER_ONLY | Recruiter; own-company; private notes | CreateNoteRequest | — | 201 RecruiterNote; unified: 201 RecruiterNote |
+| Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DRAFT | MVP | POST | `/jobs/{jobId}/applications` | `submitApplication` | YES | NO | Candidate role; own Resume; target job must be ACTIVE and accepting applications | params: JobId/IdempotencyKey; body: SubmitApplicationRequest | 201 | 404, 409, 422, 401, 403 |
+| DRAFT | MVP | GET | `/candidate/applications` | `listApplications` | YES | NO | Candidate self only | params: filter/Page/PageSize | 200 | 401, 403 |
+| DRAFT | MVP | GET | `/candidate/applications/{applicationId}` | `getApplication` | YES | NO | Candidate application owner only | params: applicationId | 200 | 404, 401, 403 |
+| DRAFT | MVP | GET | `/recruiter/applications` | `listRecruiterApplications` | NO | YES | Recruiter; applications to own-company jobs | params: status/jobId/q/ownerId/minMatchScore/Page/PageSize/sort | 200 | 401, 404, 403 |
+| DRAFT | MVP | GET | `/recruiter/applications/{applicationId}` | `getRecruiterApplication` | NO | YES | Recruiter; own-company application; cross-company resources return 404 | params: applicationId | 200 | 401, 404, 403 |
+| DRAFT | MVP | POST | `/recruiter/applications/{applicationId}/transitions` | `transitionRecruiterApplication` | NO | YES | Recruiter; own-company application; cannot set WITHDRAWN; cross-company resources return 404 | params: applicationId; body: ApplicationTransitionRequest | 201 | 401, 404, 403, 409, 422 |
+| DRAFT | MVP | PUT | `/recruiter/applications/{applicationId}/owner` | `assignRecruiterApplicationOwner` | NO | YES | Recruiter; own-company owner assignment; cross-company resources return 404 | params: applicationId; body: ApplicationOwnerRequest | 200 | 401, 404, 403, 409, 422 |
+| DRAFT | MVP | GET | `/recruiter/applications/{applicationId}/notes` | `listRecruiterApplicationNotes` | NO | YES | Recruiter; own-company; private notes; cross-company resources return 404 | params: applicationId/Page/PageSize | 200 | 401, 404, 403 |
+| DRAFT | MVP | POST | `/recruiter/applications/{applicationId}/notes` | `createRecruiterApplicationNote` | NO | YES | Recruiter; own-company; private notes; cross-company resources return 404 | params: applicationId; body: CreateNoteRequest | 201 | 401, 404, 403, 409, 422 |
+| DRAFT | MVP | POST | `/candidate/applications/{applicationId}/withdraw` | `withdrawCandidateApplication` | YES | NO | Candidate application owner only | params: applicationId; body: WithdrawApplicationRequest | 200 | 401, 403, 404, 409, 422 |
 
 ### Interviews
 
-| Status | Method | Path | Candidate | Recruiter | Sharing | Permission | Request | Candidate response | Recruiter response / unified response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | POST | `/recruiter/applications/{applicationId}/interviews` | NO | YES | RECRUITER_ONLY | Recruiter; own-company application | CreateInterviewRequest | — | 201 Interview; application -> INTERVIEW atomically; unified: 201 Interview |
-| DRAFT | PATCH | `/recruiter/interviews/{interviewId}` | NO | YES | RECRUITER_ONLY | Recruiter; own-company interview | UpdateInterviewRequest | — | 200 Interview; unified: 200 Interview |
+| Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DRAFT | MVP | POST | `/recruiter/applications/{applicationId}/interviews` | `createRecruiterInterview` | NO | YES | Recruiter; own-company application; cross-company resources return 404 | params: applicationId; body: CreateInterviewRequest | 201 | 401, 404, 403, 409, 422 |
+| DRAFT | MVP | PATCH | `/recruiter/interviews/{interviewId}` | `updateRecruiterInterview` | NO | YES | Recruiter; own-company interview; cross-company resources return 404 | params: interviewId; body: UpdateInterviewRequest | 200 | 401, 404, 403, 409, 422 |
 
 ### Conversations
 
-| Status | Method | Path | Candidate | Recruiter | Sharing | Permission | Request | Candidate response | Recruiter response / unified response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | GET | `/candidate/conversations` | YES | NO | CANDIDATE_ONLY | Candidate participant | page, pageSize | 200 PageResponse<ConversationSummary> | 200 PageResponse<ConversationSummary> |
-| DRAFT | GET | `/candidate/conversations/{conversationId}` | YES | NO | CANDIDATE_ONLY | Candidate participant | conversationId | 200 ConversationDetail | 200 ConversationDetail |
-| DRAFT | PUT | `/candidate/conversations/{conversationId}/read-state` | YES | NO | CANDIDATE_ONLY | Candidate participant | ReadStateRequest | 204 no content | 204 no content |
-| DRAFT | GET | `/recruiter/conversations` | NO | YES | RECRUITER_ONLY | Recruiter participant; own-company jobs | q,unreadOnly,page,pageSize | — | 200 PageResponse<ConversationSummary>; unified: 200 PageResponse<ConversationSummary> |
-| DRAFT | GET | `/recruiter/conversations/{conversationId}` | NO | YES | RECRUITER_ONLY | Recruiter participant; own-company conversation | conversationId | — | 200 ConversationDetail; unified: 200 ConversationDetail |
-| DRAFT | PUT | `/recruiter/conversations/{conversationId}/read-state` | NO | YES | RECRUITER_ONLY | Recruiter participant; own-company conversation | ReadStateRequest | — | 204 no content; unified: 204 no content |
+| Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DRAFT | MVP | GET | `/candidate/conversations` | `listConversations` | YES | NO | Candidate conversation participant only | params: Page/PageSize | 200 | 401, 403 |
+| DRAFT | MVP | GET | `/candidate/conversations/{conversationId}` | `getConversation` | YES | NO | Candidate conversation participant only | params: ConversationId | 200 | 404, 401, 403 |
+| DRAFT | MVP | PUT | `/candidate/conversations/{conversationId}/read-state` | `updateConversationReadState` | YES | NO | Candidate conversation participant only | params: ConversationId; body: ReadStateRequest | 204 | 404, 401, 403, 409, 422 |
+| DRAFT | MVP | GET | `/recruiter/conversations` | `listRecruiterConversations` | NO | YES | Recruiter participant; own-company jobs | params: q/unreadOnly/Page/PageSize | 200 | 401, 404, 403 |
+| DRAFT | MVP | GET | `/recruiter/conversations/{conversationId}` | `getRecruiterConversation` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId | 200 | 401, 404, 403 |
+| DRAFT | MVP | PUT | `/recruiter/conversations/{conversationId}/read-state` | `updateRecruiterConversationReadState` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId; body: ReadStateRequest | 204 | 401, 403, 409, 422, 404 |
 
 ### Messages
 
-| Status | Method | Path | Candidate | Recruiter | Sharing | Permission | Request | Candidate response | Recruiter response / unified response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | GET | `/candidate/conversations/{conversationId}/messages` | YES | NO | CANDIDATE_ONLY | Candidate participant | before, limit | 200 MessageListResponse | 200 MessageListResponse |
-| DRAFT | POST | `/candidate/conversations/{conversationId}/messages` | YES | NO | CANDIDATE_ONLY | Candidate participant | SendMessageRequest | 201 Message(senderType=CANDIDATE) | 201 Message |
-| DRAFT | GET | `/recruiter/conversations/{conversationId}/messages` | NO | YES | RECRUITER_ONLY | Recruiter participant; own-company conversation | before,limit | — | 200 MessageListResponse; unified: 200 MessageListResponse |
-| DRAFT | POST | `/recruiter/conversations/{conversationId}/messages` | NO | YES | RECRUITER_ONLY | Recruiter participant; own-company conversation | SendMessageRequest | — | 201 Message(senderType=RECRUITER); unified: 201 Message |
+| Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DRAFT | MVP | GET | `/candidate/conversations/{conversationId}/messages` | `listMessages` | YES | NO | Candidate conversation participant only | params: ConversationId/before/limit | 200 | 404, 401, 403 |
+| DRAFT | MVP | POST | `/candidate/conversations/{conversationId}/messages` | `sendMessage` | YES | NO | Candidate conversation participant only | params: ConversationId/IdempotencyKey; body: SendMessageRequest | 201 | 404, 422, 401, 403, 409 |
+| DRAFT | MVP | GET | `/recruiter/conversations/{conversationId}/messages` | `listRecruiterMessages` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId/before/limit | 200 | 401, 404, 403 |
+| DRAFT | MVP | POST | `/recruiter/conversations/{conversationId}/messages` | `sendRecruiterMessage` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId/IdempotencyKey; body: SendMessageRequest | 201 | 401, 404, 403, 409, 422 |
 
 ### Resume
 
-| Status | Method | Path | Candidate | Recruiter | Sharing | Permission | Request | Candidate response | Recruiter response / unified response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | GET | `/candidate/resume` | YES | NO | CANDIDATE_ONLY | Candidate self | — | 200 Resume | 200 Resume |
-| DRAFT | PUT | `/candidate/resume` | YES | NO | CANDIDATE_ONLY | Candidate self | SaveResumeRequest | 200 Resume | 200 Resume |
-| DRAFT | GET | `/recruiter/applications/{applicationId}/resume-snapshot` | NO | YES | RECRUITER_ONLY | Recruiter; own-company application | applicationId | — | 200 ResumeSnapshot; unified: 200 ResumeSnapshot |
-| DRAFT | GET | `/recruiter/applications/{applicationId}/resume-snapshot/pdf` | NO | YES | RECRUITER_ONLY | Recruiter; own-company application; short-lived URL | applicationId | — | 200 DownloadResponse or 302 redirect; unified: 200 DownloadResponse or 302 redirect |
+| Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DRAFT | MVP | GET | `/candidate/resume` | `getResume` | YES | NO | Candidate self only | — | 200 | 404, 401, 403 |
+| DRAFT | MVP | PUT | `/candidate/resume` | `saveResume` | YES | NO | Candidate self only | body: SaveResumeRequest | 200 | 422, 401, 403, 409 |
+| DRAFT | MVP | GET | `/recruiter/applications/{applicationId}/resume-snapshot` | `getRecruiterResumeSnapshot` | NO | YES | Recruiter; own-company application; cross-company resources return 404 | params: applicationId | 200 | 401, 404, 403 |
+| DRAFT | P1_DEFERRED | GET | `/recruiter/applications/{applicationId}/resume-snapshot/pdf` | `getRecruiterResumeSnapshotPdf` | NO | YES | Recruiter; own-company application; cross-company resources return 404 | params: applicationId | 200, 302 | 401, 404, 403 |
 
 ### Features
 
-| Status | Method | Path | Candidate | Recruiter | Sharing | Permission | Request | Candidate response | Recruiter response / unified response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | GET | `/features/learning` | YES | NO | CANDIDATE_ONLY | Authenticated Candidate | — | 200 LearningFeature | 200 LearningFeature |
+| Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DRAFT | MVP | GET | `/features/learning` | `getLearningFeature` | YES | NO | Candidate role | — | 200 | 401, 403 |
 
-## Open decisions before implementation
+## Frozen MVP decisions and deferred scope
 
-1. Confirm whether Company.logoAssetId should coexist with or replace Company.logoUrl in persisted contracts.
-2. Confirm Participant.companyName nullability for Candidate participants in Recruiter conversations.
-3. Confirm whether resume PDF uses a 200 DownloadResponse or 302 redirect; the merged spec documents 200 as the portable default.
-4. Confirm salary integer unit semantics (major currency unit versus minor unit) before backend persistence.
-5. Confirm version fields and optimistic-concurrency requirements on every mutation.
+**Frozen now:** local Web/API uses `http://localhost:8080/api/v1`; Android Emulator uses `http://10.0.2.2:8080/api/v1`. Access tokens last 2 hours; refresh tokens last 30 days and rotate on refresh. Recruiter registration creates a company and makes that Recruiter its only admin; MVP owner is the current Recruiter or null. Salary supports Singapore dollars only: ISO 4217 `SGD`, with integer major-currency min/max. Each Candidate has one mutable Resume; submission captures an immutable snapshot. Job/Application/Interview transition matrices are frozen in OpenAPI enum descriptions. Application has no OFFERED/HIRED; Candidate withdrawal uses the withdraw operation.
+
+**Deferred until after MVP:** email verification, password reset, production domain, existing-company membership/invites/complex permissions, multiple Resumes, PDF snapshot download implementation, WebSocket/push and retention policy, Offer/Hire resources, multiple currencies, advanced MatchAnalysis refresh/degradation policy, and Logo upload/Asset APIs. Deferred work does not block MVP; the PDF operation is explicitly `P1_DEFERRED`.

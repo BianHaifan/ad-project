@@ -1,14 +1,121 @@
-import type {Application,Conversation,Job,Recruiter} from '../models/recruiter';
-export const recruiter:Recruiter={id:'rec_001',name:'Mia Chen',email:'mia@moonshot.ai',companyId:'company_001',companyName:'Moonshot AI',initials:'M'};
-export const jobs:Job[]=[
- {id:'job_001',title:'AI Backend Engineer',team:'AI Platform',employmentType:'FULL_TIME',workplaceType:'HYBRID',location:'Shanghai',salary:{min:25000,max:40000,currency:'CNY',period:'MONTH'},status:'ACTIVE',publishedAt:'2026-07-28T03:00:00Z',applicantCount:124,owner:'Mia Chen',description:'Build production AI services for LLM and RAG products.',requirements:'2+ years experience with Python services and distributed systems.',skills:['Python','FastAPI','LLM / RAG','Kubernetes'],deadline:'2026-09-30',visibility:'PUBLIC'},
- {id:'job_002',title:'ML Platform Intern',team:'ML Infrastructure',employmentType:'INTERNSHIP',workplaceType:'ONSITE',location:'Shanghai',salary:{min:8000,max:12000,currency:'CNY',period:'MONTH'},status:'DRAFT',publishedAt:null,applicantCount:0,owner:'Mia Chen',description:'Help build model evaluation infrastructure.',requirements:'Computer science student with ML foundations.',skills:['PyTorch','Python','Kubernetes'],deadline:'2026-10-15',visibility:'PUBLIC'},
- {id:'job_003',title:'AI Product Engineer',team:'Product Engineering',employmentType:'FULL_TIME',workplaceType:'REMOTE',location:'Remote',salary:{min:30000,max:45000,currency:'CNY',period:'MONTH'},status:'PAUSED',publishedAt:'2026-07-15T03:00:00Z',applicantCount:36,owner:'Mia Chen',description:'Ship AI product experiences end to end.',requirements:'Frontend and backend product development experience.',skills:['React','TypeScript','Python'],deadline:'2026-09-20',visibility:'PUBLIC'},
- {id:'job_004',title:'Data Engineer',team:'Data Platform',employmentType:'FULL_TIME',workplaceType:'HYBRID',location:'Beijing',salary:{min:28000,max:42000,currency:'CNY',period:'MONTH'},status:'ACTIVE',publishedAt:'2026-07-10T03:00:00Z',applicantCount:82,owner:'Kai Liu',description:'Build reliable data pipelines.',requirements:'Strong SQL and data platform background.',skills:['SQL','Spark','Python'],deadline:'2026-09-18',visibility:'PUBLIC'},
- {id:'job_005',title:'Backend Engineer',team:'Core Services',employmentType:'FULL_TIME',workplaceType:'ONSITE',location:'Shenzhen',salary:{min:26000,max:38000,currency:'CNY',period:'MONTH'},status:'ACTIVE',publishedAt:'2026-07-02T03:00:00Z',applicantCount:51,owner:'Sara Lin',description:'Build core recruiting services.',requirements:'Java and Spring Boot experience.',skills:['Java','Spring Boot','MySQL'],deadline:'2026-09-10',visibility:'PUBLIC'}];
-const candidates=[['cand_001','Yan Bohao','bohao.yan@example.com','YB','Computer Science Student · AI Backend Engineer','Shanghai','Available in 2 weeks',['Python','FastAPI','LLM / RAG','Kubernetes']],['cand_002','Ava Zhang','ava.zhang@example.com','AZ','MLOps intern · PyTorch / Kubernetes','Shanghai','Available now',['PyTorch','Kubernetes','Python']],['cand_003','Leo Wang','leo.wang@example.com','LW','Full-stack AI tools engineer','Beijing','Available now',['React','Python','LLM']],['cand_004','Nina Wu','nina.wu@example.com','NW','AI product engineer','Shanghai','Available in 1 month',['TypeScript','React','Python']],['cand_005','Omar Chen','omar.chen@example.com','OC','Backend engineering student','Shanghai','Available now',['Java','Spring Boot','MySQL']],['cand_006','Emma Liu','emma.liu@example.com','EL','ML infrastructure intern','Beijing','Available now',['Python','PyTorch','Docker']],['cand_007','Grace Xu','grace.xu@example.com','GX','Backend AI engineer','Shanghai','Available in 2 weeks',['Python','FastAPI','Redis']]] as const;
-const makeCandidate=(i:number)=>{const c=candidates[i];return {id:c[0],name:c[1],email:c[2],initials:c[3],headline:c[4],location:c[5],availability:c[6],skills:[...c[7]]}};
-const resume={education:['BSc Computer Science · Shanghai Tech University · 2023–2027','Coursework: distributed systems, machine learning, database systems.'],projects:['RAG Evaluation Platform','Built a FastAPI evaluation pipeline; reduced test runtime by 38%.'],experience:['AI Engineering Intern · ByteLab','Implemented backend APIs, vector search experiments, and monitoring dashboards.'],skills:['Python · FastAPI · PostgreSQL · PyTorch · Kubernetes · RAG'],summary:'Backend-focused CS student building RAG applications.'};
-const makeApp=(id:string,ci:number,jobId:string,status:Application['status'],score:number,date:string,owner:string|null):Application=>({id,candidate:makeCandidate(ci),jobId,jobTitle:jobs.find(j=>j.id===jobId)!.title,employmentType:jobs.find(j=>j.id===jobId)!.employmentType,status,matchScore:score,appliedAt:date,owner,source:'Direct application',note:id==='app_001'?'Strong backend projects; ask about production latency.':'',resume:{...resume},matchEvidence:[{label:'Python / FastAPI',strength:'STRONG'},{label:'LLM / RAG',strength:'STRONG'},{label:'Kubernetes',strength:'MODERATE'},{label:'Latency optimization',strength:'MISSING'}],timeline:[{status:'APPLIED',at:date,note:'System created application from submitted resume snapshot.'},{status:'IN_REVIEW',at:status==='APPLIED'?null:'2026-08-09T03:00:00Z',note:'Assigned to hiring team.'},{status:'INTERVIEW',at:status==='INTERVIEW'?'2026-08-11T06:00:00Z':null,note:'Interview scheduled.'}]});
-export const applications:Application[]=[makeApp('app_001',0,'job_001','APPLIED',96,'2026-08-09T01:42:00Z','Mia Chen'),makeApp('app_002',1,'job_001','IN_REVIEW',92,'2026-08-08T07:00:00Z','Mia Chen'),makeApp('app_003',2,'job_002','INTERVIEW',88,'2026-08-02T07:00:00Z','Kai Liu'),makeApp('app_004',3,'job_003','REJECTED',84,'2026-08-01T07:00:00Z','Sara Lin'),makeApp('app_005',4,'job_001','APPLIED',81,'2026-07-31T07:00:00Z',null),makeApp('app_006',5,'job_002','APPLIED',89,'2026-08-09T00:15:00Z','Kai Liu'),makeApp('app_007',6,'job_001','INTERVIEW',91,'2026-08-01T07:00:00Z','Mia Chen')];
-export const conversations:Conversation[]=[{id:'conv_001',applicationId:'app_001',candidateId:'cand_001',candidateName:'Yan Bohao',candidateInitials:'YB',jobTitle:'AI Backend Engineer',matchScore:96,unreadCount:2,messages:[{id:'msg_1',body:'Hello Mia, thank you for reviewing my application. I’m happy to discuss my backend and RAG experience.',senderType:'CANDIDATE',sentAt:'2026-08-09T01:38:00Z'},{id:'msg_2',body:'Hi Bohao, your experience looks relevant. Are you available for a 30-minute interview this week?',senderType:'RECRUITER',sentAt:'2026-08-09T01:40:00Z'},{id:'msg_3',body:'Yes, Tuesday at 2 PM works well for me.',senderType:'CANDIDATE',sentAt:'2026-08-09T01:42:00Z'},{id:'msg_4',body:'Interview availability received · Tuesday, 2:00 PM',senderType:'SYSTEM',sentAt:'2026-08-09T01:43:00Z'}]},{id:'conv_002',applicationId:'app_002',candidateId:'cand_002',candidateName:'Ava Zhang',candidateInitials:'AZ',jobTitle:'AI Backend Engineer',matchScore:92,unreadCount:0,messages:[{id:'msg_5',body:'Thank you for the update.',senderType:'CANDIDATE',sentAt:'2026-08-08T02:00:00Z'}]},{id:'conv_003',applicationId:'app_003',candidateId:'cand_003',candidateName:'Leo Wang',candidateInitials:'LW',jobTitle:'ML Platform Intern',matchScore:88,unreadCount:0,messages:[{id:'msg_6',body:'Interview confirmed.',senderType:'CANDIDATE',sentAt:'2026-08-07T02:00:00Z'}]}];
+import type {
+  Company, ConversationView, EmploymentType, JobStatus, Message, RecruiterApplicationDetail,
+  RecruiterJobSummary, RecruiterProfile, ResumeSnapshot, User, WorkplaceType,
+} from '../models/recruiter';
+
+const now = '2026-08-09T01:42:00Z';
+
+export const company: Company = {
+  companyId: 'company_001', name: 'Moonshot AI', logoUrl: null, stage: 'SERIES_B',
+  employeeRange: '500-999', verificationStatus: 'APPROVED', website: 'https://moonshot.example.com',
+  description: 'AI product company', location: 'Singapore', version: 2,
+  createdAt: '2026-01-01T00:00:00Z', updatedAt: now,
+};
+
+export const owner: User = {
+  userId: 'rec_001', role: 'RECRUITER', fullName: 'Mia Chen', email: 'mia@moonshot.ai',
+  avatarUrl: null, createdAt: '2026-01-01T00:00:00Z', updatedAt: now,
+};
+
+export const recruiter: RecruiterProfile = {
+  userId: owner.userId, role: 'RECRUITER', fullName: owner.fullName, email: owner.email,
+  company, createdAt: owner.createdAt, updatedAt: owner.updatedAt,
+};
+
+const makeJob = (jobId: string, title: string, employmentType: EmploymentType, workplaceType: WorkplaceType,
+  location: string, status: JobStatus, applicantCount: number, index: number): RecruiterJobSummary => ({
+  jobId, title, company, employmentType, workplaceType, location,
+  salary: {min: 5000 + index * 200, max: 8000 + index * 200, currency: 'SGD', period: 'MONTH'},
+  description: 'Build production services and reliable product capabilities.',
+  requirements: ['Relevant engineering experience', 'Strong communication skills'],
+  skills: index === 1 ? ['PyTorch', 'Python', 'Kubernetes'] : ['Python', 'TypeScript', 'Kubernetes'],
+  deadline: '2026-09-30T15:59:59Z', visibility: 'PUBLIC', status,
+  publishedAt: status === 'DRAFT' ? null : '2026-07-28T03:00:00Z', version: 1,
+  createdAt: '2026-07-01T03:00:00Z', updatedAt: now, applicantCount, owner,
+});
+
+export const jobs: RecruiterJobSummary[] = [
+  makeJob('job_001', 'AI Backend Engineer', 'FULL_TIME', 'HYBRID', 'Singapore', 'ACTIVE', 124, 0),
+  makeJob('job_002', 'ML Platform Intern', 'INTERNSHIP', 'ONSITE', 'Singapore', 'DRAFT', 0, 1),
+  makeJob('job_003', 'AI Product Engineer', 'FULL_TIME', 'REMOTE', 'Remote', 'PAUSED', 36, 2),
+  makeJob('job_004', 'Data Engineer', 'FULL_TIME', 'HYBRID', 'Singapore', 'ACTIVE', 82, 3),
+  makeJob('job_005', 'Backend Engineer', 'FULL_TIME', 'ONSITE', 'Singapore', 'ACTIVE', 51, 4),
+];
+
+const candidateRows = [
+  ['cand_001', 'Yan Bohao', 'bohao.yan@example.com', 'Computer Science Student · AI Backend Engineer'],
+  ['cand_002', 'Ava Zhang', 'ava.zhang@example.com', 'MLOps intern'],
+  ['cand_003', 'Leo Wang', 'leo.wang@example.com', 'Full-stack AI tools engineer'],
+  ['cand_004', 'Nina Wu', 'nina.wu@example.com', 'AI product engineer'],
+  ['cand_005', 'Omar Chen', 'omar.chen@example.com', 'Backend engineering student'],
+  ['cand_006', 'Emma Liu', 'emma.liu@example.com', 'ML infrastructure intern'],
+  ['cand_007', 'Grace Xu', 'grace.xu@example.com', 'Backend AI engineer'],
+] as const;
+
+const snapshot = (index: number): ResumeSnapshot => ({
+  snapshotId: `snapshot_${index + 1}`, capturedAt: now, resumeId: `resume_${index + 1}`,
+  fullName: candidateRows[index][1], age: 24, location: 'Singapore', headline: candidateRows[index][3],
+  summary: 'Backend-focused engineer building production AI services and evaluation pipelines.',
+  experiences: [{experienceId: `exp_${index + 1}`, title: 'AI Engineering Intern', company: 'ByteLab',
+    description: 'Implemented backend APIs, vector search experiments, and monitoring dashboards.',
+    startDate: '2025-06', endDate: '2025-12'}],
+  version: 3, createdAt: '2026-01-10T02:00:00Z', updatedAt: now,
+});
+
+const makeApplication = (
+  applicationId: string, candidateIndex: number, jobId: string,
+  status: RecruiterApplicationDetail['status'], matchScore: number, appliedAt: string,
+): RecruiterApplicationDetail => {
+  const candidate = candidateRows[candidateIndex];
+  const job = jobs.find(item => item.jobId === jobId) ?? jobs[0];
+  const reviewAt = status === 'APPLIED' ? null : '2026-08-09T03:00:00Z';
+  const timeline: RecruiterApplicationDetail['timeline'] = [
+    {eventId: `${applicationId}_applied`, actorId: candidate[0], companyId: company.companyId,
+      fromStatus: null, toStatus: 'APPLIED', occurredAt: appliedAt, reason: 'Application submitted', requestId: `req_${applicationId}_1`},
+  ];
+  if (reviewAt) timeline.push({eventId: `${applicationId}_review`, actorId: owner.userId, companyId: company.companyId,
+    fromStatus: 'APPLIED', toStatus: status === 'REJECTED' ? 'REJECTED' : 'IN_REVIEW', occurredAt: reviewAt,
+    reason: 'Hiring team review', requestId: `req_${applicationId}_2`});
+  if (status === 'INTERVIEW') timeline.push({eventId: `${applicationId}_interview`, actorId: owner.userId, companyId: company.companyId,
+    fromStatus: 'IN_REVIEW', toStatus: 'INTERVIEW', occurredAt: '2026-08-10T03:00:00Z',
+    reason: 'Interview scheduled', requestId: `req_${applicationId}_3`});
+  return {
+    applicationId, jobId, status, appliedAt, updatedAt: now, version: timeline.length,
+    candidate: {candidateId: candidate[0], fullName: candidate[1], email: candidate[2], headline: candidate[3], avatarUrl: null, location: 'Singapore'},
+    jobTitle: job.title, matchScore, owner, resumeSnapshot: snapshot(candidateIndex), timeline,
+    matchAnalysis: {score: matchScore, evidence: ['Python / API experience', 'AI product delivery'],
+      strongMatches: ['Python / FastAPI', 'LLM / RAG'], gaps: ['Latency optimization evidence'], modelVersion: 'v1.0', generatedAt: now},
+    interview: status === 'INTERVIEW' ? {interviewId: `interview_${applicationId}`, applicationId,
+      scheduledAt: '2026-08-11T06:00:00Z', timezone: 'Asia/Singapore', durationMinutes: 30, mode: 'ONLINE',
+      locationOrMeetingUrl: 'https://meet.example.com/interview', note: null, status: 'SCHEDULED', version: 1,
+      createdAt: now, updatedAt: now} : null,
+    notes: applicationId === 'app_001' ? [{noteId: 'note_001', author: owner,
+      body: 'Strong backend projects; ask about production latency.', createdAt: now, updatedAt: now}] : [],
+  };
+};
+
+export const applications: RecruiterApplicationDetail[] = [
+  makeApplication('app_001', 0, 'job_001', 'APPLIED', 96, '2026-08-09T01:42:00Z'),
+  makeApplication('app_002', 1, 'job_001', 'IN_REVIEW', 92, '2026-08-08T07:00:00Z'),
+  makeApplication('app_003', 2, 'job_002', 'INTERVIEW', 88, '2026-08-02T07:00:00Z'),
+  makeApplication('app_004', 3, 'job_003', 'REJECTED', 84, '2026-08-01T07:00:00Z'),
+  makeApplication('app_005', 4, 'job_001', 'APPLIED', 81, '2026-07-31T07:00:00Z'),
+  makeApplication('app_006', 5, 'job_002', 'APPLIED', 89, '2026-08-09T00:15:00Z'),
+  makeApplication('app_007', 6, 'job_001', 'INTERVIEW', 91, '2026-08-01T07:00:00Z'),
+];
+
+const message = (messageId: string, conversationId: string, body: string, senderType: Message['senderType'], sentAt: string): Message =>
+  ({messageId, conversationId, body, senderType, sentAt, clientMessageId: null, deliveryStatus: 'DELIVERED'});
+
+export const conversations: ConversationView[] = applications.slice(0, 3).map((application, index) => {
+  const conversationId = `conv_00${index + 1}`;
+  const messages = [message(`msg_${index + 1}`, conversationId, index === 0 ? 'Thank you for reviewing my application.' : 'Thank you for the update.', 'CANDIDATE', application.appliedAt)];
+  return {
+    conversationId, applicationId: application.applicationId, jobId: application.jobId,
+    createdAt: application.appliedAt, updatedAt: now,
+    participant: {userId: application.candidate.candidateId, fullName: application.candidate.fullName,
+      avatarUrl: application.candidate.avatarUrl, title: application.candidate.headline, company: null, online: index === 0},
+    lastMessage: messages[0], unreadCount: index === 0 ? 2 : 0, jobTitle: application.jobTitle,
+    messages, matchScore: application.matchScore,
+  };
+});
