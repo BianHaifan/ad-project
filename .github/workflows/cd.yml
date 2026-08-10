@@ -1,0 +1,51 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: deploy-prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: package source (exclude secrets & junk)
+        run: |
+          tar -czf deploy.tgz \
+            --exclude='backend/.env' \
+            --exclude='backend/target' \
+            --exclude='**/node_modules' \
+            --exclude='.git' \
+            --exclude='android' \
+            --exclude='docs' \
+            infra backend web .dockerignore
+
+      - name: upload to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: deploy.tgz
+          target: /tmp
+
+      - name: build & run on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo mkdir -p /opt/adproject
+            sudo chown ubuntu:ubuntu -R /opt/adproject
+            tar -xzf /tmp/deploy.tgz -C /opt/adproject
+            rm -f /tmp/deploy.tgz
+            cd /opt/adproject/infra/docker
+            docker compose up -d --build
+            docker image prune -f
+            sleep 5
+            curl -sS -o /dev/null -w "health_probe=%{http_code}\n" http://localhost/api/v1/auth/login || true
