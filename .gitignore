@@ -4,3 +4,9 @@ backend/target/
 .DS_Store
 .idea/
 *.iml
+node_modules/
+**/node_modules/
+android/.gradle/
+android/.kotlin/
+android/app/build/
+android/build/
