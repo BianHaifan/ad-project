@@ -1,6 +1,9 @@
 import type {DataEnvelope, ErrorEnvelope, ListEnvelope} from '../models/recruiter';
 
-export const API_BASE_URL = 'http://localhost:8080/api/v1';
+const configuredBaseUrl = (
+  import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }
+).env?.VITE_API_BASE_URL?.trim();
+export const API_BASE_URL = (configuredBaseUrl || '/api/v1').replace(/\/$/, '');
 
 export const apiPaths = {
   register: '/auth/register',
