@@ -348,7 +348,7 @@ Recruiter 注册额外包含 `companyName`；MVP 中注册会创建新公司，�
 
 | Method | Path | 请求/参数 | 成功 |
 | --- | --- | --- | --- |
-| GET | `/jobs` | `q`, `employmentType`, `category`, `page`, `pageSize` | `200 CandidateJobSummary[] + meta` |
+| GET | `/jobs` | `q`, `employmentType`, `page`, `pageSize` | `200 CandidateJobSummary[] + meta` |
 | GET | `/jobs/{jobId}` | `jobId` | `200 CandidateJobDetail` |
 | POST | `/jobs/{jobId}/applications` | `Idempotency-Key`, `SubmitApplicationRequest` | `201 CandidateApplicationDetail` |
 | GET | `/candidate/applications` | `filter`, `page`, `pageSize` | `200 CandidateApplicationSummary[] + meta` |

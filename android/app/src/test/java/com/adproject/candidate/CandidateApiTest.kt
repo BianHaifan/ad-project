@@ -15,7 +15,7 @@ class CandidateApiTest {
     fun recommendationFeedIsRankedAndHasStableIds() {
         val jobs = api.getJobFeed().jobs
         assertEquals(jobs.size, jobs.map { it.jobId }.distinct().size)
-        assertTrue(jobs.zipWithNext().all { (left, right) -> left.match >= right.match })
+        assertTrue(jobs.zipWithNext().all { (left, right) -> (left.match ?: 0) >= (right.match ?: 0) })
     }
 
     @Test

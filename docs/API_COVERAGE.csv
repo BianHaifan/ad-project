@@ -9,7 +9,7 @@ DRAFT,MVP,Profile,GET,/recruiter/me,getRecruiterMe,NO,YES,Recruiter self,—,200
 DRAFT,MVP,Profile,GET,/recruiter/company,getRecruiterCompany,NO,YES,Recruiter company member; current company scope only,—,200,"401, 404, 403",Get recruiter company
 DRAFT,MVP,Profile,PATCH,/recruiter/company,updateRecruiterCompany,NO,YES,Recruiter company admin capability; current company scope only,body: UpdateCompanyRequest,200,"401, 404, 403, 409, 422",Update recruiter company
 DRAFT,MVP,Profile,GET,/recruiter/dashboard,getRecruiterDashboard,NO,YES,Recruiter; own-company aggregate,params: from/to,200,"401, 404, 403",Get own-company dashboard
-DRAFT,MVP,Jobs,GET,/jobs,listJobs,YES,NO,Candidate role; returns ACTIVE visible jobs only,params: q/employmentType/category/Page/PageSize,200,"401, 403",Search and filter jobs
+DRAFT,MVP,Jobs,GET,/jobs,listJobs,YES,NO,Candidate role; returns ACTIVE visible jobs only,params: q/employmentType/Page/PageSize,200,"401, 403",Search and filter jobs
 DRAFT,MVP,Jobs,GET,/jobs/{jobId},getJob,YES,NO,Candidate role; ACTIVE visible job only,params: JobId,200,"404, 401, 403",Get a job and candidate match analysis
 DRAFT,MVP,Jobs,GET,/recruiter/jobs,listRecruiterJobs,NO,YES,Recruiter; own company,params: q/status/employmentType/location/ownerId/Page/PageSize,200,"401, 404, 403",List own-company jobs
 DRAFT,MVP,Jobs,POST,/recruiter/jobs,createRecruiterJob,NO,YES,Recruiter; verified own company,body: CreateJobRequest,201,"401, 404, 403, 409, 422",Create job draft

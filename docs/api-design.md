@@ -73,14 +73,11 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/candidate/profile` | 获取自己的资料 |
-| PUT | `/candidate/profile` | 更新自己的资料 |
-| GET | `/candidate/resumes` | 获取自己的简历 |
-| POST | `/candidate/resumes` | 创建简历 |
-| GET | `/candidate/resumes/{id}` | 获取自己的指定简历 |
-| PUT | `/candidate/resumes/{id}` | 更新自己的简历 |
-| PUT | `/candidate/resumes/{id}/default` | 设置默认简历 |
+| PATCH | `/candidate/profile` | 部分更新自己的资料，使用 `expectedVersion` |
+| GET | `/candidate/resume` | 获取自己的单份默认简历；不存在返回 404 |
+| PUT | `/candidate/resume` | 创建或全量替换单份默认简历；首次使用 `expectedVersion=0` |
 
-文件上传若进入 MVP，使用独立上传接口和受控文件类型/大小，不把大文件放入 JSON。
+MVP 只支持一份结构化在线简历。多简历、文件上传和默认简历切换延期。
 
 ### Jobs
 

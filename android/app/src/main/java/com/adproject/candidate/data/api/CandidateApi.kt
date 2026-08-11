@@ -15,10 +15,8 @@ import com.adproject.candidate.data.model.NextStep
 import com.adproject.candidate.data.model.ProfileStat
 import com.adproject.candidate.data.model.ProfileTool
 import com.adproject.candidate.data.model.ProfileToolGroup
-import com.adproject.candidate.data.model.RegistrationDefaults
 import com.adproject.candidate.data.model.ResumeData
 import com.adproject.candidate.data.model.ResumeExperience
-import com.adproject.candidate.data.model.SignInDefaults
 import com.adproject.candidate.data.model.SubmissionData
 import com.adproject.candidate.data.contract.ApplicationStatus
 import com.adproject.candidate.data.contract.Experience
@@ -28,8 +26,6 @@ import com.adproject.candidate.data.contract.TimelineStep
 import com.adproject.candidate.data.model.RecruiterContact
 
 interface CandidateRepository {
-    fun getSignInDefaults(): SignInDefaults
-    fun getRegistrationDefaults(): RegistrationDefaults
     fun getJobFeed(): JobFeedData
     fun getJobDetail(jobId: String): JobDetailData
     fun getLearning(): LearningData
@@ -55,15 +51,6 @@ object FakeCandidateRepository : CandidateRepository {
         Job("moonshot", "AI Backend Engineer", "Moonshot AI", "M", "Series B · 500–999", "SGD 5–8K", listOf("Python", "LLM", "K8s", "RAG"), 96, recruiter),
         Job("bytelab", "Machine Learning Platform", "ByteDance Seed", "B", "10000+", "SGD 6–9K", listOf("Intern", "PyTorch", "MLOps"), 91, recruiter),
         Job("minimax", "Full Stack Engineer, AI Tools", "MiniMax", "M", "No financing needed", "SGD 5–7K", listOf("React", "Node", "AI Agent"), 84, recruiter),
-    )
-
-    override fun getSignInDefaults() = SignInDefaults("bohao.yan@example.com", "password123")
-
-    override fun getRegistrationDefaults() = RegistrationDefaults(
-        fullName = "Yan Bohao",
-        email = "bohao.yan@example.com",
-        password = "password123",
-        agreed = true,
     )
 
     override fun getJobFeed() = JobFeedData(

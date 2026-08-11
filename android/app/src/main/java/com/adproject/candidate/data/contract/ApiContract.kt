@@ -1,7 +1,5 @@
 package com.adproject.candidate.data.contract
 
-const val CANDIDATE_API_BASE_URL = "http://10.0.2.2:8080/api/v1/"
-
 object CandidateApiPaths {
     const val REGISTER = "/auth/register"
     const val LOGIN = "/auth/login"
@@ -38,7 +36,7 @@ data class CursorMeta(val nextCursor: String?, val hasMore: Boolean)
 
 enum class UserRole { CANDIDATE, RECRUITER, ADMIN }
 enum class ApplicationStatus { APPLIED, IN_REVIEW, INTERVIEW, REJECTED, WITHDRAWN }
-enum class CandidateJobApplicationState { NOT_APPLIED, APPLIED }
+enum class CandidateJobApplicationState { NOT_APPLIED, APPLIED, IN_REVIEW, INTERVIEW, REJECTED, WITHDRAWN }
 enum class ApplicationListFilter { ACTIVE, INTERVIEW, ARCHIVED }
 enum class JobStatus { DRAFT, ACTIVE, PAUSED, CLOSED }
 enum class InterviewStatus { SCHEDULED, COMPLETED, CANCELLED }
@@ -103,6 +101,22 @@ data class CandidateJob(
     val updatedAt: String,
     val matchScore: Int?,
     val recruiter: RecruiterContact?,
+)
+
+data class CandidateJobDetail(
+    val job: CandidateJob,
+    val matchAnalysis: MatchAnalysis?,
+    val applicationState: CandidateJobApplicationState,
+    val isSaved: Boolean,
+)
+
+data class MatchAnalysis(
+    val score: Int,
+    val evidence: List<String>,
+    val strongMatches: List<String> = emptyList(),
+    val gaps: List<String> = emptyList(),
+    val modelVersion: String,
+    val generatedAt: String,
 )
 
 data class Experience(
@@ -186,6 +200,7 @@ data class Message(
 )
 
 data class LoginRequest(val email: String, val password: String)
+data class RefreshTokenRequest(val refreshToken: String)
 data class CandidateRegisterRequest(
     val role: UserRole = UserRole.CANDIDATE,
     val fullName: String,
@@ -193,7 +208,42 @@ data class CandidateRegisterRequest(
     val password: String,
     val acceptedTermsVersion: String,
 )
+data class TokenData(
+    val accessToken: String,
+    val refreshToken: String,
+    val expiresIn: Int,
+    val refreshExpiresIn: Int,
+)
+data class AuthUser(
+    val userId: String,
+    val role: UserRole,
+    val fullName: String,
+    val email: String,
+    val avatarUrl: String?,
+    val createdAt: String,
+    val updatedAt: String,
+    val company: Company?,
+)
+data class AuthData(
+    val accessToken: String,
+    val refreshToken: String,
+    val expiresIn: Int,
+    val refreshExpiresIn: Int,
+    val user: AuthUser,
+)
 data class SubmitApplicationRequest(val resumeId: String, val contactEmail: String, val shareProfile: Boolean)
 data class SendMessageRequest(val body: String, val clientMessageId: String)
 data class ReadStateRequest(val lastReadMessageId: String)
 data class WithdrawApplicationRequest(val reason: String, val expectedVersion: Int)
+
+data class CandidateStats(val chatCount: Int, val applicationCount: Int, val interviewCount: Int, val savedJobCount: Int)
+data class CandidateProfileDto(
+    val userId: String, val fullName: String, val email: String, val headline: String, val avatarUrl: String?,
+    val location: String, val stats: CandidateStats, val version: Int, val createdAt: String, val updatedAt: String,
+)
+data class UpdateProfileRequest(val fullName: String? = null, val headline: String? = null,
+                                val location: String? = null, val expectedVersion: Int)
+data class SaveResumeRequest(
+    val fullName: String, val age: Int, val location: String, val headline: String, val summary: String,
+    val experiences: List<Experience>, val expectedVersion: Int,
+)

@@ -155,15 +155,6 @@ paths:
         in: query
         schema:
           $ref: '#/components/schemas/EmploymentType'
-      - name: category
-        in: query
-        schema:
-          type: string
-          enum:
-          - RECOMMENDED
-          - AI_LLM
-          - BACKEND
-          - DATA
       - $ref: '#/components/parameters/Page'
       - $ref: '#/components/parameters/PageSize'
       responses:

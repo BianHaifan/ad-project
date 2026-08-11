@@ -7,15 +7,6 @@ import com.adproject.candidate.data.contract.ResumeSnapshot
 import com.adproject.candidate.data.contract.SenderType
 import com.adproject.candidate.data.contract.TimelineStep
 
-data class SignInDefaults(val email: String, val password: String)
-
-data class RegistrationDefaults(
-    val fullName: String,
-    val email: String,
-    val password: String,
-    val agreed: Boolean,
-)
-
 data class Job(
     val jobId: String,
     val title: String,
@@ -24,8 +15,8 @@ data class Job(
     val companyMeta: String,
     val salary: String,
     val skills: List<String>,
-    val match: Int,
-    val recruiter: RecruiterContact,
+    val match: Int?,
+    val recruiter: RecruiterContact?,
 )
 
 data class RecruiterContact(val recruiterId: String, val fullName: String, val title: String)
@@ -44,6 +35,10 @@ data class JobDetailData(
     val gap: String,
     val description: String,
     val requirements: String,
+    val skills: List<String> = emptyList(),
+    val deadline: String? = null,
+    val publishedAt: String? = null,
+    val matchAnalysisAvailable: Boolean = false,
 )
 
 data class LearningData(

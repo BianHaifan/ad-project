@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,12 +41,32 @@ import com.adproject.candidate.core.designsystem.TagChip
 import com.adproject.candidate.data.model.JobDetailData
 
 @Composable
-fun JobDetailScreen(data: JobDetailData, onBack: () -> Unit, onApply: () -> Unit) {
+fun JobDetailScreen(state: JobDetailUiState, onBack: () -> Unit, onRetry: () -> Unit) {
+    when {
+        state.loading -> Box(Modifier.fillMaxSize().background(AdBackground), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = AdTeal)
+        }
+        state.data == null -> Column(Modifier.fillMaxSize().background(AdBackground)) {
+            AdTopBar("Job details", onBack)
+            Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center) {
+                Text(if (state.notFound) "This job is no longer available." else state.message.orEmpty(),
+                    color = AdMuted, fontSize = 13.sp)
+                Spacer(Modifier.height(16.dp))
+                if (!state.notFound) PrimaryButton("Try again", onRetry)
+            }
+        }
+        else -> JobDetailContent(state.data, onBack)
+    }
+}
+
+@Composable
+private fun JobDetailContent(data: JobDetailData, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(AdBackground)) {
-        AdTopBar("Job details", onBack) { FigmaSvg(R.raw.icon_save, "Save job", Modifier.size(24.dp)) }
+        AdTopBar("Job details", onBack) { Text("Save unavailable", color = AdMuted, fontSize = 10.sp) }
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 18.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SecondaryButton("✦  Tailor with Agent", {}, Modifier.weight(1f))
-            PrimaryButton("Apply now", onApply, Modifier.weight(1f))
+            SecondaryButton("Match unavailable", {}, Modifier.weight(1f), enabled = false)
+            PrimaryButton("Apply not connected", {}, Modifier.weight(1f), enabled = false)
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             AdCard(Modifier.fillMaxWidth()) {
@@ -66,36 +87,40 @@ fun JobDetailScreen(data: JobDetailData, onBack: () -> Unit, onApply: () -> Unit
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { data.job.skills.take(3).forEach { TagChip(it) } }
                 }
             }
-            AdCard(Modifier.fillMaxWidth()) {
+            if (data.matchAnalysisAvailable) AdCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("AI Match Analysis", color = Color(0xFF111827), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                        TagChip("${data.job.match}% match", accent = true)
+                        data.job.match?.let { TagChip("$it% match", accent = true) }
                     }
                     Text("ML model compares your resume skills and experience with this job.", color = AdMuted, fontSize = 12.sp, lineHeight = 17.sp)
                     Text("✓ Strong: ${data.strongMatches}", color = AdTealDark, fontSize = 12.sp)
                     Text("△ Gap: ${data.gap}", color = Color(0xFFFF8500), fontSize = 12.sp)
                     TagChip("Ask AI Agent to explain →", accent = true)
                 }
+            } else AdCard(Modifier.fillMaxWidth()) {
+                Text("Match analysis is not available yet.", Modifier.padding(16.dp), color = AdMuted, fontSize = 12.sp)
             }
             AdCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("About this role", color = Color(0xFF111827), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     Text(data.description, color = AdMuted, fontSize = 12.sp, lineHeight = 17.sp)
                     Text(data.requirements, color = AdTealDark, fontSize = 11.sp)
+                    data.deadline?.let { Text("Deadline: $it", color = AdMuted, fontSize = 10.sp) }
+                    data.publishedAt?.let { Text("Published: $it", color = AdMuted, fontSize = 10.sp) }
                 }
             }
-            AdCard(Modifier.fillMaxWidth()) {
+            data.job.recruiter?.let { recruiter -> AdCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(AdTealSoft), contentAlignment = Alignment.Center) { Text(data.job.recruiter.fullName.take(1), color = AdTeal) }
+                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(AdTealSoft), contentAlignment = Alignment.Center) { Text(recruiter.fullName.take(1), color = AdTeal) }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(data.job.recruiter.fullName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text("${data.job.recruiter.title} · ${data.job.company}", color = AdMuted, fontSize = 10.sp)
+                        Text(recruiter.fullName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("${recruiter.title} · ${data.job.company}", color = AdMuted, fontSize = 10.sp)
                     }
-                    Box(Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFFE5FAF7)).padding(horizontal = 18.dp, vertical = 12.dp)) { Text("Message", color = AdTealDark, fontSize = 11.sp) }
+                    Text("Messaging not connected", color = AdMuted, fontSize = 10.sp)
                 }
-            }
+            } }
             Spacer(Modifier.height(10.dp))
         }
     }

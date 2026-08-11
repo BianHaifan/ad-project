@@ -70,4 +70,9 @@ public class UserEntity {
     public String getAvatarUrl() { return avatarUrl; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    public void updateFullName(String fullName, Instant now) {
+        this.fullName = fullName;
+        this.updatedAt = now;
+    }
 }

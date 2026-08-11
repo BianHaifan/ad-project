@@ -15,7 +15,7 @@
 ```text
 User 1 ── 0..1 CandidateProfile
 User 1 ── 0..1 RecruiterProfile
-User 1 ── N Resume
+User 1 ── 0..1 Resume
 Company 1 ── N RecruiterProfile
 Company 1 ── N Job
 User(Candidate) 1 ── N Application
@@ -54,6 +54,11 @@ User(Admin) 1 ── N AuditLog
 | location | VARCHAR(100) | 可空 |
 | bio | TEXT | 可空 |
 | phone | VARCHAR(32) | 可空，敏感字段 |
+| version | INT | NOT NULL，乐观锁版本 |
+| created_at | DATETIME(6) | NOT NULL |
+| updated_at | DATETIME(6) | NOT NULL |
+
+当前 OpenAPI MVP 投影只使用 `headline` 和 `location`；`bio`、`phone` 不进入本阶段 API。
 
 ### companies
 
@@ -84,17 +89,17 @@ User(Admin) 1 ── N AuditLog
 |---|---|---|
 | id | UUID/CHAR(36) | PK |
 | candidate_id | UUID/CHAR(36) | FK users, NOT NULL |
-| title | VARCHAR(150) | NOT NULL |
-| summary | TEXT | 可空 |
-| structured_data | JSON | 技能、经历、教育、项目 |
-| file_url | VARCHAR(1000) | 可空 |
-| parse_status | VARCHAR(32) | NOT_REQUIRED/PENDING/SUCCEEDED/FAILED |
-| is_default | BOOLEAN | NOT NULL |
+| full_name | VARCHAR(100) | NOT NULL |
+| age | INT | NOT NULL，16–100 |
+| location | VARCHAR(100) | NOT NULL |
+| headline | VARCHAR(200) | NOT NULL |
+| summary | TEXT | NOT NULL |
+| experiences_json | TEXT/JSON | OpenAPI Experience 数组，保持提交顺序 |
 | version | INT | 乐观锁或业务版本 |
 | created_at | DATETIME(6) | NOT NULL |
 | updated_at | DATETIME(6) | NOT NULL |
 
-每个求职者最多一份默认简历。可通过事务、唯一辅助字段或服务端规则保证。
+MVP 每个求职者最多一份简历，由 `UNIQUE(candidate_id)` 强制保证。多简历、文件上传、教育和技能字段在契约确定前不加入正式表。
 
 ### jobs
 

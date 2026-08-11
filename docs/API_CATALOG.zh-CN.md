@@ -89,7 +89,7 @@
 
 | 状态 | MVP 范围 | Method | Path | operationId | Candidate | Recruiter | 权限 | 请求 | 成功 | 主要错误 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | MVP | GET | `/jobs` | `listJobs` | YES | NO | Candidate role; returns ACTIVE visible jobs only | params: q/employmentType/category/Page/PageSize | 200 | 401, 403 |
+| DRAFT | MVP | GET | `/jobs` | `listJobs` | YES | NO | Candidate role; returns ACTIVE visible jobs only | params: q/employmentType/Page/PageSize | 200 | 401, 403 |
 | DRAFT | MVP | GET | `/jobs/{jobId}` | `getJob` | YES | NO | Candidate role; ACTIVE visible job only | params: JobId | 200 | 404, 401, 403 |
 | DRAFT | MVP | GET | `/recruiter/jobs` | `listRecruiterJobs` | NO | YES | Recruiter; own company | params: q/status/employmentType/location/ownerId/Page/PageSize | 200 | 401, 404, 403 |
 | DRAFT | MVP | POST | `/recruiter/jobs` | `createRecruiterJob` | NO | YES | Recruiter; verified own company | body: CreateJobRequest | 201 | 401, 404, 403, 409, 422 |

@@ -1,0 +1,214 @@
+package com.adproject.candidate
+
+import com.adproject.candidate.core.auth.SessionManager
+import com.adproject.candidate.core.auth.SessionTokens
+import com.adproject.candidate.core.auth.TokenStore
+import com.adproject.candidate.core.network.AccessTokenInterceptor
+import com.adproject.candidate.core.network.RefreshAuthenticator
+import com.adproject.candidate.data.api.ApiResult
+import com.adproject.candidate.data.api.AuthHttpApi
+import com.adproject.candidate.data.api.CandidateJobHttpApi
+import com.adproject.candidate.data.api.RealAuthRepository
+import com.adproject.candidate.data.api.RealCandidateJobRepository
+import com.adproject.candidate.data.api.CandidateProfileHttpApi
+import com.adproject.candidate.data.api.CandidateResumeHttpApi
+import com.adproject.candidate.data.api.RealCandidateProfileRepository
+import com.adproject.candidate.data.api.RealCandidateResumeRepository
+import com.adproject.candidate.data.contract.UpdateProfileRequest
+import com.adproject.candidate.data.contract.SaveResumeRequest
+import com.adproject.candidate.data.contract.EmploymentType
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runTest
+import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
+
+class RepositoryIntegrationTest {
+    private lateinit var server: MockWebServer
+    private lateinit var moshi: Moshi
+
+    @Before fun setUp() {
+        server = MockWebServer()
+        server.start()
+        moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+    }
+
+    @After fun tearDown() = server.shutdown()
+
+    @Test fun loginAndRegistrationSaveRealCandidateTokens() = runTest {
+        val store = MemoryTokenStore()
+        val publicApi = retrofit().create(AuthHttpApi::class.java)
+        val session = SessionManager(store, publicApi)
+        val repository = RealAuthRepository(publicApi, publicApi, session, moshi)
+        server.enqueue(jsonResponse(authBody("access-login", "refresh-login")))
+        assertTrue(repository.login("candidate@example.com", "UnitOnly9!") is ApiResult.Success)
+        assertEquals(SessionTokens("access-login", "refresh-login"), store.value)
+        assertTrue(server.takeRequest().body.readUtf8().contains("candidate@example.com"))
+
+        server.enqueue(jsonResponse(authBody("access-register", "refresh-register")))
+        assertTrue(repository.register("Candidate", "new@example.com", "UnitOnly9!") is ApiResult.Success)
+        val registration = server.takeRequest().body.readUtf8()
+        assertTrue(registration.contains("\"role\":\"CANDIDATE\""))
+        assertFalse(registration.contains("companyName"))
+    }
+
+    @Test fun authFieldErrorsAndSafeLoginFailureAreMapped() = runTest {
+        val api = retrofit().create(AuthHttpApi::class.java)
+        val repository = RealAuthRepository(api, api, SessionManager(MemoryTokenStore(), api), moshi)
+        server.enqueue(jsonResponse(errorBody("VALIDATION_ERROR", "Request validation failed", "email"), 422))
+        val validation = repository.register("Candidate", "bad", "UnitOnly9!") as ApiResult.Failure
+        assertEquals("invalid", validation.fieldErrors["email"])
+
+        server.enqueue(jsonResponse(errorBody("UNAUTHORIZED", "internal authentication detail"), 401))
+        val login = repository.login("candidate@example.com", "wrong-password") as ApiResult.Failure
+        assertEquals("Your session has expired. Please sign in again.", login.message)
+        assertFalse(login.message.contains("internal"))
+    }
+
+    @Test fun jobsExposeContentEmptyErrorAndDetail404WithoutFakeScores() = runTest {
+        val repository = RealCandidateJobRepository(retrofit().create(CandidateJobHttpApi::class.java), moshi)
+        server.enqueue(jsonResponse(jobPageBody()))
+        val page = repository.jobs("Backend", EmploymentType.FULL_TIME) as ApiResult.Success
+        assertEquals(1, page.value.jobs.size)
+        assertNull(page.value.jobs.first().matchScore)
+        assertNull(page.value.jobs.first().recruiter)
+        assertTrue(server.takeRequest().path!!.contains("q=Backend"))
+
+        server.enqueue(jsonResponse("""{"data":[],"meta":{"page":1,"pageSize":20,"total":0,"hasNext":false}}"""))
+        val empty = repository.jobs(null, null) as ApiResult.Success
+        assertTrue(empty.value.jobs.isEmpty())
+
+        server.enqueue(jsonResponse(errorBody("INTERNAL_ERROR", "database trace"), 500))
+        val failure = repository.jobs(null, null) as ApiResult.Failure
+        assertFalse(failure.message.contains("trace"))
+
+        server.enqueue(jsonResponse(errorBody("NOT_FOUND", "Job not found"), 404))
+        val missing = repository.job("missing") as ApiResult.Failure
+        assertEquals(404, missing.statusCode)
+        assertEquals("This job is no longer available.", missing.message)
+    }
+
+    @Test fun detailMapsTransitionalApplicationAndSavedState() = runTest {
+        val repository = RealCandidateJobRepository(retrofit().create(CandidateJobHttpApi::class.java), moshi)
+        server.enqueue(jsonResponse("""{"data":${jobObject()},"matchAnalysis":null}""".replace(
+            "\"updatedAt\":\"2026-08-11T08:00:00Z\"",
+            "\"updatedAt\":\"2026-08-11T08:00:00Z\",\"matchAnalysis\":null,\"applicationState\":\"NOT_APPLIED\",\"isSaved\":false",
+        )))
+        val result = repository.job("job-1") as ApiResult.Success
+        assertEquals("NOT_APPLIED", result.value.applicationState.name)
+        assertFalse(result.value.isSaved)
+        assertNull(result.value.matchAnalysis)
+    }
+
+    @Test fun unauthorizedRequestRefreshesOnceSavesRotatedTokensAndRetries() = runTest {
+        val store = MemoryTokenStore(SessionTokens("old-access", "old-refresh"))
+        val refreshApi = retrofit().create(AuthHttpApi::class.java)
+        val session = SessionManager(store, refreshApi)
+        val client = OkHttpClient.Builder().addInterceptor(AccessTokenInterceptor(session))
+            .authenticator(RefreshAuthenticator(session)).build()
+        val jobs = retrofit(client).create(CandidateJobHttpApi::class.java)
+        server.enqueue(jsonResponse(errorBody("UNAUTHORIZED", "expired"), 401))
+        server.enqueue(jsonResponse("""{"data":{"accessToken":"new-access","refreshToken":"new-refresh","expiresIn":7200,"refreshExpiresIn":2592000}}"""))
+        server.enqueue(jsonResponse(jobPageBody()))
+
+        assertTrue(jobs.jobs(null, null).isSuccessful)
+        assertEquals(SessionTokens("new-access", "new-refresh"), store.value)
+        assertEquals("Bearer old-access", server.takeRequest().getHeader("Authorization"))
+        assertNull(server.takeRequest().getHeader("Authorization"))
+        assertEquals("Bearer new-access", server.takeRequest().getHeader("Authorization"))
+    }
+
+    @Test fun concurrentRefreshIsCoordinatedAndRefreshFailureClearsSession() = runTest {
+        val store = MemoryTokenStore(SessionTokens("old", "refresh"))
+        val api = retrofit().create(AuthHttpApi::class.java)
+        val session = SessionManager(store, api)
+        server.enqueue(jsonResponse("""{"data":{"accessToken":"rotated","refreshToken":"rotated-refresh","expiresIn":7200,"refreshExpiresIn":2592000}}"""))
+        val first = async { session.refreshAfterUnauthorized("old") }
+        val second = async { session.refreshAfterUnauthorized("old") }
+        assertEquals("rotated", first.await())
+        assertEquals("rotated", second.await())
+        assertEquals(1, server.requestCount)
+
+        server.enqueue(jsonResponse(errorBody("UNAUTHORIZED", "expired"), 401))
+        assertNull(session.refreshAfterUnauthorized("rotated"))
+        assertNull(store.value)
+        assertEquals(false, session.sessionActive.value)
+    }
+
+    @Test fun profileRepositoryLoadsUpdatesAndMapsFieldErrors() = runTest {
+        val repository = RealCandidateProfileRepository(retrofit().create(CandidateProfileHttpApi::class.java), moshi)
+        val profile = """{"userId":"candidate-1","fullName":"Candidate","email":"candidate@example.com","headline":"Engineer","avatarUrl":null,"location":"Singapore","stats":{"chatCount":0,"applicationCount":0,"interviewCount":0,"savedJobCount":0},"version":1,"createdAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z"}"""
+        server.enqueue(jsonResponse("""{"data":$profile}"""))
+        assertEquals("Candidate", (repository.get() as ApiResult.Success).value.fullName)
+        server.takeRequest()
+        server.enqueue(jsonResponse("""{"data":${profile.replace("\"version\":1", "\"version\":2")}}"""))
+        val updated = repository.update(UpdateProfileRequest("Candidate", "Engineer", "Singapore", 1)) as ApiResult.Success
+        assertEquals(2, updated.value.version)
+        assertFalse(server.takeRequest().body.readUtf8().contains("userId"))
+        server.enqueue(jsonResponse(errorBody("VALIDATION_ERROR", "Request validation failed", "headline"), 422))
+        val error = repository.update(UpdateProfileRequest("Candidate", "x", "Singapore", 2)) as ApiResult.Failure
+        assertEquals("invalid", error.fieldErrors["headline"])
+    }
+
+    @Test fun resumeRepositoryHandlesMissingCreateAndRotatingVersions() = runTest {
+        val repository = RealCandidateResumeRepository(retrofit().create(CandidateResumeHttpApi::class.java), moshi)
+        server.enqueue(jsonResponse(errorBody("NOT_FOUND", "Resume not found"), 404))
+        assertEquals(404, (repository.get() as ApiResult.Failure).statusCode)
+        server.takeRequest()
+        val resume = """{"resumeId":"resume-1","fullName":"Candidate","age":27,"location":"Singapore","headline":"Engineer","summary":"Summary","experiences":[],"version":1,"createdAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z"}"""
+        server.enqueue(jsonResponse("""{"data":$resume}"""))
+        val saved = repository.save(SaveResumeRequest("Candidate", 27, "Singapore", "Engineer", "Summary", emptyList(), 0)) as ApiResult.Success
+        assertEquals(1, saved.value.version)
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"expectedVersion\":0"))
+        assertFalse(body.contains("candidateId"))
+    }
+
+    private fun retrofit(client: OkHttpClient = OkHttpClient()): Retrofit = Retrofit.Builder()
+        .baseUrl(server.url("/api/v1/"))
+        .client(client)
+        .addConverterFactory(MoshiConverterFactory.create(moshi))
+        .build()
+
+    private fun jsonResponse(body: String, code: Int = 200) = MockResponse().setResponseCode(code)
+        .setHeader("Content-Type", "application/json").setBody(body)
+
+    private fun errorBody(code: String, message: String, field: String? = null): String =
+        """{"error":{"code":"$code","message":"$message","fieldErrors":${if (field == null) "{}" else "{\"$field\":\"invalid\"}"},"requestId":"req-test"}}"""
+
+    private fun authBody(access: String, refresh: String) = """
+        {"data":{"accessToken":"$access","refreshToken":"$refresh","expiresIn":7200,"refreshExpiresIn":2592000,
+        "user":{"userId":"candidate-1","role":"CANDIDATE","fullName":"Candidate","email":"candidate@example.com",
+        "avatarUrl":null,"createdAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z","company":null}}}
+    """.trimIndent()
+
+    private fun jobPageBody() = """{"data":[${jobObject()}],"meta":{"page":1,"pageSize":20,"total":1,"hasNext":false}}"""
+    private fun jobObject() = """
+        {"jobId":"job-1","title":"Backend Engineer","company":{"companyId":"company-1","name":"Real Company",
+        "logoUrl":null,"stage":null,"employeeRange":null,"verificationStatus":"APPROVED","website":null,
+        "description":null,"location":null,"version":1,"createdAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z"},
+        "employmentType":"FULL_TIME","workplaceType":"HYBRID","location":"Singapore",
+        "salary":{"min":5000,"max":8000,"currency":"SGD","period":"MONTH"},"description":"Real role",
+        "requirements":["Reliable APIs"],"skills":["Java"],"deadline":null,"visibility":"PUBLIC","status":"ACTIVE",
+        "publishedAt":"2026-08-11T08:00:00Z","version":2,"createdAt":"2026-08-11T08:00:00Z",
+        "updatedAt":"2026-08-11T08:00:00Z","matchScore":null,"recruiter":null}
+    """.trimIndent()
+}
+
+private class MemoryTokenStore(initial: SessionTokens? = null) : TokenStore {
+    var value: SessionTokens? = initial
+    override suspend fun read() = value
+    override suspend fun write(tokens: SessionTokens) { value = tokens }
+    override suspend fun clear() { value = null }
+}
