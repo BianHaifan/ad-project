@@ -72,24 +72,43 @@ fun RealResumeScreen(state: ResumeUiState, onBack: () -> Unit, onRetry: () -> Un
     val experiences = remember(data) { mutableStateListOf<Experience>().apply { addAll(data?.experiences.orEmpty()) } }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(if (data == null) "Create resume" else "Edit resume", style = MaterialTheme.typography.headlineSmall)
-        OutlinedTextField(name, { name = it }, label = { Text("Full name") })
-        OutlinedTextField(age, { age = it }, label = { Text("Age") })
-        OutlinedTextField(location, { location = it }, label = { Text("Location") })
-        OutlinedTextField(headline, { headline = it }, label = { Text("Headline") })
-        OutlinedTextField(summary, { summary = it }, label = { Text("Summary") }, minLines = 3)
+        OutlinedTextField(name, { name = it }, label = { Text("Full name") },
+            isError = "fullName" in state.fieldErrors,
+            supportingText = { state.fieldErrors["fullName"]?.let { Text(it) } })
+        OutlinedTextField(age, { age = it }, label = { Text("Age") },
+            isError = "age" in state.fieldErrors,
+            supportingText = { state.fieldErrors["age"]?.let { Text(it) } })
+        OutlinedTextField(location, { location = it }, label = { Text("Location") },
+            isError = "location" in state.fieldErrors,
+            supportingText = { state.fieldErrors["location"]?.let { Text(it) } })
+        OutlinedTextField(headline, { headline = it }, label = { Text("Headline") },
+            isError = "headline" in state.fieldErrors,
+            supportingText = { state.fieldErrors["headline"]?.let { Text(it) } })
+        OutlinedTextField(summary, { summary = it }, label = { Text("Summary") }, minLines = 3,
+            isError = "summary" in state.fieldErrors,
+            supportingText = { state.fieldErrors["summary"]?.let { Text(it) } })
         Text("Experience", style = MaterialTheme.typography.titleMedium)
         experiences.forEachIndexed { index, experience ->
             Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedTextField(experience.title, { experiences[index] = experience.copy(title = it) }, label = { Text("Title") })
-                OutlinedTextField(experience.company, { experiences[index] = experience.copy(company = it) }, label = { Text("Company") })
+                val prefix = "experiences[$index]"
+                OutlinedTextField(experience.title, { experiences[index] = experience.copy(title = it) }, label = { Text("Title") },
+                    isError = "$prefix.title" in state.fieldErrors,
+                    supportingText = { state.fieldErrors["$prefix.title"]?.let { Text(it) } })
+                OutlinedTextField(experience.company, { experiences[index] = experience.copy(company = it) }, label = { Text("Company") },
+                    isError = "$prefix.company" in state.fieldErrors,
+                    supportingText = { state.fieldErrors["$prefix.company"]?.let { Text(it) } })
                 OutlinedTextField(experience.description, { experiences[index] = experience.copy(description = it) }, label = { Text("Description") })
-                OutlinedTextField(experience.startDate, { experiences[index] = experience.copy(startDate = it) }, label = { Text("Start YYYY-MM") })
-                OutlinedTextField(experience.endDate.orEmpty(), { experiences[index] = experience.copy(endDate = it.ifBlank { null }) }, label = { Text("End YYYY-MM") })
+                OutlinedTextField(experience.startDate, { experiences[index] = experience.copy(startDate = it) }, label = { Text("Start YYYY-MM") },
+                    isError = "$prefix.startDate" in state.fieldErrors,
+                    supportingText = { state.fieldErrors["$prefix.startDate"]?.let { Text(it) } })
+                OutlinedTextField(experience.endDate.orEmpty(), { experiences[index] = experience.copy(endDate = it.ifBlank { null }) }, label = { Text("End YYYY-MM") },
+                    isError = "$prefix.endDate" in state.fieldErrors,
+                    supportingText = { state.fieldErrors["$prefix.endDate"]?.let { Text(it) } })
                 TextButton(onClick = { experiences.removeAt(index) }) { Text("Remove") }
             } }
         }
         TextButton(onClick = { experiences.add(Experience(null, "", "", "", "2026-01", null)) }) { Text("+ Add experience") }
-        state.message?.let { Text(it) }
+        state.message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         PrimaryButton(if (state.submitting) "Saving…" else "Save changes", { onSave(name, age, location, headline, summary, experiences.toList()) }, Modifier.fillMaxWidth(), enabled = !state.submitting)
         SecondaryButton("Back", onBack, Modifier.fillMaxWidth())
     }

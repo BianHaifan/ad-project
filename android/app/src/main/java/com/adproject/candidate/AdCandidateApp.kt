@@ -233,6 +233,12 @@ fun AdCandidateApp(
             composable(Route.ResumeEdit) {
                 val resumeViewModel: CandidateResumeViewModel = viewModel(factory = CandidateResumeViewModel.factory(container.candidateResumeRepository))
                 val state by resumeViewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(state.saved) {
+                    if (state.saved) {
+                        if (applicationViewModel.state.value.jobId != null) applicationViewModel.retryLoad()
+                        navigateBack(Route.Profile)
+                    }
+                }
                 RealResumeScreen(
                     state = state,
                     onBack = { navigateBack(Route.Profile) },

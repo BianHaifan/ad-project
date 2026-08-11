@@ -66,6 +66,17 @@ class ProfileResumeViewModelTest {
         assertEquals(3, repository.lastRequest?.expectedVersion)
     }
 
+    @Test fun resumeValidationProvidesVisibleSafeMessage() = runTest(main.dispatcher) {
+        val repository = ResumeFake(mutableListOf(ApiResult.Failure("missing", statusCode = 404)))
+        val viewModel = CandidateResumeViewModel(repository)
+        advanceUntilIdle()
+        viewModel.save("", "not-an-age", "", "", "", emptyList())
+        assertEquals("Please correct the highlighted fields.", viewModel.state.value.message)
+        assertTrue(viewModel.state.value.fieldErrors.keys.containsAll(
+            listOf("fullName", "age", "location", "headline", "summary")))
+        assertEquals(0, repository.saveCalls)
+    }
+
     private fun profile(name:String="Candidate",version:Int=1)=CandidateProfileDto("u",name,"candidate@example.com","",null,"",CandidateStats(0,0,0,0),version,"2026-08-11T08:00:00Z","2026-08-11T08:00:00Z")
     private fun resume(version:Int)=Resume("r","Candidate",27,"Singapore","Engineer","Summary",emptyList(),version,"2026-08-11T08:00:00Z","2026-08-11T08:00:00Z")
 

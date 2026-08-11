@@ -47,7 +47,10 @@ class CandidateProfileViewModel(private val repository: CandidateProfileReposito
             if (headline.length > 200) put("headline", "Maximum 200 characters")
             if (location.length > 100) put("location", "Maximum 100 characters")
         }
-        if (errors.isNotEmpty()) { mutable.update { it.copy(fieldErrors = errors) }; return }
+        if (errors.isNotEmpty()) {
+            mutable.update { it.copy(fieldErrors = errors, message = "Please correct the highlighted fields.") }
+            return
+        }
         mutable.update { it.copy(submitting = true, fieldErrors = emptyMap(), message = null) }
         viewModelScope.launch {
             when (val result = repository.update(UpdateProfileRequest(fullName, headline, location, current.data.version))) {
@@ -97,7 +100,10 @@ class CandidateResumeViewModel(private val repository: CandidateResumeRepository
                 if (experience.endDate != null && !month.matches(experience.endDate)) put("experiences[$index].endDate", "Use YYYY-MM")
             }
         }
-        if (errors.isNotEmpty()) { mutable.update { it.copy(fieldErrors = errors) }; return }
+        if (errors.isNotEmpty()) {
+            mutable.update { it.copy(fieldErrors = errors, message = "Please correct the highlighted fields.") }
+            return
+        }
         mutable.update { it.copy(submitting = true, fieldErrors = emptyMap(), message = null) }
         viewModelScope.launch {
             val resume = current.data
