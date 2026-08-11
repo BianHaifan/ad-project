@@ -116,6 +116,11 @@ private class QueueApplicationRepository(
     private val pending: CompletableDeferred<ApiResult<CandidateApplication>>? = null,
 ) : CandidateApplicationRepository {
     var calls = 0; val keys = mutableListOf<String>(); val requests = mutableListOf<SubmitApplicationRequest>()
+    override suspend fun applications(filter: ApplicationListFilter?, page: Int, pageSize: Int) =
+        ApiResult.Failure("Not used")
+    override suspend fun application(applicationId: String) = ApiResult.Failure("Not used")
+    override suspend fun withdraw(applicationId: String, request: WithdrawApplicationRequest) =
+        ApiResult.Failure("Not used")
     override suspend fun submit(jobId: String, idempotencyKey: String, request: SubmitApplicationRequest): ApiResult<CandidateApplication> {
         calls++; keys += idempotencyKey; requests += request
         return pending?.await() ?: results.removeFirst()

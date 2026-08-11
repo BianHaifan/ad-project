@@ -288,7 +288,11 @@ paths:
       x-clients:
       - Candidate
       x-permission: Candidate self only
-      description: 'Permission: Candidate self only. Status: DRAFT. Clients: Candidate.'
+      description: 'Permission: Candidate self only. Status: DRAFT. Clients: Candidate. Filter groups: ACTIVE
+        maps to APPLIED and IN_REVIEW; INTERVIEW maps to INTERVIEW; ARCHIVED maps to REJECTED and WITHDRAWN.
+        Counts are calculated across all of the current Candidate''s applications before filtering and pagination.
+        Default stable sort: appliedAt DESC, then applicationId DESC. Timeline entries come from persisted
+        application_status_events ordered by occurredAt ASC, then event id ASC.'
       x-mvp-scope: MVP
   /candidate/applications/{applicationId}:
     get:
@@ -1119,22 +1123,18 @@ paths:
         in: query
         schema:
           type: string
-      - name: ownerId
-        in: query
-        schema:
-          type: string
-      - name: minMatchScore
-        in: query
-        schema:
-          type: integer
-          minimum: 0
-          maximum: 100
+        description: Case-insensitive Candidate fullName or email search.
       - $ref: '#/components/parameters/Page'
       - $ref: '#/components/parameters/PageSize'
       - name: sort
         in: query
         schema:
           type: string
+          enum:
+          - appliedAt,desc
+          - appliedAt,asc
+          - updatedAt,desc
+          - updatedAt,asc
       responses:
         '200':
           description: Success
@@ -1148,7 +1148,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         '403':
           $ref: '#/components/responses/Forbidden'
-      description: 'Permission: Recruiter; applications to own-company jobs. Status: DRAFT. Clients: Recruiter.'
+      description: 'Permission: Recruiter; applications to own-company jobs. Status: DRAFT. Clients: Recruiter.
+        Default stable sort is appliedAt DESC then applicationId DESC. ownerId is deferred until Application owner
+        persistence exists; minMatchScore is deferred until persisted ML results exist.'
       x-mvp-scope: MVP
   /recruiter/applications/{applicationId}:
     get:
@@ -1782,8 +1784,11 @@ paths:
       operationId: withdrawCandidateApplication
       description: 'Permission: Candidate application owner only. Status: DRAFT. Clients: Candidate. Allowed from
         APPLIED, IN_REVIEW, or INTERVIEW; transitions to terminal WITHDRAWN. Concurrency: require expectedVersion,
-        compare atomically, increment version on success, and return 409 VERSION_CONFLICT on mismatch. Audit actorId,
-        before/after status, occurredAt, reason, and requestId.'
+        compare atomically, increment version on success, and return 409 VERSION_CONFLICT on mismatch before
+        evaluating the transition. A matching version with a terminal source state returns 409
+        INVALID_APPLICATION_TRANSITION. Audit actorId, before/after status, occurredAt, reason, and requestId.
+        Withdrawal preserves the Application and ResumeSnapshot and does not decrement the cumulative Job
+        applicantCount.'
       parameters:
       - name: applicationId
         in: path

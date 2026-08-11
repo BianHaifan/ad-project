@@ -159,6 +159,33 @@ data class ResumeSnapshot(
 data class TimelineStep(val status: ApplicationStatus, val completed: Boolean, val occurredAt: String?)
 data class ApplicationNextStep(val type: String, val title: String, val description: String)
 
+data class CandidateApplicationSummary(
+    val applicationId: String,
+    val jobId: String,
+    val status: ApplicationStatus,
+    val appliedAt: String,
+    val updatedAt: String,
+    val version: Int,
+    val jobTitle: String,
+    val company: Company,
+    val matchScore: Int?,
+    val scheduledAt: String?,
+    val timeline: List<TimelineStep>,
+)
+
+data class ApplicationCounts(val active: Int, val interview: Int, val archived: Int)
+data class CandidateApplicationListMeta(
+    val page: Int,
+    val pageSize: Int,
+    val total: Int,
+    val hasNext: Boolean,
+    val counts: ApplicationCounts,
+)
+data class CandidateApplicationPage(
+    val applications: List<CandidateApplicationSummary>,
+    val meta: CandidateApplicationListMeta,
+)
+
 data class CandidateApplication(
     val applicationId: String,
     val jobId: String,

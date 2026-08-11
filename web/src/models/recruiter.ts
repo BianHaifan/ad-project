@@ -226,14 +226,17 @@ export interface Dashboard {
 }
 
 export interface RecruiterApplicationCounts {
-  APPLIED: number;
-  IN_REVIEW: number;
-  INTERVIEW: number;
-  REJECTED: number;
-  WITHDRAWN: number;
+  applied: number;
+  inReview: number;
+  interview: number;
+  rejected: number;
 }
 
 export interface RecruiterApplicationListMeta extends PageMeta { counts: RecruiterApplicationCounts }
+export interface RecruiterApplicationListResult {
+  data: RecruiterApplicationSummary[];
+  meta: RecruiterApplicationListMeta;
+}
 
 export interface CreateJobRequest {
   title: string;

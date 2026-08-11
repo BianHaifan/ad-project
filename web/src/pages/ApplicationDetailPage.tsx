@@ -1,33 +1,94 @@
 import {useState, type FormEvent} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
-import {useApplication, useSaveNote, useScheduleInterview, useUpdateApplication} from '../api/queries';
-import type {InterviewMode} from '../models/recruiter';
+import {useApplication, useUpdateApplication} from '../api/queries';
+import type {ApplicationStatus} from '../models/recruiter';
 import type {RecruiterTransitionStatus} from '../api/recruiterRepository';
 import {ErrorState, LoadingState} from '../components/AsyncState';
 import {StatusBadge} from '../components/StatusBadge';
 
 export function ApplicationDetailPage() {
-  const {applicationId = ''} = useParams(); const nav = useNavigate(); const query = useApplication(applicationId);
-  const update = useUpdateApplication(); const saveNote = useSaveNote(); const schedule = useScheduleInterview();
-  const [note, setNote] = useState(''); const [showInterview, setShowInterview] = useState(false);
-  const [scheduledAt, setScheduledAt] = useState('2026-08-11T14:00'); const [mode, setMode] = useState<InterviewMode>('ONLINE');
-  const [meetingLocation, setMeetingLocation] = useState('https://meet.example.com/interview');
+  const {applicationId = ''} = useParams();
+  const nav = useNavigate();
+  const query = useApplication(applicationId);
+  const update = useUpdateApplication();
+  const [target, setTarget] = useState<RecruiterTransitionStatus | ''>('');
+  const [reason, setReason] = useState('');
+
   if (query.isLoading) return <LoadingState label="Loading application…"/>;
   if (query.isError || !query.data) return <ErrorState onRetry={() => query.refetch()}/>;
   const application = query.data;
-  const change = (status: RecruiterTransitionStatus) => update.mutate({id: application.applicationId, status});
-  const submitInterview = (event: FormEvent) => {
+  const targets = allowedTargets(application.status);
+  const submitTransition = (event: FormEvent) => {
     event.preventDefault();
-    schedule.mutate({id: application.applicationId, request: {
-      scheduledAt: new Date(scheduledAt).toISOString(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      durationMinutes: 30, mode, locationOrMeetingUrl: meetingLocation, expectedApplicationVersion: application.version,
-    }}, {onSuccess: () => setShowInterview(false)});
+    if (!target || !reason.trim()) return;
+    update.mutate({id: application.applicationId, status: target, reason, expectedVersion: application.version}, {
+      onSuccess: () => { setTarget(''); setReason(''); },
+    });
   };
-  return <><section className="detail-header"><div><button className="text-button" onClick={() => nav('/recruiter/applications')}>‹ Applications / {application.jobTitle}</button><h1>{application.candidate.fullName}</h1><p>Applied {new Date(application.appliedAt).toLocaleString()} · ID {application.applicationId.toUpperCase()}</p></div><div className="actions"><button className="button secondary" onClick={() => nav('/recruiter/messages/conv_001')}>Message</button><button className="button danger" disabled={update.isPending} onClick={() => change('REJECTED')}>Reject</button><button className="button primary" disabled={update.isPending} onClick={() => change('IN_REVIEW')}>Move to review</button></div></section><div className="detail-layout"><div className="detail-main"><section className="panel candidate-summary"><span className="avatar xl">{initials(application.candidate.fullName)}</span><div className="grow"><h2>{application.candidate.fullName}</h2><b>{application.candidate.headline}</b><p>{application.candidate.email} · {application.candidate.location}</p></div><div><small>RESUME SNAPSHOT</small><b>{application.resumeSnapshot.snapshotId}</b><small>CAPTURED</small><b>{new Date(application.resumeSnapshot.capturedAt).toLocaleString()}</b></div></section><section className="panel resume-snapshot"><div className="section-title"><div><h2>Submitted resume snapshot</h2><small>Captured at submission · Later profile edits do not affect this version</small></div><div className="actions"><button className="button tiny secondary">Download PDF</button><button className="button tiny soft" onClick={() => nav(`/recruiter/applications/${application.applicationId}/review`)}>Open full resume</button></div></div><h3>Summary</h3><p>{application.resumeSnapshot.summary}</p><h3>Experience</h3>{application.resumeSnapshot.experiences.map(experience => <p key={experience.experienceId ?? experience.title}><b>{experience.title} · {experience.company}</b><br/>{experience.description}</p>)}</section><section className="panel timeline"><div className="section-title"><h2>Application timeline</h2><small>All stage changes are recorded</small></div><div className="timeline-row">{application.timeline.map(event => <div className="done" key={event.eventId}><b>● {event.toStatus && <StatusBadge status={event.toStatus}/>}</b><small>{new Date(event.occurredAt).toLocaleString()}</small></div>)}</div></section></div><aside className="detail-side"><section className="panel fit-card"><div className="section-title"><div><h2>ML fit analysis</h2><small>{application.matchAnalysis?.modelVersion ?? 'Unavailable'} · Advisory only</small></div><span className="match-badge">{application.matchScore ?? 0}% match</span></div>{application.matchAnalysis?.evidence.map(evidence => <div className="evidence" key={evidence}><b>{evidence}</b><span className="evidence-strong">Evidence</span></div>)}<small>Recommendation aid only. The recruiter must review evidence before changing the application stage.</small></section><section className="panel decision"><div className="section-title"><h2>Review decision</h2><StatusBadge status={application.status}/></div><div className="form-grid"><label>APPLICATION STAGE<select value={application.status} onChange={event => {const status = transitionStatus(event.target.value); if (status) change(status);}}><option value="APPLIED" disabled>New application</option><option value="IN_REVIEW">In review</option><option value="INTERVIEW">Interview</option><option value="REJECTED">Rejected</option><option value="WITHDRAWN" disabled>Withdrawn by candidate</option></select></label><label>REVIEW OWNER<select value={application.owner?.userId ?? ''} disabled><option value={application.owner?.userId ?? ''}>{application.owner?.fullName ?? 'Unassigned'}</option></select></label></div><div className="actions"><button className="button tiny secondary" onClick={() => change('IN_REVIEW')}>Move to review</button><button className="button tiny primary" onClick={() => setShowInterview(true)}>Schedule interview</button></div></section><section className="panel notes"><h2>Recruiter notes</h2><textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Add private feedback for the hiring team…"/><div className="section-title"><small>{application.notes.at(-1)?.author.fullName ?? 'No author'} · “{application.notes.at(-1)?.body ?? 'No private notes yet.'}”</small><button className="button tiny primary" disabled={!note.trim() || saveNote.isPending} onClick={() => saveNote.mutate({id: application.applicationId, note}, {onSuccess: () => setNote('')})}>{saveNote.isPending ? 'Saving…' : 'Save note'}</button></div></section></aside></div>{showInterview && <div className="modal-backdrop" role="dialog" aria-modal="true"><form className="modal" onSubmit={submitInterview}><h2>Schedule interview</h2><p>Send an interview invitation to {application.candidate.fullName}.</p><label>Date and time<input type="datetime-local" value={scheduledAt} onChange={event => setScheduledAt(event.target.value)}/></label><label>Interview mode<select value={mode} onChange={event => {const value = parseMode(event.target.value); if (value) setMode(value);}}><option value="ONLINE">Online</option><option value="ONSITE">On-site</option><option value="PHONE">Phone</option></select></label><label>Location or meeting link<input value={meetingLocation} onChange={event => setMeetingLocation(event.target.value)}/></label><div className="actions"><button type="button" className="button secondary" onClick={() => setShowInterview(false)}>Cancel</button><button className="button primary" disabled={schedule.isPending}>{schedule.isPending ? 'Sending…' : 'Send invitation'}</button></div></form></div>}</>;
+
+  return <>
+    <section className="detail-header"><div>
+      <button className="text-button" onClick={() => nav('/recruiter/applications')}>‹ Applications / {application.jobTitle}</button>
+      <h1>{application.candidate.fullName}</h1>
+      <p>Applied {new Date(application.appliedAt).toLocaleString()} · ID {application.applicationId.toUpperCase()}</p>
+    </div><div className="actions"><StatusBadge status={application.status}/></div></section>
+    <div className="detail-layout"><div className="detail-main">
+      <section className="panel candidate-summary"><span className="avatar xl">{initials(application.candidate.fullName)}</span>
+        <div className="grow"><h2>{application.candidate.fullName}</h2><b>{application.candidate.headline || 'No headline provided'}</b>
+          <p>{application.candidate.email}{application.candidate.location ? ` · ${application.candidate.location}` : ''}</p></div>
+        <div><small>RESUME SNAPSHOT</small><b>{application.resumeSnapshot.snapshotId}</b><small>CAPTURED</small>
+          <b>{new Date(application.resumeSnapshot.capturedAt).toLocaleString()}</b></div>
+      </section>
+      <section className="panel resume-snapshot"><div className="section-title"><div><h2>Submitted resume snapshot</h2>
+        <small>Immutable snapshot captured when the Candidate applied</small></div>
+        <button className="button tiny soft" onClick={() => nav(`/recruiter/applications/${application.applicationId}/review`)}>
+          Open full resume</button></div>
+        <h3>Summary</h3><p>{application.resumeSnapshot.summary}</p><h3>Experience</h3>
+        {application.resumeSnapshot.experiences.map(experience => <p key={experience.experienceId ?? `${experience.title}-${experience.company}`}>
+          <b>{experience.title} · {experience.company}</b><br/>{experience.description}</p>)}
+      </section>
+      <section className="panel timeline"><div className="section-title"><h2>Application timeline</h2>
+        <small>Persisted Candidate and Recruiter stage events</small></div><div className="timeline-row">
+        {application.timeline.map(event => <div className="done" key={event.eventId}><b>● {event.toStatus && <StatusBadge status={event.toStatus}/>}</b>
+          <small>{new Date(event.occurredAt).toLocaleString()}</small>{event.reason && <small>{event.reason}</small>}</div>)}
+      </div></section>
+    </div><aside className="detail-side">
+      <section className="panel fit-card"><div className="section-title"><div><h2>ML fit analysis</h2>
+        <small>Recommendation model is not connected yet</small></div></div>
+        {application.matchScore === null || application.matchAnalysis === null
+          ? <p>Match score and analysis are unavailable.</p>
+          : <><span className="match-badge">{application.matchScore}% match</span>
+            {application.matchAnalysis.evidence.map(evidence => <div className="evidence" key={evidence}><b>{evidence}</b></div>)}</>}
+      </section>
+      <section className="panel decision"><div className="section-title"><h2>Review decision</h2>
+        <StatusBadge status={application.status}/></div>
+        {targets.length === 0 ? <p>This application is in a terminal stage. No further Recruiter transition is available.</p> :
+          <form onSubmit={submitTransition} className="form-grid">
+            <label>NEXT STAGE<select value={target} onChange={event => setTarget(transitionStatus(event.target.value) ?? '')}>
+              <option value="">Select a stage</option>{targets.map(status => <option value={status} key={status}>{statusLabel(status)}</option>)}
+            </select></label>
+            <label>DECISION REASON<textarea value={reason} maxLength={500} onChange={event => setReason(event.target.value)}
+              placeholder="Required audit reason"/></label>
+            <button className="button primary" disabled={!target || !reason.trim() || update.isPending}>
+              {update.isPending ? 'Saving decision…' : 'Confirm stage change'}</button>
+            {update.isError && <small role="alert">The stage change could not be saved. Refresh and try again.</small>}
+          </form>}
+      </section>
+      <section className="panel"><h2>Not connected in this slice</h2>
+        <p>Recruiter notes, interview scheduling, messaging, resume PDF export, owner assignment and ML analysis remain unavailable.</p>
+      </section>
+    </aside></div>
+  </>;
 }
 
 const initials = (fullName: string) => fullName.split(' ').map(part => part[0]).join('').slice(0, 2);
 const transitionStatus = (value: string): RecruiterTransitionStatus | undefined =>
   value === 'IN_REVIEW' || value === 'INTERVIEW' || value === 'REJECTED' ? value : undefined;
-const parseMode = (value: string): InterviewMode | undefined =>
-  value === 'ONLINE' || value === 'ONSITE' || value === 'PHONE' ? value : undefined;
+const allowedTargets = (status: ApplicationStatus): RecruiterTransitionStatus[] => {
+  if (status === 'APPLIED') return ['IN_REVIEW', 'REJECTED'];
+  if (status === 'IN_REVIEW') return ['INTERVIEW', 'REJECTED'];
+  if (status === 'INTERVIEW') return ['REJECTED'];
+  return [];
+};
+const statusLabel = (status: RecruiterTransitionStatus) =>
+  status === 'IN_REVIEW' ? 'Move to review' : status === 'INTERVIEW' ? 'Move to interview' : 'Reject';

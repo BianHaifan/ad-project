@@ -3,6 +3,8 @@ package com.adproject.application.api;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 
@@ -16,6 +18,16 @@ public final class ApplicationDtos {
     ) {}
 
     public record CandidateApplicationDetailResponse(CandidateApplicationDetail data) {}
+
+    public record CandidateApplicationListResponse(List<CandidateApplicationSummary> data,
+                                                   CandidateApplicationListMeta meta) {}
+    public record CandidateApplicationListMeta(int page, int pageSize, long total, boolean hasNext,
+                                               ApplicationCounts counts) {}
+    public record ApplicationCounts(long active, long interview, long archived) {}
+    public record CandidateApplicationSummary(
+            String applicationId, String jobId, String status, Instant appliedAt, Instant updatedAt, int version,
+            String jobTitle, Company company, Integer matchScore, Instant scheduledAt, List<TimelineStep> timeline
+    ) {}
 
     public record CandidateApplicationDetail(
             String applicationId,
@@ -47,4 +59,9 @@ public final class ApplicationDtos {
 
     public record TimelineStep(String status, boolean completed, Instant occurredAt) {}
     public record NextStep(String type, String title, String description) {}
+
+    public record WithdrawApplicationRequest(
+            @NotBlank @Size(max = 500) String reason,
+            @Min(1) int expectedVersion
+    ) {}
 }

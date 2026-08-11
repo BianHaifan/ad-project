@@ -53,4 +53,16 @@ public class ApplicationEntity {
     public Instant getAppliedAt() { return appliedAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public int getVersion() { return version; }
+
+    public void withdraw(Instant now) {
+        this.status = ApplicationStatus.WITHDRAWN;
+        this.updatedAt = now;
+        this.version += 1;
+    }
+
+    public void transitionTo(ApplicationStatus target, Instant now) {
+        this.status = target;
+        this.updatedAt = now;
+        this.version += 1;
+    }
 }

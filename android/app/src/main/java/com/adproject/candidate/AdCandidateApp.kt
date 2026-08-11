@@ -20,7 +20,10 @@ import com.adproject.candidate.core.designsystem.MainTab
 import com.adproject.candidate.feature.applications.RealApplicationSubmittedScreen
 import com.adproject.candidate.feature.applications.RealApplyConfirmationScreen
 import com.adproject.candidate.feature.applications.ApplicationViewModel
-import com.adproject.candidate.feature.applications.MyApplicationsScreen
+import com.adproject.candidate.feature.applications.ApplicationListViewModel
+import com.adproject.candidate.feature.applications.ApplicationDetailViewModel
+import com.adproject.candidate.feature.applications.RealMyApplicationsScreen
+import com.adproject.candidate.feature.applications.RealApplicationDetailScreen
 import com.adproject.candidate.feature.auth.CreateAccountScreen
 import com.adproject.candidate.feature.auth.SignInScreen
 import com.adproject.candidate.feature.auth.AuthViewModel
@@ -48,6 +51,7 @@ private object Route {
     const val ChatDetail = "chat-detail/{conversationId}"
     const val Profile = "profile"
     const val Applications = "applications"
+    const val ApplicationDetail = "application-detail/{applicationId}"
     const val JobDetail = "job-detail/{jobId}"
     const val Apply = "apply/{jobId}"
     const val Submitted = "submitted/{jobId}"
@@ -57,6 +61,7 @@ private object Route {
     fun chatDetail(id: String) = "chat-detail/$id"
     fun apply(id: String) = "apply/$id"
     fun submitted(id: String) = "submitted/$id"
+    fun applicationDetail(id: String) = "application-detail/$id"
 }
 
 @Composable
@@ -177,16 +182,51 @@ fun AdCandidateApp(
                     onEdit = profileViewModel::edit,
                     onSave = profileViewModel::save,
                     onResume = { navController.navigate(Route.ResumeEdit) },
+                    onApplications = { navController.navigate(Route.Applications) },
                     onLogout = authViewModel::logout,
                     onTab = ::openTab,
                 )
             }
-            composable(Route.Applications) {
-                MyApplicationsScreen(
-                    data = fakeCandidateFeatures.getApplications(),
+            composable(Route.Applications) { entry ->
+                val applicationsViewModel: ApplicationListViewModel = viewModel(
+                    factory = ApplicationListViewModel.factory(container.candidateApplicationRepository),
+                )
+                val state by applicationsViewModel.state.collectAsStateWithLifecycle()
+                val refreshKey by entry.savedStateHandle.getStateFlow("applications-refresh", 0L)
+                    .collectAsStateWithLifecycle()
+                LaunchedEffect(refreshKey) {
+                    if (refreshKey == 0L) applicationsViewModel.load() else applicationsViewModel.refresh()
+                }
+                RealMyApplicationsScreen(
+                    state = state,
                     onTab = ::openTab,
                     onBack = { navigateBack(Route.Profile) },
-                    onApplication = { navController.navigate(Route.jobDetail(it)) },
+                    onRefresh = applicationsViewModel::refresh,
+                    onRetry = applicationsViewModel::retry,
+                    onFilter = applicationsViewModel::selectFilter,
+                    onLoadMore = applicationsViewModel::loadMore,
+                    onApplication = { navController.navigate(Route.applicationDetail(it)) },
+                )
+            }
+            composable(Route.ApplicationDetail) { entry ->
+                val applicationId = entry.arguments?.getString("applicationId").orEmpty()
+                val detailViewModel: ApplicationDetailViewModel = viewModel(
+                    key = "application-detail-$applicationId",
+                    factory = ApplicationDetailViewModel.factory(applicationId, container.candidateApplicationRepository),
+                )
+                val state by detailViewModel.state.collectAsStateWithLifecycle()
+                RealApplicationDetailScreen(
+                    state = state,
+                    onBack = {
+                        navController.previousBackStackEntry?.savedStateHandle
+                            ?.set("applications-refresh", System.nanoTime())
+                        navigateBack(Route.Applications)
+                    },
+                    onRetry = detailViewModel::load,
+                    onRequestWithdraw = detailViewModel::requestWithdraw,
+                    onDismissWithdraw = detailViewModel::dismissWithdraw,
+                    onWithdrawReason = detailViewModel::updateWithdrawReason,
+                    onConfirmWithdraw = detailViewModel::confirmWithdraw,
                 )
             }
             composable(Route.JobDetail) { entry ->
@@ -227,6 +267,10 @@ fun AdCandidateApp(
                     onJobs = {
                         applicationViewModel.clear()
                         navController.navigate(Route.Jobs) { popUpTo(Route.Jobs) { inclusive = true } }
+                    },
+                    onApplications = {
+                        applicationViewModel.clear()
+                        navController.navigate(Route.Applications)
                     },
                 )
             }

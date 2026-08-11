@@ -1,12 +1,19 @@
 import type {
-  ApplicationStatus, ConversationView, CreateInterviewRequest, Dashboard, JobDraft,
-  EmploymentType, JobStatus, PageMeta, RecruiterApplicationCounts, RecruiterApplicationDetail,
-  RecruiterJobSummary, RecruiterProfile,
+  ApplicationStatus, ConversationView, Dashboard, JobDraft, EmploymentType, JobStatus, PageMeta,
+  RecruiterApplicationDetail, RecruiterApplicationListResult, RecruiterJobSummary, RecruiterProfile,
 } from '../models/recruiter';
 
 export type RecruiterTransitionStatus = Extract<ApplicationStatus, 'IN_REVIEW' | 'INTERVIEW' | 'REJECTED'>;
 export type RecruiterJobStatusTarget = Extract<JobStatus, 'ACTIVE' | 'PAUSED' | 'CLOSED'>;
-export interface ListApplicationsParams { status?: ApplicationStatus; search?: string; jobId?: string }
+export type ApplicationSort = 'appliedAt,desc' | 'appliedAt,asc' | 'updatedAt,desc' | 'updatedAt,asc';
+export interface ListApplicationsParams {
+  status?: ApplicationStatus;
+  q?: string;
+  jobId?: string;
+  page?: number;
+  pageSize?: number;
+  sort?: ApplicationSort;
+}
 export interface ListJobsParams {
   q?: string;
   status?: JobStatus;
@@ -30,12 +37,10 @@ export interface RecruiterRepository {
   publishJob(jobId: string, expectedVersion: number): Promise<RecruiterJobSummary>;
   changeJobStatus(jobId: string, status: RecruiterJobStatusTarget, reason: string,
                   expectedVersion: number): Promise<RecruiterJobSummary>;
-  getApplicationCounts(): Promise<RecruiterApplicationCounts>;
-  listApplications(params: ListApplicationsParams): Promise<RecruiterApplicationDetail[]>;
-  getApplication(applicationId: string): Promise<RecruiterApplicationDetail | undefined>;
-  updateApplicationStatus(applicationId: string, status: RecruiterTransitionStatus): Promise<RecruiterApplicationDetail>;
-  saveApplicationNote(applicationId: string, body: string): Promise<RecruiterApplicationDetail>;
-  scheduleInterview(applicationId: string, request: CreateInterviewRequest): Promise<RecruiterApplicationDetail>;
+  listApplications(params?: ListApplicationsParams): Promise<RecruiterApplicationListResult>;
+  getApplication(applicationId: string): Promise<RecruiterApplicationDetail>;
+  updateApplicationStatus(applicationId: string, status: RecruiterTransitionStatus, reason: string,
+                          expectedVersion: number): Promise<RecruiterApplicationDetail>;
   listConversations(): Promise<ConversationView[]>;
   getConversation(conversationId: string): Promise<ConversationView | undefined>;
   sendMessage(conversationId: string, body: string): Promise<MessageResult>;

@@ -12,6 +12,9 @@ import com.adproject.candidate.data.contract.PageMeta
 import com.adproject.candidate.data.contract.RefreshTokenRequest
 import com.adproject.candidate.data.contract.CandidateApplication
 import com.adproject.candidate.data.contract.SubmitApplicationRequest
+import com.adproject.candidate.data.contract.ApplicationListFilter
+import com.adproject.candidate.data.contract.CandidateApplicationPage
+import com.adproject.candidate.data.contract.WithdrawApplicationRequest
 import com.squareup.moshi.Moshi
 import java.io.IOException
 
@@ -165,6 +168,9 @@ class RealCandidateResumeRepository(private val api: CandidateResumeHttpApi, mos
 }
 
 interface CandidateApplicationRepository {
+    suspend fun applications(filter: ApplicationListFilter?, page: Int, pageSize: Int = 20): ApiResult<CandidateApplicationPage>
+    suspend fun application(applicationId: String): ApiResult<CandidateApplication>
+    suspend fun withdraw(applicationId: String, request: WithdrawApplicationRequest): ApiResult<CandidateApplication>
     suspend fun submit(jobId: String, idempotencyKey: String,
                        request: SubmitApplicationRequest): ApiResult<CandidateApplication>
 }
@@ -174,6 +180,49 @@ class RealCandidateApplicationRepository(
     moshi: Moshi,
 ) : CandidateApplicationRepository {
     private val errors = ApiErrorParser(moshi)
+
+    override suspend fun applications(filter: ApplicationListFilter?, page: Int,
+                                      pageSize: Int): ApiResult<CandidateApplicationPage> = try {
+        val response = api.applications(filter, page, pageSize)
+        val body = response.body()
+        if (response.isSuccessful && body != null) {
+            ApiResult.Success(CandidateApplicationPage(body.data, body.meta))
+        } else applicationFailure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load your applications. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to load your applications right now.")
+    }
+
+    override suspend fun application(applicationId: String): ApiResult<CandidateApplication> = try {
+        val response = api.application(applicationId)
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else applicationFailure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load this application. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to load this application right now.")
+    }
+
+    override suspend fun withdraw(applicationId: String,
+                                  request: WithdrawApplicationRequest): ApiResult<CandidateApplication> = try {
+        val response = api.withdraw(applicationId, request)
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else {
+            val failure = applicationFailure(response.code(), response.errorBody()?.string())
+            when (failure.code) {
+                "VERSION_CONFLICT" -> failure.copy(message = "This application changed. Refresh before trying again.")
+                "INVALID_APPLICATION_TRANSITION" -> failure.copy(message = "This application can no longer be withdrawn.")
+                else -> failure
+            }
+        }
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to withdraw this application. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to withdraw this application right now.")
+    }
 
     override suspend fun submit(jobId: String, idempotencyKey: String,
                                 request: SubmitApplicationRequest): ApiResult<CandidateApplication> = try {
@@ -192,5 +241,10 @@ class RealCandidateApplicationRepository(
         ApiResult.Failure("Unable to submit your application. Check your network and try again.")
     } catch (_: Exception) {
         ApiResult.Failure("Unable to submit your application right now.")
+    }
+
+    private fun applicationFailure(statusCode: Int, body: String?): ApiResult.Failure {
+        val failure = errors.failure(statusCode, body)
+        return if (statusCode == 404) failure.copy(message = "This application is no longer available.") else failure
     }
 }

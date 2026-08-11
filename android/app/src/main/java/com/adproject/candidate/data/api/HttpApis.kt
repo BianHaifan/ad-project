@@ -57,6 +57,25 @@ interface CandidateResumeHttpApi {
 }
 
 interface CandidateApplicationHttpApi {
+    @GET("candidate/applications")
+    suspend fun applications(
+        @Query("filter") filter: com.adproject.candidate.data.contract.ApplicationListFilter?,
+        @Query("page") page: Int,
+        @Query("pageSize") pageSize: Int,
+    ): Response<ListEnvelope<com.adproject.candidate.data.contract.CandidateApplicationSummary,
+            com.adproject.candidate.data.contract.CandidateApplicationListMeta>>
+
+    @GET("candidate/applications/{applicationId}")
+    suspend fun application(
+        @Path("applicationId") applicationId: String,
+    ): Response<DataEnvelope<com.adproject.candidate.data.contract.CandidateApplication>>
+
+    @POST("candidate/applications/{applicationId}/withdraw")
+    suspend fun withdraw(
+        @Path("applicationId") applicationId: String,
+        @Body request: com.adproject.candidate.data.contract.WithdrawApplicationRequest,
+    ): Response<DataEnvelope<com.adproject.candidate.data.contract.CandidateApplication>>
+
     @POST("jobs/{jobId}/applications")
     suspend fun submit(
         @Path("jobId") jobId: String,

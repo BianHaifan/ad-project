@@ -25,4 +25,14 @@ public class ApplicationStatusEventEntity {
         this.fromStatus = fromStatus; this.toStatus = toStatus; this.occurredAt = occurredAt;
         this.reason = reason; this.requestId = requestId;
     }
+
+    public String getId() { return id; }
+    public String getApplicationId() { return applicationId; }
+    public String getActorId() { return actorId; }
+    public String getCompanyId() { return companyId; }
+    public ApplicationStatus getFromStatus() { return fromStatus; }
+    public ApplicationStatus getToStatus() { return toStatus; }
+    public Instant getOccurredAt() { return occurredAt; }
+    public String getReason() { return reason; }
+    public String getRequestId() { return requestId; }
 }

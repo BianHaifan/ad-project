@@ -15,7 +15,8 @@ import com.adproject.candidate.data.contract.Experience
 
 @Composable
 fun RealProfileScreen(state: ProfileUiState, onRetry: () -> Unit, onEdit: () -> Unit,
-                      onSave: (String, String, String) -> Unit, onResume: () -> Unit, onLogout: () -> Unit,
+                      onSave: (String, String, String) -> Unit, onResume: () -> Unit,
+                      onApplications: () -> Unit, onLogout: () -> Unit,
                       onTab: (MainTab) -> Unit) {
     when {
         state.loading -> Box(Modifier.fillMaxSize()) { CircularProgressIndicator() }
@@ -45,6 +46,7 @@ fun RealProfileScreen(state: ProfileUiState, onRetry: () -> Unit, onEdit: () -> 
                 }
                 if (state.saved) Text("Profile saved")
                 PrimaryButton("Online resume", onResume, Modifier.fillMaxWidth())
+                SecondaryButton("My applications", onApplications, Modifier.fillMaxWidth())
                 SecondaryButton("Sign out", onLogout, Modifier.fillMaxWidth())
             } }
         }

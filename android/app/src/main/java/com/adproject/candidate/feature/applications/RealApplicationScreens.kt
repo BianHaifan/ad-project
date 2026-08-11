@@ -107,6 +107,7 @@ fun RealApplyConfirmationScreen(
 fun RealApplicationSubmittedScreen(
     application: CandidateApplication?,
     onJobs: () -> Unit,
+    onApplications: () -> Unit,
 ) {
     if (application == null) {
         Column(Modifier.fillMaxSize().background(AdBackground).padding(24.dp),
@@ -145,7 +146,7 @@ fun RealApplicationSubmittedScreen(
             }
         }
         PrimaryButton("Back to jobs", onJobs, Modifier.fillMaxWidth())
-        SecondaryButton("My applications · not connected", {}, Modifier.fillMaxWidth(), enabled = false)
+        SecondaryButton("View my applications", onApplications, Modifier.fillMaxWidth())
     }
 }
 

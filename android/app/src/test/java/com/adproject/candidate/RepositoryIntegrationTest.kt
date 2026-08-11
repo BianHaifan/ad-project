@@ -18,6 +18,8 @@ import com.adproject.candidate.data.api.CandidateApplicationHttpApi
 import com.adproject.candidate.data.api.RealCandidateApplicationRepository
 import com.adproject.candidate.data.contract.SubmitApplicationRequest
 import com.adproject.candidate.data.contract.ApplicationStatus
+import com.adproject.candidate.data.contract.ApplicationListFilter
+import com.adproject.candidate.data.contract.WithdrawApplicationRequest
 import com.adproject.candidate.data.contract.UpdateProfileRequest
 import com.adproject.candidate.data.contract.SaveResumeRequest
 import com.adproject.candidate.data.contract.EmploymentType
@@ -212,6 +214,48 @@ class RepositoryIntegrationTest {
         assertFalse(conflict.message.contains("internal"))
     }
 
+    @Test fun applicationListDetailAndWithdrawUseExactRealContract() = runTest {
+        val repository = RealCandidateApplicationRepository(
+            retrofit().create(CandidateApplicationHttpApi::class.java), moshi,
+        )
+        server.enqueue(jsonResponse(applicationListBody()))
+        val list = repository.applications(ApplicationListFilter.ARCHIVED, 2, 10) as ApiResult.Success
+        assertEquals(1, list.value.applications.size)
+        assertEquals(3, list.value.meta.counts.archived)
+        assertNull(list.value.applications.single().matchScore)
+        assertNull(list.value.applications.single().scheduledAt)
+        val listRequest = server.takeRequest()
+        assertTrue(listRequest.path!!.contains("filter=ARCHIVED"))
+        assertTrue(listRequest.path!!.contains("page=2"))
+        assertTrue(listRequest.path!!.contains("pageSize=10"))
+
+        server.enqueue(jsonResponse(applicationBody()))
+        val detail = repository.application("application-1") as ApiResult.Success
+        assertEquals("snapshot-1", detail.value.resumeSnapshot.snapshotId)
+        assertNull(detail.value.interview)
+        assertEquals("/api/v1/candidate/applications/application-1", server.takeRequest().path)
+
+        server.enqueue(jsonResponse(applicationBody().replace("\"status\":\"APPLIED\"", "\"status\":\"WITHDRAWN\"")
+            .replace("\"version\":1", "\"version\":2")))
+        val withdrawn = repository.withdraw("application-1", WithdrawApplicationRequest("Changed plans", 1))
+                as ApiResult.Success
+        assertEquals(ApplicationStatus.WITHDRAWN, withdrawn.value.status)
+        assertEquals(2, withdrawn.value.version)
+        val withdrawRequest = server.takeRequest()
+        assertEquals("/api/v1/candidate/applications/application-1/withdraw", withdrawRequest.path)
+        val withdrawBody = withdrawRequest.body.readUtf8()
+        assertTrue(withdrawBody.contains("\"reason\":\"Changed plans\""))
+        assertTrue(withdrawBody.contains("\"expectedVersion\":1"))
+        assertFalse(withdrawBody.contains("candidateId"))
+        assertFalse(withdrawBody.contains("targetStatus"))
+
+        server.enqueue(jsonResponse(errorBody("VERSION_CONFLICT", "internal version detail"), 409))
+        val conflict = repository.withdraw("application-1", WithdrawApplicationRequest("Changed plans", 1))
+                as ApiResult.Failure
+        assertEquals("This application changed. Refresh before trying again.", conflict.message)
+        assertFalse(conflict.message.contains("internal"))
+    }
+
     private fun retrofit(client: OkHttpClient = OkHttpClient()): Retrofit = Retrofit.Builder()
         .baseUrl(server.url("/api/v1/"))
         .client(client)
@@ -253,6 +297,17 @@ class RepositoryIntegrationTest {
         "fullName":"Candidate","age":27,"location":"Singapore","headline":"Engineer","summary":"Summary",
         "experiences":[],"version":1,"createdAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z"},
         "interview":null,"nextSteps":[{"type":"RECRUITER_REVIEW","title":"Recruiter review","description":"Review"}]}}
+    """.trimIndent()
+
+    private fun applicationListBody() = """
+        {"data":[{"applicationId":"application-1","jobId":"job-1","status":"WITHDRAWN",
+        "appliedAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T09:00:00Z","version":2,
+        "jobTitle":"Backend Engineer","company":{"companyId":"company-1","name":"Real Company",
+        "logoUrl":null,"stage":null,"employeeRange":null,"verificationStatus":"APPROVED","website":null,
+        "description":null,"location":null,"version":1,"createdAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z"},
+        "matchScore":null,"scheduledAt":null,"timeline":[{"status":"APPLIED","completed":true,"occurredAt":"2026-08-11T08:00:00Z"},
+        {"status":"WITHDRAWN","completed":true,"occurredAt":"2026-08-11T09:00:00Z"}]}],
+        "meta":{"page":2,"pageSize":10,"total":1,"hasNext":false,"counts":{"active":1,"interview":2,"archived":3}}}
     """.trimIndent()
 }
 
