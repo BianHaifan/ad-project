@@ -62,8 +62,11 @@ jobs:
             docker compose --env-file /opt/adproject/infra/docker/.env up -d --remove-orphans
             docker image prune -f
             code=000
-            for i in $(seq 1 30); do
-              code=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost/api/v1/auth/login || true)
+            for i in $(seq 1 45); do
+              code=$(curl -sS -o /dev/null -w "%{http_code}" \
+                -X POST http://localhost/api/v1/auth/login \
+                -H "Content-Type: application/json" \
+                -d '{"email":"health@probe.local","password":"probe"}' || true)
               case "$code" in
                 000|5*) sleep 2 ;;
                 *) break ;;
