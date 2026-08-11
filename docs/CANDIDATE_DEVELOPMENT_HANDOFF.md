@@ -7,11 +7,12 @@
 ## 1. 当前结论
 
 - `docs/openapi-v1.yaml` 共定义 45 个 HTTP 操作。
-- 当前后端真实实现 10 个：Auth 4 个、Recruiter Job 6 个。
-- Candidate 专属后端接口当前全部未实现。
+- 当前后端真实实现 17 个：Auth 4 个、Recruiter Job 6 个、Candidate Job 2 个、
+  Candidate Profile 2 个、Candidate Resume 2 个、Candidate Application 提交 1 个。
 - Recruiter 已经可以在 MySQL 中创建、编辑、发布、暂停、恢复和关闭职位。
 - Candidate 职位浏览的真实数据前置条件已经具备：数据库中可以存在 `ACTIVE` 职位。
-- Android Candidate 当前全部使用 `FakeCandidateRepository`；登录、职位、申请、简历和消息都尚未连接真实 HTTP API。
+- Android Candidate 的 Auth、Job、Profile、单份默认 Resume、投递确认和 Application 提交使用真实 HTTP API；
+  Application 列表/详情/撤回、消息和 Learning 仍为明确 Mock 或未接入。
 - Recruiter Web 的 Job 页面使用真实 API；Dashboard、Applications、Messages 仍使用 Mock。
 
 状态标记：
@@ -37,19 +38,19 @@
 
 | 方法 | 路径 | 状态 | 当前客户端边界 |
 |---|---|---:|---|
-| GET | `/jobs` | ⬜ | Android Job Feed 使用 Mock |
-| GET | `/jobs/{jobId}` | ⬜ | Android Job Detail 使用 Mock |
-| GET | `/candidate/profile` | ⬜ | Android Profile 使用 Mock |
-| PATCH | `/candidate/profile` | ⬜ | 尚无真实写入 |
-| GET | `/candidate/resume` | ⬜ | Android Resume 使用 Mock |
-| PUT | `/candidate/resume` | ⬜ | Android 保存只更新 Mock 返回值 |
+| GET | `/jobs` | ✅ | Android Job Feed 使用真实 API |
+| GET | `/jobs/{jobId}` | ✅ | Android Job Detail 使用真实 API 和 Application 状态 |
+| GET | `/candidate/profile` | ✅ | Android Profile 使用真实 API |
+| PATCH | `/candidate/profile` | ✅ | Android Profile 真实写入 |
+| GET | `/candidate/resume` | ✅ | Android 单份默认 Resume 使用真实 API |
+| PUT | `/candidate/resume` | ✅ | Android Resume 真实写入 |
 | GET | `/features/learning` | ⬜ | Android Learning 使用 Mock 的 Coming Soon 内容 |
 
 ### 2.3 Candidate Applications
 
 | 方法 | 路径 | 状态 | 当前客户端边界 |
 |---|---|---:|---|
-| POST | `/jobs/{jobId}/applications` | ⬜ | Android 投递流程为 Mock，不会写入 MySQL |
+| POST | `/jobs/{jobId}/applications` | ✅ | Android 真实投递；事务内创建不可变 Resume Snapshot |
 | GET | `/candidate/applications` | ⬜ | Android申请列表使用 Mock |
 | GET | `/candidate/applications/{applicationId}` | ⬜ | 尚无真实详情 |
 | POST | `/candidate/applications/{applicationId}/withdraw` | ⬜ | 尚无真实撤回 |
@@ -109,7 +110,7 @@
 | POST | `/recruiter/conversations/{conversationId}/messages` | ⬜ | 不会真实发送 |
 | PUT | `/recruiter/conversations/{conversationId}/read-state` | ⬜ | 未实现 |
 
-合计：45 个操作，10 个已实现，35 个未实现；自动化与客户端 Mock 不计入后端完成数。
+合计：45 个操作，17 个已实现，28 个未实现；自动化与客户端 Mock 不计入后端完成数。
 
 ## 3. Candidate 首条推荐垂直切片
 

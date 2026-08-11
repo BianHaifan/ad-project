@@ -14,6 +14,10 @@ import com.adproject.candidate.data.api.CandidateProfileHttpApi
 import com.adproject.candidate.data.api.CandidateResumeHttpApi
 import com.adproject.candidate.data.api.RealCandidateProfileRepository
 import com.adproject.candidate.data.api.RealCandidateResumeRepository
+import com.adproject.candidate.data.api.CandidateApplicationHttpApi
+import com.adproject.candidate.data.api.RealCandidateApplicationRepository
+import com.adproject.candidate.data.contract.SubmitApplicationRequest
+import com.adproject.candidate.data.contract.ApplicationStatus
 import com.adproject.candidate.data.contract.UpdateProfileRequest
 import com.adproject.candidate.data.contract.SaveResumeRequest
 import com.adproject.candidate.data.contract.EmploymentType
@@ -175,6 +179,39 @@ class RepositoryIntegrationTest {
         assertFalse(body.contains("candidateId"))
     }
 
+    @Test fun applicationSubmissionUsesHeaderRealFieldsAndMapsRealResultAndConflicts() = runTest {
+        val repository = RealCandidateApplicationRepository(
+            retrofit().create(CandidateApplicationHttpApi::class.java), moshi,
+        )
+        server.enqueue(jsonResponse(applicationBody()))
+        val key = "550e8400-e29b-41d4-a716-446655440000"
+        val result = repository.submit("job-1", key,
+            SubmitApplicationRequest("resume-1", "candidate@example.com", true)) as ApiResult.Success
+        assertEquals("application-1", result.value.applicationId)
+        assertEquals(ApplicationStatus.APPLIED, result.value.status)
+        assertEquals("snapshot-1", result.value.resumeSnapshot.snapshotId)
+        assertEquals("Recruiter review", result.value.nextSteps.first().title)
+        val request = server.takeRequest()
+        assertEquals(key, request.getHeader("Idempotency-Key"))
+        val requestBody = request.body.readUtf8()
+        assertTrue(requestBody.contains("\"resumeId\":\"resume-1\""))
+        assertTrue(requestBody.contains("\"contactEmail\":\"candidate@example.com\""))
+        assertTrue(requestBody.contains("\"shareProfile\":true"))
+        assertFalse(requestBody.contains("candidateId"))
+        assertFalse(requestBody.contains("status"))
+        assertFalse(requestBody.contains("version"))
+
+        server.enqueue(jsonResponse(errorBody("APPLICATION_ALREADY_EXISTS", "internal duplicate"), 409))
+        val duplicate = repository.submit("job-1", java.util.UUID.randomUUID().toString(),
+            SubmitApplicationRequest("resume-1", "candidate@example.com", true)) as ApiResult.Failure
+        assertEquals("You have already applied for this job.", duplicate.message)
+        server.takeRequest()
+        server.enqueue(jsonResponse(errorBody("IDEMPOTENCY_KEY_REUSED", "internal idempotency detail"), 409))
+        val conflict = repository.submit("job-1", key,
+            SubmitApplicationRequest("resume-1", "candidate@example.com", false)) as ApiResult.Failure
+        assertFalse(conflict.message.contains("internal"))
+    }
+
     private fun retrofit(client: OkHttpClient = OkHttpClient()): Retrofit = Retrofit.Builder()
         .baseUrl(server.url("/api/v1/"))
         .client(client)
@@ -203,6 +240,19 @@ class RepositoryIntegrationTest {
         "requirements":["Reliable APIs"],"skills":["Java"],"deadline":null,"visibility":"PUBLIC","status":"ACTIVE",
         "publishedAt":"2026-08-11T08:00:00Z","version":2,"createdAt":"2026-08-11T08:00:00Z",
         "updatedAt":"2026-08-11T08:00:00Z","matchScore":null,"recruiter":null}
+    """.trimIndent()
+
+    private fun applicationBody() = """
+        {"data":{"applicationId":"application-1","jobId":"job-1","status":"APPLIED",
+        "appliedAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z","version":1,
+        "jobTitle":"Backend Engineer","company":{"companyId":"company-1","name":"Real Company",
+        "logoUrl":null,"stage":null,"employeeRange":null,"verificationStatus":"APPROVED","website":null,
+        "description":null,"location":null,"version":1,"createdAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z"},
+        "matchScore":null,"scheduledAt":null,"timeline":[{"status":"APPLIED","completed":true,"occurredAt":"2026-08-11T08:00:00Z"}],
+        "resumeSnapshot":{"snapshotId":"snapshot-1","capturedAt":"2026-08-11T08:00:00Z","resumeId":"resume-1",
+        "fullName":"Candidate","age":27,"location":"Singapore","headline":"Engineer","summary":"Summary",
+        "experiences":[],"version":1,"createdAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z"},
+        "interview":null,"nextSteps":[{"type":"RECRUITER_REVIEW","title":"Recruiter review","description":"Review"}]}}
     """.trimIndent()
 }
 

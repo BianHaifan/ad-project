@@ -39,9 +39,11 @@ import com.adproject.candidate.core.designsystem.PrimaryButton
 import com.adproject.candidate.core.designsystem.SecondaryButton
 import com.adproject.candidate.core.designsystem.TagChip
 import com.adproject.candidate.data.model.JobDetailData
+import com.adproject.candidate.data.contract.CandidateJobApplicationState
 
 @Composable
-fun JobDetailScreen(state: JobDetailUiState, onBack: () -> Unit, onRetry: () -> Unit) {
+fun JobDetailScreen(state: JobDetailUiState, onBack: () -> Unit, onRetry: () -> Unit,
+                    onApply: (String) -> Unit) {
     when {
         state.loading -> Box(Modifier.fillMaxSize().background(AdBackground), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = AdTeal)
@@ -56,17 +58,21 @@ fun JobDetailScreen(state: JobDetailUiState, onBack: () -> Unit, onRetry: () -> 
                 if (!state.notFound) PrimaryButton("Try again", onRetry)
             }
         }
-        else -> JobDetailContent(state.data, onBack)
+        else -> JobDetailContent(state.data, onBack, onApply)
     }
 }
 
 @Composable
-private fun JobDetailContent(data: JobDetailData, onBack: () -> Unit) {
+private fun JobDetailContent(data: JobDetailData, onBack: () -> Unit, onApply: (String) -> Unit) {
     Column(Modifier.fillMaxSize().background(AdBackground)) {
         AdTopBar("Job details", onBack) { Text("Save unavailable", color = AdMuted, fontSize = 10.sp) }
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 18.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             SecondaryButton("Match unavailable", {}, Modifier.weight(1f), enabled = false)
-            PrimaryButton("Apply not connected", {}, Modifier.weight(1f), enabled = false)
+            val canApply = data.applicationState == CandidateJobApplicationState.NOT_APPLIED
+            PrimaryButton(
+                if (canApply) "Apply" else data.applicationState.displayLabel(),
+                { onApply(data.job.jobId) }, Modifier.weight(1f), enabled = canApply,
+            )
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             AdCard(Modifier.fillMaxWidth()) {
@@ -124,4 +130,13 @@ private fun JobDetailContent(data: JobDetailData, onBack: () -> Unit) {
             Spacer(Modifier.height(10.dp))
         }
     }
+}
+
+private fun CandidateJobApplicationState.displayLabel() = when (this) {
+    CandidateJobApplicationState.NOT_APPLIED -> "Apply"
+    CandidateJobApplicationState.APPLIED -> "Applied"
+    CandidateJobApplicationState.IN_REVIEW -> "In review"
+    CandidateJobApplicationState.INTERVIEW -> "Interview"
+    CandidateJobApplicationState.REJECTED -> "Rejected"
+    CandidateJobApplicationState.WITHDRAWN -> "Withdrawn"
 }

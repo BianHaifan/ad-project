@@ -24,6 +24,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Header
 
 interface AuthHttpApi {
     @POST("auth/register") suspend fun register(@Body request: CandidateRegisterRequest): Response<DataEnvelope<AuthData>>
@@ -53,6 +54,15 @@ interface CandidateProfileHttpApi {
 interface CandidateResumeHttpApi {
     @GET("candidate/resume") suspend fun get(): Response<DataEnvelope<com.adproject.candidate.data.contract.Resume>>
     @PUT("candidate/resume") suspend fun save(@Body request: com.adproject.candidate.data.contract.SaveResumeRequest): Response<DataEnvelope<com.adproject.candidate.data.contract.Resume>>
+}
+
+interface CandidateApplicationHttpApi {
+    @POST("jobs/{jobId}/applications")
+    suspend fun submit(
+        @Path("jobId") jobId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body request: com.adproject.candidate.data.contract.SubmitApplicationRequest,
+    ): Response<DataEnvelope<com.adproject.candidate.data.contract.CandidateApplication>>
 }
 
 data class NetworkCandidateJob(

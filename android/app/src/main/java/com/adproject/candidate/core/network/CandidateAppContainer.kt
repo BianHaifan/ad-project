@@ -12,6 +12,8 @@ import com.adproject.candidate.data.api.CandidateProfileHttpApi
 import com.adproject.candidate.data.api.CandidateResumeHttpApi
 import com.adproject.candidate.data.api.RealCandidateProfileRepository
 import com.adproject.candidate.data.api.RealCandidateResumeRepository
+import com.adproject.candidate.data.api.CandidateApplicationHttpApi
+import com.adproject.candidate.data.api.RealCandidateApplicationRepository
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
@@ -49,4 +51,7 @@ class CandidateAppContainer(context: Context) {
     )
     val candidateProfileRepository = RealCandidateProfileRepository(authenticatedRetrofit.create(CandidateProfileHttpApi::class.java), moshi)
     val candidateResumeRepository = RealCandidateResumeRepository(authenticatedRetrofit.create(CandidateResumeHttpApi::class.java), moshi)
+    val candidateApplicationRepository = RealCandidateApplicationRepository(
+        authenticatedRetrofit.create(CandidateApplicationHttpApi::class.java), moshi,
+    )
 }

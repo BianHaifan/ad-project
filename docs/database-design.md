@@ -131,15 +131,39 @@ MVP 每个求职者最多一份简历，由 `UNIQUE(candidate_id)` 强制保证�
 | job_id | UUID/CHAR(36) | FK jobs, NOT NULL |
 | candidate_id | UUID/CHAR(36) | FK users, NOT NULL |
 | resume_id | UUID/CHAR(36) | FK resumes, NOT NULL |
-| resume_snapshot | JSON | 投递时简历快照，NOT NULL |
-| status | VARCHAR(32) | SUBMITTED/SCREENING/INTERVIEW/OFFERED/REJECTED/WITHDRAWN |
-| recruiter_note | TEXT | 仅招聘者可见 |
-| submitted_at | DATETIME(6) | NOT NULL |
+| resume_snapshot_id | UUID/CHAR(36) | FK resume_snapshots, UNIQUE, NOT NULL |
+| contact_email | VARCHAR(255) | 投递时使用的联系邮箱，NOT NULL |
+| share_profile | BOOLEAN | 是否共享 Candidate Profile，NOT NULL |
+| status | VARCHAR(32) | APPLIED/IN_REVIEW/INTERVIEW/REJECTED/WITHDRAWN |
+| applied_at | DATETIME(6) | NOT NULL |
 | updated_at | DATETIME(6) | NOT NULL |
+| version | INT | NOT NULL，初始值为 1 |
 
 唯一约束：`UNIQUE(job_id, candidate_id)`。
 
-### application_status_history
+### resume_snapshots
+
+每次成功投递创建一行不可变快照，字段复制投递瞬间的完整 Resume：
+
+| 字段 | 类型建议 | 约束/说明 |
+|---|---|---|
+| id | UUID/CHAR(36) | PK，对外 `snapshotId` |
+| resume_id | UUID/CHAR(36) | FK resumes, NOT NULL |
+| candidate_id | UUID/CHAR(36) | FK users, NOT NULL |
+| full_name | VARCHAR(100) | NOT NULL |
+| age | INT | NOT NULL |
+| location | VARCHAR(100) | NOT NULL |
+| headline | VARCHAR(200) | NOT NULL |
+| summary | TEXT | NOT NULL |
+| experiences_json | TEXT/JSON | 保持 Resume Experience 提交顺序 |
+| resume_version | INT | 投递瞬间的 Resume version，NOT NULL |
+| resume_created_at | DATETIME(6) | 投递瞬间 Resume createdAt，NOT NULL |
+| resume_updated_at | DATETIME(6) | 投递瞬间 Resume updatedAt，NOT NULL |
+| captured_at | DATETIME(6) | NOT NULL |
+
+快照不提供修改 API；后续 Resume 更新不得改变既有快照。
+
+### application_status_events
 
 | 字段 | 类型建议 | 约束/说明 |
 |---|---|---|
@@ -150,6 +174,9 @@ MVP 每个求职者最多一份简历，由 `UNIQUE(candidate_id)` 强制保证�
 | changed_by | UUID/CHAR(36) | FK users |
 | note | VARCHAR(500) | 可空 |
 | changed_at | DATETIME(6) | NOT NULL |
+
+首次记录使用 `from_status=NULL`、`to_status=APPLIED`，并与 Application、Resume Snapshot、
+幂等结果和职位申请人数更新处于同一事务。
 
 ### recommendation_events
 

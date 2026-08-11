@@ -1,5 +1,6 @@
 package com.adproject.job.application;
 
+import com.adproject.application.application.CandidateApplicationStateService;
 import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.company.infrastructure.CompanyEntity;
@@ -39,12 +40,15 @@ public class CandidateJobQueryService {
     private final JobRepository jobRepository;
     private final CompanyRepository companyRepository;
     private final ObjectMapper objectMapper;
+    private final CandidateApplicationStateService applicationStateService;
 
     public CandidateJobQueryService(JobRepository jobRepository, CompanyRepository companyRepository,
-                                    ObjectMapper objectMapper) {
+                                    ObjectMapper objectMapper,
+                                    CandidateApplicationStateService applicationStateService) {
         this.jobRepository = jobRepository;
         this.companyRepository = companyRepository;
         this.objectMapper = objectMapper;
+        this.applicationStateService = applicationStateService;
     }
 
     @Transactional(readOnly = true)
@@ -83,13 +87,13 @@ public class CandidateJobQueryService {
         CompanyEntity company = companyRepository.findById(job.getCompanyId())
                 .orElseThrow(CandidateJobQueryService::notFound);
         CandidateJobSummary summary = toSummary(job, company);
-        // Transitional projection until the Candidate Application module is connected.
+        String applicationState = applicationStateService.state(currentUser.userId(), job.getId());
         return new CandidateJobDetailResponse(new CandidateJobDetail(
                 summary.jobId(), summary.title(), summary.company(), summary.employmentType(),
                 summary.workplaceType(), summary.location(), summary.salary(), summary.description(),
                 summary.requirements(), summary.skills(), summary.deadline(), summary.visibility(),
                 summary.status(), summary.publishedAt(), summary.version(), summary.createdAt(),
-                summary.updatedAt(), null, null, null, "NOT_APPLIED", false));
+                summary.updatedAt(), null, null, null, applicationState, false));
     }
 
     private static Specification<JobEntity> visibleToCandidate() {

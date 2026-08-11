@@ -6,6 +6,7 @@ import com.adproject.candidate.data.contract.InterviewMode
 import com.adproject.candidate.data.contract.ResumeSnapshot
 import com.adproject.candidate.data.contract.SenderType
 import com.adproject.candidate.data.contract.TimelineStep
+import com.adproject.candidate.data.contract.CandidateJobApplicationState
 
 data class Job(
     val jobId: String,
@@ -39,6 +40,7 @@ data class JobDetailData(
     val deadline: String? = null,
     val publishedAt: String? = null,
     val matchAnalysisAvailable: Boolean = false,
+    val applicationState: CandidateJobApplicationState = CandidateJobApplicationState.NOT_APPLIED,
 )
 
 data class LearningData(

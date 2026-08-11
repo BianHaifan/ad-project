@@ -139,6 +139,10 @@ public class JobEntity {
         this.version += 1;
     }
 
+    public void incrementApplicantCount() {
+        this.applicantCount += 1;
+    }
+
     public void updateDetails(String title, EmploymentType employmentType, WorkplaceType workplaceType,
                               String location, long salaryMin, long salaryMax, SalaryCurrency salaryCurrency,
                               SalaryPeriod salaryPeriod, String description, String requirementsJson,

@@ -39,8 +39,9 @@ class MySqlFlywayIntegrationTest {
     void flywayMigratesAnEmptyMySqlDatabase() {
         Integer count = jdbcTemplate.queryForObject(
                 "select count(*) from information_schema.tables where table_schema = database() and table_name in " +
-                        "('users','companies','company_members','refresh_tokens','jobs','job_audit_events','candidate_profiles','resumes')", Integer.class);
-        assertThat(count).isEqualTo(8);
+                        "('users','companies','company_members','refresh_tokens','jobs','job_audit_events','candidate_profiles','resumes'," +
+                        "'resume_snapshots','applications','application_status_events','idempotency_records')", Integer.class);
+        assertThat(count).isEqualTo(12);
         Integer indexes = jdbcTemplate.queryForObject(
                 "select count(distinct index_name) from information_schema.statistics where table_schema = database() " +
                         "and table_name = 'jobs' and index_name in " +

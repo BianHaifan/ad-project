@@ -187,7 +187,7 @@ fun MyApplicationsScreen(data: ApplicationsData, onTab: (MainTab) -> Unit, onBac
                     Text("My applications", color = AdText, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text("Track every application and next step", color = AdMuted, fontSize = 12.sp)
                 }
-                TagChip("${data.activeCount} active", accent = true)
+                TagChip("Demo · not connected", accent = false)
             }
             Row(Modifier.fillMaxWidth().height(54.dp).background(Color.White).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("Active  ${data.activeCount}", "Interview  ${data.interviewCount}", "Archived  ${data.archivedCount}").forEachIndexed { index, text ->

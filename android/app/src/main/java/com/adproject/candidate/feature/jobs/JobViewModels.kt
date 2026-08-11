@@ -89,7 +89,7 @@ class JobDetailViewModel(
                 is ApiResult.Success -> {
                     val detail = result.value
                     mutableState.value = JobDetailUiState(data = toUiDetail(detail.job,
-                        detail.matchAnalysis != null), loading = false)
+                        detail.matchAnalysis != null, detail.applicationState), loading = false)
                 }
                 is ApiResult.Failure -> mutableState.value = JobDetailUiState(
                     loading = false, message = result.message, notFound = result.statusCode == 404,
@@ -119,7 +119,8 @@ private fun toUiJob(job: CandidateJob) = Job(
     recruiter = job.recruiter?.let { RecruiterContact(it.recruiterId, it.fullName, it.title) },
 )
 
-private fun toUiDetail(job: CandidateJob, matchAnalysisAvailable: Boolean) = JobDetailData(
+private fun toUiDetail(job: CandidateJob, matchAnalysisAvailable: Boolean,
+                       applicationState: com.adproject.candidate.data.contract.CandidateJobApplicationState) = JobDetailData(
     job = toUiJob(job),
     location = job.location,
     employmentType = job.employmentType.name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase),
@@ -132,4 +133,5 @@ private fun toUiDetail(job: CandidateJob, matchAnalysisAvailable: Boolean) = Job
     deadline = job.deadline,
     publishedAt = job.publishedAt,
     matchAnalysisAvailable = matchAnalysisAvailable,
+    applicationState = applicationState,
 )

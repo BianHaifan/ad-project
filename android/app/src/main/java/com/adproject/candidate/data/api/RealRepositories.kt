@@ -10,6 +10,8 @@ import com.adproject.candidate.data.contract.ErrorEnvelope
 import com.adproject.candidate.data.contract.LoginRequest
 import com.adproject.candidate.data.contract.PageMeta
 import com.adproject.candidate.data.contract.RefreshTokenRequest
+import com.adproject.candidate.data.contract.CandidateApplication
+import com.adproject.candidate.data.contract.SubmitApplicationRequest
 import com.squareup.moshi.Moshi
 import java.io.IOException
 
@@ -19,6 +21,7 @@ sealed interface ApiResult<out T> {
         val message: String,
         val fieldErrors: Map<String, String> = emptyMap(),
         val statusCode: Int? = null,
+        val code: String? = null,
     ) : ApiResult<Nothing>
 }
 
@@ -136,7 +139,7 @@ class ApiErrorParser(moshi: Moshi) {
             in 500..599 -> "The service is temporarily unavailable. Please try again."
             else -> error?.message?.takeIf { it.isNotBlank() } ?: "Request failed. Please try again."
         }
-        return ApiResult.Failure(safe, error?.fieldErrors.orEmpty(), statusCode)
+        return ApiResult.Failure(safe, error?.fieldErrors.orEmpty(), statusCode, error?.code)
     }
 }
 
@@ -159,4 +162,35 @@ class RealCandidateResumeRepository(private val api: CandidateResumeHttpApi, mos
     override suspend fun get()=call { api.get() }
     override suspend fun save(request: com.adproject.candidate.data.contract.SaveResumeRequest)=call { api.save(request) }
     private suspend fun call(block:suspend()->retrofit2.Response<com.adproject.candidate.data.contract.DataEnvelope<com.adproject.candidate.data.contract.Resume>>):ApiResult<com.adproject.candidate.data.contract.Resume> = try { val r=block(); val d=r.body()?.data; if(r.isSuccessful&&d!=null) ApiResult.Success(d) else if(r.code()==404) ApiResult.Failure("No resume has been created yet.",statusCode=404) else errors.failure(r.code(),r.errorBody()?.string()) } catch(_:IOException){ApiResult.Failure("Unable to load your resume. Check your network and try again.")} catch(_:Exception){ApiResult.Failure("Unable to load your resume right now.")}
+}
+
+interface CandidateApplicationRepository {
+    suspend fun submit(jobId: String, idempotencyKey: String,
+                       request: SubmitApplicationRequest): ApiResult<CandidateApplication>
+}
+
+class RealCandidateApplicationRepository(
+    private val api: CandidateApplicationHttpApi,
+    moshi: Moshi,
+) : CandidateApplicationRepository {
+    private val errors = ApiErrorParser(moshi)
+
+    override suspend fun submit(jobId: String, idempotencyKey: String,
+                                request: SubmitApplicationRequest): ApiResult<CandidateApplication> = try {
+        val response = api.submit(jobId, idempotencyKey, request)
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else {
+            val failure = errors.failure(response.code(), response.errorBody()?.string())
+            when (failure.code) {
+                "APPLICATION_ALREADY_EXISTS" -> failure.copy(message = "You have already applied for this job.")
+                "IDEMPOTENCY_KEY_REUSED" -> failure.copy(message = "This submission could not be retried safely. Please return to the job and try again.")
+                else -> failure
+            }
+        }
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to submit your application. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to submit your application right now.")
+    }
 }

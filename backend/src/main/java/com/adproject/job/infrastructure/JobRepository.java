@@ -10,6 +10,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface JobRepository extends JpaRepository<JobEntity, String>, JpaSpecificationExecutor<JobEntity> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select job from JobEntity job where job.id = :jobId")
+    Optional<JobEntity> findByIdForUpdate(@Param("jobId") String jobId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select job from JobEntity job where job.id = :jobId and job.companyId = :companyId")
     Optional<JobEntity> findOwnJobForUpdate(@Param("jobId") String jobId, @Param("companyId") String companyId);
 }

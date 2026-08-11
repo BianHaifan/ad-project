@@ -17,8 +17,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.adproject.candidate.core.designsystem.MainTab
-import com.adproject.candidate.feature.applications.ApplicationSubmittedScreen
-import com.adproject.candidate.feature.applications.ApplyConfirmationScreen
+import com.adproject.candidate.feature.applications.RealApplicationSubmittedScreen
+import com.adproject.candidate.feature.applications.RealApplyConfirmationScreen
+import com.adproject.candidate.feature.applications.ApplicationViewModel
 import com.adproject.candidate.feature.applications.MyApplicationsScreen
 import com.adproject.candidate.feature.auth.CreateAccountScreen
 import com.adproject.candidate.feature.auth.SignInScreen
@@ -67,6 +68,10 @@ fun AdCandidateApp(
     val container = remember(providedContainer) { providedContainer ?: CandidateAppContainer(context) }
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel(factory = AuthViewModel.factory(container.authRepository))
+    val applicationViewModel: ApplicationViewModel = viewModel(factory = ApplicationViewModel.factory(
+        container.candidateJobRepository, container.candidateProfileRepository,
+        container.candidateResumeRepository, container.candidateApplicationRepository,
+    ))
     val sessionActive by container.sessionManager.sessionActive.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { container.sessionManager.load() }
@@ -195,22 +200,34 @@ fun AdCandidateApp(
                     state = state,
                     onBack = { navigateBack(Route.Jobs) },
                     onRetry = detailViewModel::retry,
+                    onApply = { navController.navigate(Route.apply(it)) },
                 )
             }
             composable(Route.Apply) { entry ->
                 val jobId = entry.arguments?.getString("jobId") ?: "moonshot"
-                ApplyConfirmationScreen(
-                    data = fakeCandidateFeatures.getApplyConfirmation(jobId),
+                LaunchedEffect(jobId) { applicationViewModel.start(jobId) }
+                val state by applicationViewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(state.result?.applicationId) {
+                    if (state.result != null) navController.navigate(Route.submitted(jobId)) { launchSingleTop = true }
+                }
+                RealApplyConfirmationScreen(
+                    state = state,
                     onBack = { navigateBack(Route.jobDetail(jobId)) },
-                    onSubmit = { navController.navigate(Route.submitted(jobId)) },
+                    onRetry = applicationViewModel::retryLoad,
+                    onCreateResume = { navController.navigate(Route.ResumeEdit) },
+                    onShareProfile = applicationViewModel::setShareProfile,
+                    onSubmit = applicationViewModel::submit,
                 )
             }
             composable(Route.Submitted) { entry ->
                 val jobId = entry.arguments?.getString("jobId") ?: "moonshot"
-                ApplicationSubmittedScreen(
-                    data = fakeCandidateFeatures.submitApplication(jobId),
-                    onApplications = { navController.navigate(Route.Applications) { popUpTo(Route.Jobs) } },
-                    onJobs = { navController.navigate(Route.Jobs) { popUpTo(Route.Jobs) { inclusive = true } } },
+                val state by applicationViewModel.state.collectAsStateWithLifecycle()
+                RealApplicationSubmittedScreen(
+                    application = state.result,
+                    onJobs = {
+                        applicationViewModel.clear()
+                        navController.navigate(Route.Jobs) { popUpTo(Route.Jobs) { inclusive = true } }
+                    },
                 )
             }
             composable(Route.ResumeEdit) {

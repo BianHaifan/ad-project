@@ -157,6 +157,7 @@ data class ResumeSnapshot(
 ) : Resume(resumeId, fullName, age, location, headline, summary, experiences, version, createdAt, updatedAt)
 
 data class TimelineStep(val status: ApplicationStatus, val completed: Boolean, val occurredAt: String?)
+data class ApplicationNextStep(val type: String, val title: String, val description: String)
 
 data class CandidateApplication(
     val applicationId: String,
@@ -172,6 +173,7 @@ data class CandidateApplication(
     val timeline: List<TimelineStep>,
     val resumeSnapshot: ResumeSnapshot,
     val interview: Interview?,
+    val nextSteps: List<ApplicationNextStep>,
 )
 
 data class Interview(

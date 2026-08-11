@@ -123,6 +123,7 @@ class ViewModelTest {
         assertEquals("job-1", viewModel.state.value.data?.job?.jobId)
         assertFalse(viewModel.state.value.data!!.matchAnalysisAvailable)
         assertNull(viewModel.state.value.data!!.job.match)
+        assertEquals(CandidateJobApplicationState.NOT_APPLIED, viewModel.state.value.data!!.applicationState)
 
         val missing = QueueJobRepository(detailResults = mutableListOf(ApiResult.Failure("gone", statusCode = 404)))
         val missingViewModel = JobDetailViewModel("missing", missing)
