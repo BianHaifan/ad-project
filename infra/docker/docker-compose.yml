@@ -18,10 +18,7 @@ services:
     networks: [internal]
 
   backend:
-    image: adproject-backend
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.backend
+    image: ghcr.io/bianhaifan/ad-backend:latest
     restart: unless-stopped
     environment:
       DB_URL: jdbc:mysql://mysql:3306/adproject?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
@@ -34,10 +31,7 @@ services:
     networks: [internal]
 
   web:
-    image: adproject-web
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.web
+    image: ghcr.io/bianhaifan/ad-web:latest
     restart: unless-stopped
     ports:
       - "80:80"
