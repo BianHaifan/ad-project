@@ -1,5 +1,5 @@
 import type {ListApplicationsParams, RecruiterRepository, RecruiterTransitionStatus} from '../api/recruiterRepository';
-import type {JobDraft, JobStatus, Message, RecruiterApplicationCounts, RecruiterJobSummary} from '../models/recruiter';
+import type {Message, RecruiterApplicationCounts} from '../models/recruiter';
 import {applications, company, conversations, jobs, owner, recruiter} from './data';
 
 const delay = (ms = 260) => new Promise(resolve => setTimeout(resolve, ms));
@@ -8,7 +8,9 @@ const failIfDemoError = async () => {
   if (sessionStorage.getItem('ad_mock_error') === 'true') throw new Error('Mock service is unavailable.');
 };
 
-export const mockRecruiterRepository: RecruiterRepository = {
+type MockOnlyRepository = Omit<RecruiterRepository, 'listJobs' | 'getJob' | 'createJob'>;
+
+export const mockRecruiterRepository: MockOnlyRepository = {
   async signIn(email, password) {
     await failIfDemoError();
     if (!email.includes('@') || password.length < 8) throw new Error('Invalid email or password.');
@@ -28,34 +30,6 @@ export const mockRecruiterRepository: RecruiterRepository = {
       metrics: {openRoles: 12, newMatches: 248, pendingResumes: 73, interviews: 18, verification: 'Approved'},
       recommendedApplications: applications.slice(0, 3), recentJobs: jobs.slice(0, 3),
     };
-  },
-  async listJobs() { await failIfDemoError(); return [...jobs]; },
-  async getJob(jobId) { await failIfDemoError(); return jobs.find(job => job.jobId === jobId); },
-  async saveJob(input: JobDraft, jobId, publish = false) {
-    await delay(500);
-    const existing = jobId ? jobs.find(job => job.jobId === jobId) : undefined;
-    const timestamp = new Date().toISOString();
-    const saved: RecruiterJobSummary = {
-      jobId: existing?.jobId ?? `job_${Date.now()}`, title: input.title, company,
-      employmentType: input.employmentType, workplaceType: input.workplaceType, location: input.location,
-      salary: {min: input.salaryMin, max: input.salaryMax, currency: 'SGD', period: 'MONTH'},
-      description: input.description,
-      requirements: input.requirements.split('\n').map(value => value.trim()).filter(Boolean),
-      skills: input.skills, deadline: input.deadline ? new Date(`${input.deadline}T15:59:59Z`).toISOString() : null,
-      visibility: input.visibility, status: publish ? 'ACTIVE' : existing?.status ?? 'DRAFT',
-      publishedAt: publish ? timestamp : existing?.publishedAt ?? null, version: (existing?.version ?? 0) + 1,
-      createdAt: existing?.createdAt ?? timestamp, updatedAt: timestamp,
-      applicantCount: existing?.applicantCount ?? 0, owner,
-    };
-    if (existing) Object.assign(existing, saved); else jobs.unshift(saved);
-    return saved;
-  },
-  async setJobStatus(jobId: string, status: JobStatus) {
-    await delay();
-    const job = jobs.find(item => item.jobId === jobId);
-    if (!job) throw new Error('Job not found.');
-    job.status = status; job.version += 1; job.updatedAt = new Date().toISOString();
-    return job;
   },
   async getApplicationCounts() {
     await failIfDemoError();

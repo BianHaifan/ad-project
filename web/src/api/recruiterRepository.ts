@@ -1,21 +1,30 @@
 import type {
   ApplicationStatus, ConversationView, CreateInterviewRequest, Dashboard, JobDraft,
-  JobStatus, RecruiterApplicationCounts, RecruiterApplicationDetail,
+  EmploymentType, JobStatus, PageMeta, RecruiterApplicationCounts, RecruiterApplicationDetail,
   RecruiterJobSummary, RecruiterProfile,
 } from '../models/recruiter';
 
 export type RecruiterTransitionStatus = Extract<ApplicationStatus, 'IN_REVIEW' | 'INTERVIEW' | 'REJECTED'>;
 export interface ListApplicationsParams { status?: ApplicationStatus; search?: string; jobId?: string }
+export interface ListJobsParams {
+  q?: string;
+  status?: JobStatus;
+  employmentType?: EmploymentType;
+  location?: string;
+  ownerId?: string;
+  page?: number;
+  pageSize?: number;
+}
+export interface JobListResult { data: RecruiterJobSummary[]; meta: PageMeta }
 
 export interface RecruiterRepository {
   signIn(email: string, password: string): Promise<RecruiterProfile>;
   register(fullName: string, companyName: string, email: string, password: string): Promise<RecruiterProfile>;
   getMe(): Promise<RecruiterProfile>;
   getDashboard(): Promise<Dashboard>;
-  listJobs(): Promise<RecruiterJobSummary[]>;
-  getJob(jobId: string): Promise<RecruiterJobSummary | undefined>;
-  saveJob(input: JobDraft, jobId?: string, publish?: boolean): Promise<RecruiterJobSummary>;
-  setJobStatus(jobId: string, status: JobStatus): Promise<RecruiterJobSummary>;
+  listJobs(params?: ListJobsParams): Promise<JobListResult>;
+  getJob(jobId: string): Promise<RecruiterJobSummary>;
+  createJob(input: JobDraft): Promise<RecruiterJobSummary>;
   getApplicationCounts(): Promise<RecruiterApplicationCounts>;
   listApplications(params: ListApplicationsParams): Promise<RecruiterApplicationDetail[]>;
   getApplication(applicationId: string): Promise<RecruiterApplicationDetail | undefined>;
