@@ -10,10 +10,5 @@ variable "key_name" {
 
 variable "instance_type" {
   description = "Instance type for target server B"
-  default     = "t3.micro"
-}
-
-variable "control_sg_name" {
-  description = "Name of the security group of control plane A; B allows SSH only from it"
-  default     = "ad-control-sg"
+  default     = "t3.small"
 }

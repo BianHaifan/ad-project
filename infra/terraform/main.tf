@@ -27,19 +27,15 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-data "aws_security_group" "a_control" {
-  name = var.control_sg_name
-}
-
 resource "aws_security_group" "b_app" {
   name        = "ad-b-app-sg"
-  description = "Target server B: allow 80 public, SSH only from control plane A"
+  description = "Target server B: allow 80 and SSH(22) from anywhere, outbound all"
 
   ingress {
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [data.aws_security_group.a_control.id]
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
@@ -63,6 +59,10 @@ resource "aws_instance" "b" {
   key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.b_app.id]
   associate_public_ip_address = true
+
+  lifecycle {
+    ignore_changes = [ami]
+  }
 
   tags = {
     Name = "ad-target-b"
