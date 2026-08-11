@@ -1,5 +1,6 @@
 package com.adproject.job.api;
 
+import com.adproject.common.api.RequestIdFilter;
 import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.job.api.JobResponses.JobListResponse;
 import com.adproject.job.api.JobResponses.JobResponse;
@@ -9,6 +10,7 @@ import com.adproject.job.domain.JobStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -52,5 +54,13 @@ public class RecruiterJobController {
     @GetMapping("/{jobId}")
     JobResponse get(@AuthenticationPrincipal AuthenticatedUser currentUser, @PathVariable String jobId) {
         return jobService.get(currentUser, jobId);
+    }
+
+    @PostMapping("/{jobId}/publish")
+    JobResponse publish(@AuthenticationPrincipal AuthenticatedUser currentUser,
+                        @PathVariable String jobId,
+                        @Valid @RequestBody PublishJobRequest request,
+                        HttpServletRequest servletRequest) {
+        return jobService.publish(currentUser, jobId, request, RequestIdFilter.current(servletRequest));
     }
 }

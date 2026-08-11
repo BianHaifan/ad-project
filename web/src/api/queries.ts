@@ -8,6 +8,7 @@ export const useDashboard=()=>useQuery({queryKey:keys.dashboard,queryFn:()=>repo
 export const useJobs=(params:ListJobsParams={})=>useQuery({queryKey:keys.jobs(params),queryFn:()=>repo.listJobs(params)});
 export const useJob=(id:string)=>useQuery({queryKey:keys.job(id),queryFn:()=>repo.getJob(id),enabled:!!id});
 export const useCreateJob=()=>{const qc=useQueryClient();return useMutation({mutationFn:(input:JobDraft)=>repo.createJob(input),onSuccess:job=>{qc.invalidateQueries({queryKey:['jobs']});qc.setQueryData(keys.job(job.jobId),job);}});};
+export const usePublishJob=()=>{const qc=useQueryClient();return useMutation({mutationFn:({jobId,expectedVersion}:{jobId:string;expectedVersion:number})=>repo.publishJob(jobId,expectedVersion),onSuccess:job=>{qc.setQueryData(keys.job(job.jobId),job);qc.invalidateQueries({queryKey:['jobs']});}});};
 export const useApplicationCounts=()=>useQuery({queryKey:keys.counts,queryFn:()=>repo.getApplicationCounts()});
 export const useApplications=(status?:ApplicationStatus,search='')=>useQuery({queryKey:keys.applications(status,search),queryFn:()=>repo.listApplications({status,search})});
 export const useApplication=(id:string)=>useQuery({queryKey:keys.application(id),queryFn:()=>repo.getApplication(id),enabled:!!id});

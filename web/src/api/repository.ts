@@ -10,4 +10,5 @@ export const recruiterRepository: RecruiterBusinessRepository = {
   listJobs: params => jobHttpClient.listJobs(params),
   getJob: jobId => jobHttpClient.getJob(jobId),
   createJob: input => jobHttpClient.createJob(input),
+  publishJob: (jobId, expectedVersion) => jobHttpClient.publishJob(jobId, expectedVersion),
 };

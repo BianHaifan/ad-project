@@ -125,4 +125,11 @@ public class JobEntity {
     public int getVersion() { return version; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    public void publish(Instant now) {
+        this.status = JobStatus.ACTIVE;
+        this.publishedAt = now;
+        this.updatedAt = now;
+        this.version += 1;
+    }
 }

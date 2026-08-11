@@ -51,6 +51,17 @@ describe('JobHttpClient', () => {
     expect(body).not.toHaveProperty('version');
   });
 
+  it('publishes with only expectedVersion through the authenticated client', async () => {
+    const active = {...job, status: 'ACTIVE' as const, version: 2, publishedAt: '2026-08-11T02:00:00Z'};
+    const {client, requestWithAuth} = setup({data: active});
+    await expect(client.publishJob(job.jobId, 1)).resolves.toEqual(active);
+    expect(requestWithAuth).toHaveBeenCalledWith('/recruiter/jobs/job-real-1/publish', {
+      method: 'POST', body: JSON.stringify({expectedVersion: 1}),
+    });
+    const body = JSON.parse(String((requestWithAuth.mock.calls[0][1] as RequestInit).body));
+    expect(Object.keys(body)).toEqual(['expectedVersion']);
+  });
+
   it('loads a real detail and safely rejects malformed success payloads', async () => {
     const valid = setup({data: job});
     await expect(valid.client.getJob(job.jobId)).resolves.toEqual(job);

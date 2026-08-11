@@ -25,6 +25,7 @@ export interface RecruiterRepository {
   listJobs(params?: ListJobsParams): Promise<JobListResult>;
   getJob(jobId: string): Promise<RecruiterJobSummary>;
   createJob(input: JobDraft): Promise<RecruiterJobSummary>;
+  publishJob(jobId: string, expectedVersion: number): Promise<RecruiterJobSummary>;
   getApplicationCounts(): Promise<RecruiterApplicationCounts>;
   listApplications(params: ListApplicationsParams): Promise<RecruiterApplicationDetail[]>;
   getApplication(applicationId: string): Promise<RecruiterApplicationDetail | undefined>;

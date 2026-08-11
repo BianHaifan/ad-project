@@ -10,5 +10,6 @@ describe('repository data-source boundaries', () => {
     expect('listJobs' in mockRecruiterRepository).toBe(false);
     expect('getJob' in mockRecruiterRepository).toBe(false);
     expect('createJob' in mockRecruiterRepository).toBe(false);
+    expect('publishJob' in mockRecruiterRepository).toBe(false);
   });
 });

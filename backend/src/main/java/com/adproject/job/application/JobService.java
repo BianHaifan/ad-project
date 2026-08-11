@@ -14,9 +14,12 @@ import com.adproject.job.api.JobResponses.PageMeta;
 import com.adproject.job.api.JobResponses.RecruiterJobDetail;
 import com.adproject.job.api.JobResponses.Salary;
 import com.adproject.job.api.JobResponses.User;
+import com.adproject.job.api.PublishJobRequest;
 import com.adproject.job.domain.EmploymentType;
 import com.adproject.job.domain.JobStatus;
 import com.adproject.job.infrastructure.JobEntity;
+import com.adproject.job.infrastructure.JobAuditEventEntity;
+import com.adproject.job.infrastructure.JobAuditEventRepository;
 import com.adproject.job.infrastructure.JobRepository;
 import com.adproject.user.domain.UserRole;
 import com.adproject.user.infrastructure.UserEntity;
@@ -42,16 +45,19 @@ public class JobService {
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
     private final JobRepository jobRepository;
+    private final JobAuditEventRepository auditRepository;
     private final CompanyMemberRepository memberRepository;
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
-    public JobService(JobRepository jobRepository, CompanyMemberRepository memberRepository,
+    public JobService(JobRepository jobRepository, JobAuditEventRepository auditRepository,
+                      CompanyMemberRepository memberRepository,
                       CompanyRepository companyRepository, UserRepository userRepository,
                       ObjectMapper objectMapper, Clock clock) {
         this.jobRepository = jobRepository;
+        this.auditRepository = auditRepository;
         this.memberRepository = memberRepository;
         this.companyRepository = companyRepository;
         this.userRepository = userRepository;
@@ -124,6 +130,34 @@ public class JobService {
         JobEntity job = jobRepository.findById(jobId)
                 .filter(found -> found.getCompanyId().equals(scope.company().getId()))
                 .orElseThrow(JobService::notFound);
+        return new JobResponse(toDetail(job, scope.company()));
+    }
+
+    @Transactional
+    public JobResponse publish(AuthenticatedUser currentUser, String jobId, PublishJobRequest request,
+                               String requestId) {
+        requireRecruiter(currentUser);
+        Scope scope = requireScope(currentUser.userId());
+        JobEntity job = jobRepository.findOwnJobForUpdate(jobId, scope.company().getId())
+                .orElseThrow(JobService::notFound);
+        if (scope.company().getVerificationStatus() != CompanyVerificationStatus.APPROVED) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN",
+                    "Only recruiters from an approved company can publish jobs");
+        }
+        if (job.getVersion() != request.expectedVersion()) {
+            throw new ApiException(HttpStatus.CONFLICT, "VERSION_CONFLICT",
+                    "The job has changed; reload it before publishing");
+        }
+        if (job.getStatus() != JobStatus.DRAFT) {
+            throw new ApiException(HttpStatus.CONFLICT, "INVALID_JOB_TRANSITION",
+                    "Only a draft job can be published");
+        }
+        Instant now = clock.instant();
+        job.publish(now);
+        auditRepository.save(new JobAuditEventEntity(UUID.randomUUID().toString(), job.getId(),
+                currentUser.userId(), scope.company().getId(), "JOB_PUBLISHED", JobStatus.DRAFT,
+                JobStatus.ACTIVE, now, "Job published", requestId));
+        jobRepository.flush();
         return new JobResponse(toDetail(job, scope.company()));
     }
 

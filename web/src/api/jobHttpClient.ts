@@ -44,6 +44,14 @@ export class JobHttpClient {
     });
     return parseJobEnvelope(payload);
   }
+
+  async publishJob(jobId: string, expectedVersion: number): Promise<RecruiterJobSummary> {
+    const payload = await this.client.requestWithAuth<unknown>(apiPaths.publishJob(encodeURIComponent(jobId)), {
+      method: 'POST',
+      body: JSON.stringify({expectedVersion}),
+    });
+    return parseJobEnvelope(payload);
+  }
 }
 
 function parseJobEnvelope(payload: unknown): RecruiterJobSummary {

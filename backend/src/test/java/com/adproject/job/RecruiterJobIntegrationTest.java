@@ -194,6 +194,128 @@ class RecruiterJobIntegrationTest {
         }
     }
 
+    @Test
+    void approvedRecruiterPublishesDraftAndPersistsAuditAndVersion() throws Exception {
+        Account recruiter = recruiter("publish-success", "APPROVED");
+        String jobId = create(recruiter, createBody("Publishable role"), 201).at("/data/jobId").asText();
+        String requestId = "req_publish_success";
+
+        String responseBody = mockMvc.perform(post("/api/v1/recruiter/jobs/{jobId}/publish", jobId)
+                        .header("Authorization", bearer(recruiter)).header("X-Request-Id", requestId)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Request-Id", requestId))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.version").value(2))
+                .andExpect(jsonPath("$.data.publishedAt").value(org.hamcrest.Matchers.endsWith("Z")))
+                .andExpect(jsonPath("$.data.updatedAt").value(org.hamcrest.Matchers.endsWith("Z")))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode response = read(responseBody);
+        var stored = jdbcTemplate.queryForMap(
+                "select status,published_at,updated_at,version from jobs where id = ?", jobId);
+        assertThat(stored.get("status")).isEqualTo("ACTIVE");
+        assertThat(stored.get("published_at")).isNotNull();
+        assertThat(stored.get("updated_at")).isNotNull();
+        assertThat(stored.get("version")).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from job_audit_events where job_id = ? and actor_id = ? and company_id = ? " +
+                        "and action = 'JOB_PUBLISHED' and from_status = 'DRAFT' and to_status = 'ACTIVE' " +
+                        "and reason = 'Job published' and request_id = ?",
+                Integer.class, jobId, recruiter.userId(), recruiter.companyId(), requestId)).isEqualTo(1);
+
+        mockMvc.perform(get("/api/v1/recruiter/jobs/{jobId}", jobId).header("Authorization", bearer(recruiter)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.version").value(2))
+                .andExpect(jsonPath("$.data.publishedAt").value(response.at("/data/publishedAt").asText()));
+    }
+
+    @Test
+    void publishRequiresAuthenticationAndRecruiterRole() throws Exception {
+        Account owner = recruiter("publish-owner", "APPROVED");
+        Account candidate = candidate("publish-candidate");
+        String jobId = create(owner, createBody("Protected publish"), 201).at("/data/jobId").asText();
+
+        mockMvc.perform(post("/api/v1/recruiter/jobs/{jobId}/publish", jobId)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":1}"))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
+        mockMvc.perform(post("/api/v1/recruiter/jobs/{jobId}/publish", jobId)
+                        .header("Authorization", bearer(candidate))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":1}"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void pendingAndRejectedCompaniesCannotPublishExistingDrafts() throws Exception {
+        for (String verification : new String[]{"PENDING", "REJECTED"}) {
+            Account recruiter = recruiter("publish-" + verification.toLowerCase(), "APPROVED");
+            String jobId = create(recruiter, createBody("Blocked publish"), 201).at("/data/jobId").asText();
+            jdbcTemplate.update("update companies set verification_status = ? where id = ?",
+                    verification, recruiter.companyId());
+            mockMvc.perform(post("/api/v1/recruiter/jobs/{jobId}/publish", jobId)
+                            .header("Authorization", bearer(recruiter))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":1}"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error.code").value("FORBIDDEN"))
+                    .andExpect(jsonPath("$.error.requestId").isNotEmpty());
+            assertThat(jdbcTemplate.queryForObject("select status from jobs where id = ?", String.class, jobId))
+                    .isEqualTo("DRAFT");
+        }
+    }
+
+    @Test
+    void publishHidesCrossCompanyAndMissingJobs() throws Exception {
+        Account owner = recruiter("publish-hidden-owner", "APPROVED");
+        Account outsider = recruiter("publish-hidden-outsider", "APPROVED");
+        String jobId = create(owner, createBody("Hidden publish"), 201).at("/data/jobId").asText();
+        for (String hidden : new String[]{jobId, UUID.randomUUID().toString()}) {
+            mockMvc.perform(post("/api/v1/recruiter/jobs/{jobId}/publish", hidden)
+                            .header("Authorization", bearer(outsider))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":1}"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
+        }
+    }
+
+    @Test
+    void publishRejectsVersionConflictInvalidStateAndInvalidBodies() throws Exception {
+        Account recruiter = recruiter("publish-conflicts", "APPROVED");
+        String jobId = create(recruiter, createBody("Conflict publish"), 201).at("/data/jobId").asText();
+        String requestId = "req_publish_conflict";
+        mockMvc.perform(post("/api/v1/recruiter/jobs/{jobId}/publish", jobId)
+                        .header("Authorization", bearer(recruiter)).header("X-Request-Id", requestId)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":2}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("VERSION_CONFLICT"))
+                .andExpect(jsonPath("$.error.requestId").value(requestId));
+
+        mockMvc.perform(post("/api/v1/recruiter/jobs/{jobId}/publish", jobId)
+                        .header("Authorization", bearer(recruiter))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":1}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/recruiter/jobs/{jobId}/publish", jobId)
+                        .header("Authorization", bearer(recruiter))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":2}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("INVALID_JOB_TRANSITION"));
+
+        for (String body : new String[]{"{}", "{\"expectedVersion\":0}"}) {
+            mockMvc.perform(post("/api/v1/recruiter/jobs/{jobId}/publish", jobId)
+                            .header("Authorization", bearer(recruiter))
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                    .andExpect(jsonPath("$.error.fieldErrors.expectedVersion").exists());
+        }
+        mockMvc.perform(post("/api/v1/recruiter/jobs/{jobId}/publish", jobId)
+                        .header("Authorization", bearer(recruiter))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":2,\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.error.fieldErrors.status").exists());
+    }
+
     private void assertFiltered(Account account, String query, String expectedId) throws Exception {
         assertFiltered(account, query, expectedId, 1);
     }
