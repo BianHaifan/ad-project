@@ -73,6 +73,13 @@
         mode: "0600"
       when: not env_stat.stat.exists
 
+    - name: Ensure .env is owned by ubuntu so the deploy user can read it
+      ansible.builtin.file:
+        path: "{{ compose_dir }}/.env"
+        owner: ubuntu
+        group: ubuntu
+        mode: "0600"
+
     - name: Create 2G swap to protect the small instance
       ansible.builtin.shell: |
         if [ ! -f /swapfile ]; then

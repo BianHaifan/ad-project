@@ -56,6 +56,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           command_timeout: 10m
           script: |
+            set -e
             cd /opt/adproject/infra/docker
             docker compose --env-file /opt/adproject/infra/docker/.env pull
             docker compose --env-file /opt/adproject/infra/docker/.env up -d --remove-orphans
