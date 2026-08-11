@@ -29,18 +29,15 @@ export class JobHttpClient {
   async createJob(input: JobDraft): Promise<RecruiterJobSummary> {
     const payload = await this.client.requestWithAuth<unknown>(apiPaths.jobs, {
       method: 'POST',
-      body: JSON.stringify({
-        title: input.title.trim(),
-        employmentType: input.employmentType,
-        workplaceType: input.workplaceType,
-        location: input.location.trim(),
-        salary: {min: input.salaryMin, max: input.salaryMax, currency: 'SGD', period: 'MONTH'},
-        description: input.description.trim(),
-        requirements: input.requirements.split('\n').map(value => value.trim()).filter(Boolean),
-        skills: input.skills,
-        deadline: input.deadline ? new Date(`${input.deadline}T15:59:59Z`).toISOString() : null,
-        visibility: input.visibility,
-      }),
+      body: JSON.stringify(jobDraftPayload(input)),
+    });
+    return parseJobEnvelope(payload);
+  }
+
+  async updateJob(jobId: string, input: JobDraft, expectedVersion: number): Promise<RecruiterJobSummary> {
+    const payload = await this.client.requestWithAuth<unknown>(apiPaths.job(encodeURIComponent(jobId)), {
+      method: 'PATCH',
+      body: JSON.stringify({...jobDraftPayload(input), expectedVersion}),
     });
     return parseJobEnvelope(payload);
   }
@@ -52,6 +49,30 @@ export class JobHttpClient {
     });
     return parseJobEnvelope(payload);
   }
+
+  async changeJobStatus(jobId: string, status: 'ACTIVE' | 'PAUSED' | 'CLOSED', reason: string,
+                        expectedVersion: number): Promise<RecruiterJobSummary> {
+    const payload = await this.client.requestWithAuth<unknown>(apiPaths.jobStatus(encodeURIComponent(jobId)), {
+      method: 'POST',
+      body: JSON.stringify({status, reason: reason.trim(), expectedVersion}),
+    });
+    return parseJobEnvelope(payload);
+  }
+}
+
+function jobDraftPayload(input: JobDraft) {
+  return {
+    title: input.title.trim(),
+    employmentType: input.employmentType,
+    workplaceType: input.workplaceType,
+    location: input.location.trim(),
+    salary: {min: input.salaryMin, max: input.salaryMax, currency: 'SGD' as const, period: 'MONTH' as const},
+    description: input.description.trim(),
+    requirements: input.requirements.split('\n').map(value => value.trim()).filter(Boolean),
+    skills: input.skills,
+    deadline: input.deadline ? new Date(`${input.deadline}T15:59:59Z`).toISOString() : null,
+    visibility: input.visibility,
+  };
 }
 
 function parseJobEnvelope(payload: unknown): RecruiterJobSummary {

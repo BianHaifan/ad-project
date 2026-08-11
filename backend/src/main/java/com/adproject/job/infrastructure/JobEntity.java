@@ -132,4 +132,31 @@ public class JobEntity {
         this.updatedAt = now;
         this.version += 1;
     }
+
+    public void changeStatus(JobStatus targetStatus, Instant now) {
+        this.status = targetStatus;
+        this.updatedAt = now;
+        this.version += 1;
+    }
+
+    public void updateDetails(String title, EmploymentType employmentType, WorkplaceType workplaceType,
+                              String location, long salaryMin, long salaryMax, SalaryCurrency salaryCurrency,
+                              SalaryPeriod salaryPeriod, String description, String requirementsJson,
+                              String skillsJson, Instant deadline, Visibility visibility, Instant now) {
+        this.title = title;
+        this.employmentType = employmentType;
+        this.workplaceType = workplaceType;
+        this.location = location;
+        this.salaryMin = salaryMin;
+        this.salaryMax = salaryMax;
+        this.salaryCurrency = salaryCurrency;
+        this.salaryPeriod = salaryPeriod;
+        this.description = description;
+        this.requirementsJson = requirementsJson;
+        this.skillsJson = skillsJson;
+        this.deadline = deadline;
+        this.visibility = visibility;
+        this.updatedAt = now;
+        this.version += 1;
+    }
 }

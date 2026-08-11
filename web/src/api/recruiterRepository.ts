@@ -5,6 +5,7 @@ import type {
 } from '../models/recruiter';
 
 export type RecruiterTransitionStatus = Extract<ApplicationStatus, 'IN_REVIEW' | 'INTERVIEW' | 'REJECTED'>;
+export type RecruiterJobStatusTarget = Extract<JobStatus, 'ACTIVE' | 'PAUSED' | 'CLOSED'>;
 export interface ListApplicationsParams { status?: ApplicationStatus; search?: string; jobId?: string }
 export interface ListJobsParams {
   q?: string;
@@ -25,7 +26,10 @@ export interface RecruiterRepository {
   listJobs(params?: ListJobsParams): Promise<JobListResult>;
   getJob(jobId: string): Promise<RecruiterJobSummary>;
   createJob(input: JobDraft): Promise<RecruiterJobSummary>;
+  updateJob(jobId: string, input: JobDraft, expectedVersion: number): Promise<RecruiterJobSummary>;
   publishJob(jobId: string, expectedVersion: number): Promise<RecruiterJobSummary>;
+  changeJobStatus(jobId: string, status: RecruiterJobStatusTarget, reason: string,
+                  expectedVersion: number): Promise<RecruiterJobSummary>;
   getApplicationCounts(): Promise<RecruiterApplicationCounts>;
   listApplications(params: ListApplicationsParams): Promise<RecruiterApplicationDetail[]>;
   getApplication(applicationId: string): Promise<RecruiterApplicationDetail | undefined>;

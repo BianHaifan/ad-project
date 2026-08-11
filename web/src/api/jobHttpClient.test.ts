@@ -51,6 +51,25 @@ describe('JobHttpClient', () => {
     expect(body).not.toHaveProperty('version');
   });
 
+  it('updates a draft with only editable OpenAPI fields and expectedVersion', async () => {
+    const updated = {...job, title: 'Senior Backend Engineer', version: 2};
+    const {client, requestWithAuth} = setup({data: updated});
+    const input = {title: ' Senior Backend Engineer ', employmentType: 'FULL_TIME' as const,
+      workplaceType: 'HYBRID' as const, location: ' Singapore ', salaryMin: 6000, salaryMax: 9000,
+      description: ' Updated APIs ', requirements: 'Reliable APIs\nProduction ownership', skills: ['Java'],
+      deadline: '', visibility: 'PRIVATE' as const};
+    await expect(client.updateJob(job.jobId, input, 1)).resolves.toEqual(updated);
+    expect(requestWithAuth).toHaveBeenCalledWith('/recruiter/jobs/job-real-1', expect.objectContaining({method: 'PATCH'}));
+    const body = JSON.parse(String((requestWithAuth.mock.calls[0][1] as RequestInit).body));
+    expect(body).toEqual({title: 'Senior Backend Engineer', employmentType: 'FULL_TIME', workplaceType: 'HYBRID',
+      location: 'Singapore', salary: {min: 6000, max: 9000, currency: 'SGD', period: 'MONTH'},
+      description: 'Updated APIs', requirements: ['Reliable APIs', 'Production ownership'], skills: ['Java'],
+      deadline: null, visibility: 'PRIVATE', expectedVersion: 1});
+    for (const serverField of ['companyId', 'createdBy', 'status', 'publishedAt', 'updatedAt']) {
+      expect(body).not.toHaveProperty(serverField);
+    }
+  });
+
   it('publishes with only expectedVersion through the authenticated client', async () => {
     const active = {...job, status: 'ACTIVE' as const, version: 2, publishedAt: '2026-08-11T02:00:00Z'};
     const {client, requestWithAuth} = setup({data: active});
@@ -60,6 +79,17 @@ describe('JobHttpClient', () => {
     });
     const body = JSON.parse(String((requestWithAuth.mock.calls[0][1] as RequestInit).body));
     expect(Object.keys(body)).toEqual(['expectedVersion']);
+  });
+
+  it('changes lifecycle status with only status, reason, and expectedVersion', async () => {
+    const paused = {...job, status: 'PAUSED' as const, version: 3, publishedAt: '2026-08-11T02:00:00Z'};
+    const {client, requestWithAuth} = setup({data: paused});
+    await expect(client.changeJobStatus(job.jobId, 'PAUSED', ' Pause for planning ', 2)).resolves.toEqual(paused);
+    expect(requestWithAuth).toHaveBeenCalledWith('/recruiter/jobs/job-real-1/status', {
+      method: 'POST', body: JSON.stringify({status: 'PAUSED', reason: 'Pause for planning', expectedVersion: 2}),
+    });
+    const body = JSON.parse(String((requestWithAuth.mock.calls[0][1] as RequestInit).body));
+    expect(Object.keys(body)).toEqual(['status', 'reason', 'expectedVersion']);
   });
 
   it('loads a real detail and safely rejects malformed success payloads', async () => {

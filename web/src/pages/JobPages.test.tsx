@@ -86,7 +86,7 @@ describe('real recruiter job pages', () => {
     renderRoute('/recruiter/jobs/job-real-1', [{path: '/recruiter/jobs/:jobId', element: <JobDetailPage/>}, {path: '/recruiter/jobs', element: <div/>}]);
     expect(await screen.findByText('Job overview')).toBeInTheDocument();
     expect(screen.getByText('Publish job')).toBeEnabled();
-    expect(screen.getByText('Edit / pause / close unavailable')).toBeDisabled();
+    expect(screen.getByText('Edit job')).toBeEnabled();
     cleanup();
     vi.restoreAllMocks();
     vi.spyOn(recruiterRepository, 'getJob').mockRejectedValue(new AuthApiError(404, 'NOT_FOUND', 'hidden detail'));
@@ -104,6 +104,63 @@ describe('real recruiter job pages', () => {
     fireEvent.click(screen.getByRole('button', {name: 'Cancel'}));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('loads a persisted draft into the edit form, saves once, and refreshes job caches', async () => {
+    vi.spyOn(recruiterRepository, 'getJob').mockResolvedValue(testJob);
+    let finish!: (value: typeof updatedDraft) => void;
+    const pending = new Promise<typeof updatedDraft>(resolve => {finish = resolve;});
+    const update = vi.spyOn(recruiterRepository, 'updateJob').mockReturnValue(pending);
+    const {router, client} = renderRoute('/recruiter/jobs/job-real-1/edit', [
+      {path: '/recruiter/jobs/:jobId/edit', element: <JobFormPage/>},
+      {path: '/recruiter/jobs/:jobId', element: <div>Updated detail route</div>},
+    ]);
+    client.setQueryData(['jobs', {page: 1}], {data: [testJob], meta: {page: 1, pageSize: 20, total: 1, hasNext: false}});
+    const title = await screen.findByDisplayValue('Backend Engineer');
+    expect(screen.getByText('Editing server version 1')).toBeInTheDocument();
+    fireEvent.change(title, {target: {value: 'Senior Backend Engineer'}});
+    const save = screen.getByRole('button', {name: 'Save changes'});
+    fireEvent.click(save);
+    await waitFor(() => expect(update).toHaveBeenCalledWith('job-real-1',
+      expect.objectContaining({title: 'Senior Backend Engineer'}), 1));
+    fireEvent.submit(save.closest('form')!);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(save).toBeDisabled();
+    finish(updatedDraft);
+    expect(await screen.findByText('Updated detail route')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/recruiter/jobs/job-real-1');
+    expect(client.getQueryData(['job', 'job-real-1'])).toEqual(updatedDraft);
+    expect(client.getQueryState(['jobs', {page: 1}])?.isInvalidated).toBe(true);
+  });
+
+  it('blocks direct editing of non-draft jobs', async () => {
+    vi.spyOn(recruiterRepository, 'getJob').mockResolvedValue(activeJob);
+    const update = vi.spyOn(recruiterRepository, 'updateJob');
+    renderRoute('/recruiter/jobs/job-real-1/edit', [
+      {path: '/recruiter/jobs/:jobId/edit', element: <JobFormPage/>},
+      {path: '/recruiter/jobs/:jobId', element: <div/>},
+    ]);
+    expect(await screen.findByText('Job cannot be edited')).toBeInTheDocument();
+    expect(screen.getByText('Only DRAFT jobs can be edited. Reload the detail page to see its latest status.')).toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [new AuthApiError(422, 'VALIDATION_ERROR', 'raw validation', {title: 'Server edit title error'}), 'Server edit title error', false],
+    [new AuthApiError(409, 'VERSION_CONFLICT', 'raw conflict'), 'This draft changed after you opened it', true],
+    [new AuthApiError(409, 'INVALID_JOB_TRANSITION', 'raw state'), 'Only DRAFT jobs can be edited', true],
+    [new AuthApiError(403, 'FORBIDDEN', 'raw forbidden'), 'You do not have permission to edit this job', false],
+    [new AuthApiError(404, 'NOT_FOUND', 'raw hidden'), 'no longer exists or is not part of your company', false],
+    [new AuthApiError(0, 'NETWORK_ERROR', 'private network'), 'Unable to reach the server', false],
+  ])('shows safe edit errors for %#', async (error, expected, reload) => {
+    vi.spyOn(recruiterRepository, 'getJob').mockResolvedValue(testJob);
+    vi.spyOn(recruiterRepository, 'updateJob').mockRejectedValue(error);
+    renderRoute('/recruiter/jobs/job-real-1/edit', [{path: '/recruiter/jobs/:jobId/edit', element: <JobFormPage/>}]);
+    await screen.findByDisplayValue('Backend Engineer');
+    fireEvent.click(screen.getByRole('button', {name: 'Save changes'}));
+    expect(await screen.findByText(new RegExp(expected))).toBeInTheDocument();
+    expect(screen.queryByText(error.message)).not.toBeInTheDocument();
+    if (reload) expect(screen.getByRole('button', {name: 'Reload draft'})).toBeInTheDocument();
   });
 
   it('publishes once, updates detail cache, and invalidates real job lists', async () => {
@@ -128,12 +185,83 @@ describe('real recruiter job pages', () => {
     expect(client.getQueryState(['jobs', {page: 1}])?.isInvalidated).toBe(true);
   });
 
-  it.each(['ACTIVE', 'PAUSED', 'CLOSED'] as const)('does not offer publish for %s jobs', async status => {
-    vi.spyOn(recruiterRepository, 'getJob').mockResolvedValue({...testJob, status});
+  it('shows only the lifecycle actions allowed by the current server status', async () => {
+    vi.spyOn(recruiterRepository, 'getJob').mockResolvedValue(activeJob);
     renderRoute('/recruiter/jobs/job-real-1', [{path: '/recruiter/jobs/:jobId', element: <JobDetailPage/>}]);
     await screen.findByText('Job overview');
     expect(screen.queryByRole('button', {name: 'Publish job'})).not.toBeInTheDocument();
-    expect(screen.getByText('Edit / pause / close unavailable')).toBeDisabled();
+    expect(screen.getByRole('button', {name: 'Pause job'})).toBeEnabled();
+    expect(screen.getByRole('button', {name: 'Close job'})).toBeEnabled();
+    expect(screen.queryByRole('button', {name: 'Resume job'})).not.toBeInTheDocument();
+    cleanup();
+    vi.restoreAllMocks();
+
+    vi.spyOn(recruiterRepository, 'getJob').mockResolvedValue(pausedJob);
+    renderRoute('/recruiter/jobs/job-real-1', [{path: '/recruiter/jobs/:jobId', element: <JobDetailPage/>}]);
+    await screen.findByText('Job overview');
+    expect(screen.getByRole('button', {name: 'Resume job'})).toBeEnabled();
+    expect(screen.getByRole('button', {name: 'Close job'})).toBeEnabled();
+    expect(screen.queryByRole('button', {name: 'Pause job'})).not.toBeInTheDocument();
+    cleanup();
+    vi.restoreAllMocks();
+
+    vi.spyOn(recruiterRepository, 'getJob').mockResolvedValue(closedJob);
+    renderRoute('/recruiter/jobs/job-real-1', [{path: '/recruiter/jobs/:jobId', element: <JobDetailPage/>}]);
+    await screen.findByText('Job overview');
+    expect(screen.getByText('This job is closed and cannot transition to another status.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: /Pause job|Resume job|Close job/})).not.toBeInTheDocument();
+  });
+
+  it('asks for a reason and cancellation does not change status', async () => {
+    vi.spyOn(recruiterRepository, 'getJob').mockResolvedValue(activeJob);
+    const change = vi.spyOn(recruiterRepository, 'changeJobStatus');
+    renderRoute('/recruiter/jobs/job-real-1', [{path: '/recruiter/jobs/:jobId', element: <JobDetailPage/>}]);
+    fireEvent.click(await screen.findByRole('button', {name: 'Pause job'}));
+    expect(screen.getByRole('dialog')).toHaveTextContent('from ACTIVE to PAUSED');
+    expect(screen.getByRole('button', {name: 'Confirm pause'})).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Reason'), {target: {value: '   '}});
+    expect(screen.getByRole('button', {name: 'Confirm pause'})).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', {name: 'Cancel'}));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(change).not.toHaveBeenCalled();
+  });
+
+  it('pauses once, updates detail cache, and invalidates real job lists', async () => {
+    vi.spyOn(recruiterRepository, 'getJob').mockResolvedValue(activeJob);
+    let finish!: (value: typeof pausedJob) => void;
+    const pending = new Promise<typeof pausedJob>(resolve => {finish = resolve;});
+    const change = vi.spyOn(recruiterRepository, 'changeJobStatus').mockReturnValue(pending);
+    const {client} = renderRoute('/recruiter/jobs/job-real-1', [{path: '/recruiter/jobs/:jobId', element: <JobDetailPage/>}]);
+    client.setQueryData(['jobs', {page: 1}], {data: [activeJob], meta: {page: 1, pageSize: 20, total: 1, hasNext: false}});
+    fireEvent.click(await screen.findByRole('button', {name: 'Pause job'}));
+    fireEvent.change(screen.getByLabelText('Reason'), {target: {value: ' Pause for planning '}});
+    const confirm = screen.getByRole('button', {name: 'Confirm pause'});
+    fireEvent.click(confirm);
+    await waitFor(() => expect(change).toHaveBeenCalledWith('job-real-1', 'PAUSED', 'Pause for planning', 2));
+    fireEvent.click(confirm);
+    expect(change).toHaveBeenCalledTimes(1);
+    expect(confirm).toBeDisabled();
+    finish(pausedJob);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getAllByText('PAUSED').length).toBeGreaterThan(0);
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(client.getQueryData(['job', 'job-real-1'])).toEqual(pausedJob);
+    expect(client.getQueryState(['jobs', {page: 1}])?.isInvalidated).toBe(true);
+  });
+
+  it.each([
+    ['Resume job', pausedJob, 'ACTIVE', 'Resume after review', resumedJob],
+    ['Close job', activeJob, 'CLOSED', 'Position filled', closedJob],
+  ] as const)('%s confirms and renders the real returned status', async (button, current, target, reason, result) => {
+    vi.spyOn(recruiterRepository, 'getJob').mockResolvedValue(current);
+    const change = vi.spyOn(recruiterRepository, 'changeJobStatus').mockResolvedValue(result);
+    renderRoute('/recruiter/jobs/job-real-1', [{path: '/recruiter/jobs/:jobId', element: <JobDetailPage/>}]);
+    fireEvent.click(await screen.findByRole('button', {name: button}));
+    expect(screen.getByRole('dialog')).toHaveTextContent(`from ${current.status} to ${target}`);
+    fireEvent.change(screen.getByLabelText('Reason'), {target: {value: reason}});
+    fireEvent.click(screen.getByRole('button', {name: new RegExp(`Confirm ${button.split(' ')[0].toLowerCase()}`)}));
+    await waitFor(() => expect(change).toHaveBeenCalledWith('job-real-1', target, reason, current.version));
+    expect(await screen.findAllByText(target)).not.toHaveLength(0);
   });
 
   it.each([
@@ -151,10 +279,35 @@ describe('real recruiter job pages', () => {
     expect(screen.queryByText(error.message)).not.toBeInTheDocument();
     if (error.code === 'VERSION_CONFLICT') expect(screen.getByRole('button', {name: 'Reload job'})).toBeInTheDocument();
   });
+
+  it.each([
+    [new AuthApiError(403, 'FORBIDDEN', 'raw forbidden'), 'Your company must be approved to resume'],
+    [new AuthApiError(409, 'VERSION_CONFLICT', 'raw conflict'), 'This job changed after you opened it'],
+    [new AuthApiError(409, 'INVALID_JOB_TRANSITION', 'raw transition'), 'no longer in a state that allows'],
+    [new AuthApiError(404, 'NOT_FOUND', 'raw hidden'), 'no longer exists or is not part of your company'],
+    [new AuthApiError(0, 'NETWORK_ERROR', 'private network'), 'Unable to reach the server'],
+  ])('shows safe status errors for %#', async (error, expected) => {
+    vi.spyOn(recruiterRepository, 'getJob').mockResolvedValue(activeJob);
+    vi.spyOn(recruiterRepository, 'changeJobStatus').mockRejectedValue(error);
+    renderRoute('/recruiter/jobs/job-real-1', [{path: '/recruiter/jobs/:jobId', element: <JobDetailPage/>}]);
+    fireEvent.click(await screen.findByRole('button', {name: 'Pause job'}));
+    fireEvent.change(screen.getByLabelText('Reason'), {target: {value: 'Safe reason'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Confirm pause'}));
+    expect(await screen.findByText(new RegExp(expected))).toBeInTheDocument();
+    expect(screen.queryByText(error.message)).not.toBeInTheDocument();
+    if (error.code === 'VERSION_CONFLICT' || error.code === 'INVALID_JOB_TRANSITION') {
+      expect(screen.getByRole('button', {name: 'Reload job'})).toBeInTheDocument();
+    }
+  });
 });
 
 const activeJob = {...testJob, status: 'ACTIVE' as const, version: 2,
   publishedAt: '2026-08-11T02:00:00Z', updatedAt: '2026-08-11T02:00:00Z'};
+const pausedJob = {...activeJob, status: 'PAUSED' as const, version: 3, updatedAt: '2026-08-11T03:00:00Z'};
+const resumedJob = {...pausedJob, status: 'ACTIVE' as const, version: 4, updatedAt: '2026-08-11T04:00:00Z'};
+const closedJob = {...activeJob, status: 'CLOSED' as const, version: 3, updatedAt: '2026-08-11T05:00:00Z'};
+const updatedDraft = {...testJob, title: 'Senior Backend Engineer', version: 2,
+  updatedAt: '2026-08-11T06:00:00Z'};
 
 function fillRequiredForm() {
   fireEvent.change(screen.getByLabelText('Job title *'), {target: {value: 'Real created role'}});

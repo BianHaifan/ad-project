@@ -962,7 +962,7 @@ paths:
       x-status: DRAFT
       x-clients:
       - Recruiter
-      x-permission: Recruiter; own-company job + edit capability; cross-company resources return 404
+      x-permission: Recruiter; own-company DRAFT job + edit capability; cross-company resources return 404
       parameters:
       - $ref: '#/components/parameters/JobId'
       requestBody:
@@ -993,7 +993,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: 'Permission: Recruiter; own-company job + edit capability; cross-company resources return 404.
+      description: 'Permission: Recruiter; own-company DRAFT job + edit capability; cross-company resources return
+        404. Only DRAFT jobs are editable; ACTIVE, PAUSED, and CLOSED jobs return 409 INVALID_JOB_TRANSITION.
         Status: DRAFT. Clients: Recruiter. Concurrency: Require expectedVersion; compare atomically; on success
         increment version; mismatch returns 409 VERSION_CONFLICT.'
       x-concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch returns
@@ -1056,7 +1057,8 @@ paths:
       x-status: DRAFT
       x-clients:
       - Recruiter
-      x-permission: Recruiter; own-company job; cross-company resources return 404
+      x-permission: Recruiter; own-company job; cross-company resources return 404; PAUSED to ACTIVE additionally
+        requires an APPROVED company
       parameters:
       - $ref: '#/components/parameters/JobId'
       requestBody:
@@ -1087,12 +1089,21 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: 'Permission: Recruiter; own-company job; cross-company resources return 404. Status: DRAFT. Clients:
-        Recruiter. Audit: record actorId, companyId, before/after values, occurredAt, reason, and requestId. Concurrency:
-        Require expectedVersion; compare atomically; on success increment version; mismatch returns 409 VERSION_CONFLICT.'
+      description: 'Permission: Recruiter; own-company job; cross-company resources return 404; PAUSED to ACTIVE
+        additionally requires an APPROVED company. Allowed transitions: ACTIVE to PAUSED or CLOSED, and PAUSED
+        to ACTIVE or CLOSED. DRAFT to ACTIVE is only available through the publish endpoint; DRAFT cannot be changed
+        through this endpoint. CLOSED is terminal. Invalid or repeated transitions return 409 INVALID_JOB_TRANSITION.
+        Status: DRAFT. Clients: Recruiter. Audit: record actorId, companyId, before/after values, occurredAt, reason,
+        and requestId. Concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch
+        returns 409 VERSION_CONFLICT.'
       x-audit: true
       x-concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch returns
         409 VERSION_CONFLICT.
+      x-state-transitions:
+      - ACTIVE->PAUSED
+      - ACTIVE->CLOSED
+      - PAUSED->ACTIVE
+      - PAUSED->CLOSED
       x-mvp-scope: MVP
   /recruiter/applications:
     get:
@@ -2655,7 +2666,8 @@ components:
       - ACTIVE
       - PAUSED
       - CLOSED
-      description: 'MVP transitions: DRAFT->ACTIVE; ACTIVE->PAUSED|CLOSED; PAUSED->ACTIVE|CLOSED; CLOSED is terminal.'
+      description: 'MVP transitions: DRAFT->ACTIVE only through the publish endpoint; ACTIVE->PAUSED|CLOSED and
+        PAUSED->ACTIVE|CLOSED through the recruiter status endpoint; CLOSED is terminal.'
     Visibility:
       type: string
       enum:
@@ -3237,6 +3249,10 @@ components:
           - CLOSED
         reason:
           type: string
+          minLength: 1
+          maxLength: 500
+          pattern: ^.*\S.*$
+          description: Required non-blank audit reason for the requested status transition.
         expectedVersion:
           type: integer
           minimum: 1

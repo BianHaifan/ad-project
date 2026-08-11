@@ -1,21 +1,25 @@
 import {useRef, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {AuthApiError} from '../api/authClient';
-import {useJob, usePublishJob} from '../api/queries';
+import {useChangeJobStatus, useJob, usePublishJob} from '../api/queries';
+import type {RecruiterJobStatusTarget} from '../api/recruiterRepository';
 import {ErrorState, LoadingState} from '../components/AsyncState';
 import {PageHeader} from '../components/PageHeader';
 import {StatusBadge} from '../components/StatusBadge';
 
-type PublishError = {message: string; reload: boolean};
+type ActionError = {message: string; reload: boolean; title: string};
 
 export function JobDetailPage() {
   const {jobId = ''} = useParams();
   const nav = useNavigate();
   const query = useJob(jobId);
   const publish = usePublishJob();
-  const publishingRef = useRef(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [publishError, setPublishError] = useState<PublishError | null>(null);
+  const changeStatus = useChangeJobStatus();
+  const submittingRef = useRef(false);
+  const [showPublishConfirm, setShowPublishConfirm] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<RecruiterJobStatusTarget | null>(null);
+  const [reason, setReason] = useState('');
+  const [actionError, setActionError] = useState<ActionError | null>(null);
   if (query.isLoading) return <LoadingState label="Loading real job details…"/>;
   if (query.isError || !query.data) {
     if (query.error instanceof AuthApiError && query.error.status === 404) {
@@ -24,43 +28,95 @@ export function JobDetailPage() {
     return <ErrorState onRetry={() => query.refetch()}/>;
   }
   const job = query.data;
+  const isSubmitting = publish.isPending || changeStatus.isPending;
 
   const confirmPublish = async () => {
-    if (publishingRef.current || job.status !== 'DRAFT') return;
-    publishingRef.current = true;
-    setPublishError(null);
+    if (submittingRef.current || job.status !== 'DRAFT') return;
+    submittingRef.current = true;
+    setActionError(null);
     try {
       await publish.mutateAsync({jobId: job.jobId, expectedVersion: job.version});
-      setShowConfirm(false);
+      setShowPublishConfirm(false);
     } catch (caught) {
-      setShowConfirm(false);
-      setPublishError(presentPublishError(caught));
+      setShowPublishConfirm(false);
+      setActionError(presentPublishError(caught));
     } finally {
-      publishingRef.current = false;
+      submittingRef.current = false;
+    }
+  };
+
+  const openStatusConfirm = (target: RecruiterJobStatusTarget) => {
+    setActionError(null);
+    setReason('');
+    setStatusTarget(target);
+  };
+
+  const confirmStatusChange = async () => {
+    if (submittingRef.current || !statusTarget || !reason.trim()) return;
+    submittingRef.current = true;
+    setActionError(null);
+    try {
+      await changeStatus.mutateAsync({
+        jobId: job.jobId,
+        status: statusTarget,
+        reason: reason.trim(),
+        expectedVersion: job.version,
+      });
+      setStatusTarget(null);
+      setReason('');
+    } catch (caught) {
+      setStatusTarget(null);
+      setReason('');
+      setActionError(presentStatusError(caught));
+    } finally {
+      submittingRef.current = false;
     }
   };
 
   const reload = async () => {
-    setPublishError(null);
+    setActionError(null);
     await query.refetch();
   };
 
   return <><PageHeader title={job.title} subtitle={`${job.company.name} · Persisted backend job`} actions={<button className="button secondary" onClick={() => nav('/recruiter/jobs')}>Back to jobs</button>}/>
-    {publishError && <div className="state-card error" role="alert"><strong>Unable to publish job</strong><span>{publishError.message}</span>{publishError.reload && <button className="button secondary" onClick={reload}>Reload job</button>}</div>}
+    {actionError && <div className="state-card error" role="alert"><strong>{actionError.title}</strong><span>{actionError.message}</span>{actionError.reload && <button className="button secondary" onClick={reload}>Reload job</button>}</div>}
     <div className="detail-grid"><div className="detail-main"><section className="panel"><div className="section-title"><div><h2>Job overview</h2><small>Job ID: {job.jobId}</small></div><StatusBadge status={job.status}/></div><p>{job.description}</p><div className="form-grid"><p><b>Employment</b><br/>{job.employmentType.replace('_', ' ')}</p><p><b>Workplace</b><br/>{job.workplaceType}</p><p><b>Location</b><br/>{job.location}</p><p><b>Salary</b><br/>{job.salary.currency} {job.salary.min}–{job.salary.max} / {job.salary.period.toLowerCase()}</p></div></section>
       <section className="panel"><h2>Requirements</h2><ul>{job.requirements.map(requirement => <li key={requirement}>{requirement}</li>)}</ul><h2>Skills</h2><div className="actions">{job.skills.map(skill => <span className="skill" key={skill}>{skill}</span>)}</div></section></div>
       <aside className="detail-side"><section className="panel"><h2>Server-managed fields</h2><p><b>Status</b><br/>{job.status}</p><p><b>Applicants</b><br/>{job.applicantCount}</p><p><b>Owner</b><br/>{job.owner?.fullName ?? 'Unassigned'}</p><p><b>Version</b><br/>{job.version}</p><p><b>Published</b><br/>{job.publishedAt ? new Date(job.publishedAt).toLocaleString() : 'Not published'}</p><p><b>Created</b><br/>{new Date(job.createdAt).toLocaleString()}</p><p><b>Updated</b><br/>{new Date(job.updatedAt).toLocaleString()}</p><p><b>Deadline</b><br/>{job.deadline ? new Date(job.deadline).toLocaleString() : 'None'}</p></section>
-      <section className="panel"><h2>Job actions</h2>{job.status === 'DRAFT' && <button className="button primary" disabled={publish.isPending} onClick={() => {setPublishError(null); setShowConfirm(true);}}>Publish job</button>}<p className="muted">Editing, pausing, and closing are intentionally unavailable in this slice.</p><button className="button secondary" disabled>Edit / pause / close unavailable</button></section></aside></div>
-    {showConfirm && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="publish-title"><section className="modal"><h2 id="publish-title">Publish this job?</h2><p>Publishing “{job.title}” will change its status from DRAFT to ACTIVE. This slice does not support pausing or closing it afterward.</p><div className="actions"><button type="button" className="button secondary" disabled={publish.isPending} onClick={() => setShowConfirm(false)}>Cancel</button><button type="button" className="button primary" disabled={publish.isPending} onClick={confirmPublish}>{publish.isPending ? 'Publishing…' : 'Confirm publish'}</button></div></section></div>}
+      <section className="panel"><h2>Job actions</h2><div className="actions">{job.status === 'DRAFT' && <><button className="button secondary" disabled={isSubmitting} onClick={() => nav(`/recruiter/jobs/${job.jobId}/edit`)}>Edit job</button><button className="button primary" disabled={isSubmitting} onClick={() => {setActionError(null); setShowPublishConfirm(true);}}>Publish job</button></>}{job.status === 'ACTIVE' && <><button className="button secondary" disabled={isSubmitting} onClick={() => openStatusConfirm('PAUSED')}>Pause job</button><button className="button danger" disabled={isSubmitting} onClick={() => openStatusConfirm('CLOSED')}>Close job</button></>}{job.status === 'PAUSED' && <><button className="button primary" disabled={isSubmitting} onClick={() => openStatusConfirm('ACTIVE')}>Resume job</button><button className="button danger" disabled={isSubmitting} onClick={() => openStatusConfirm('CLOSED')}>Close job</button></>}</div>{job.status === 'CLOSED' && <p className="muted">This job is closed and cannot transition to another status.</p>}{job.status !== 'DRAFT' && <p className="muted">Only DRAFT jobs can be edited.</p>}</section></aside></div>
+    {showPublishConfirm && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="publish-title"><section className="modal"><h2 id="publish-title">Publish this job?</h2><p>Publishing “{job.title}” will change its status from DRAFT to ACTIVE.</p><div className="actions"><button type="button" className="button secondary" disabled={publish.isPending} onClick={() => setShowPublishConfirm(false)}>Cancel</button><button type="button" className="button primary" disabled={publish.isPending} onClick={confirmPublish}>{publish.isPending ? 'Publishing…' : 'Confirm publish'}</button></div></section></div>}
+    {statusTarget && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="status-title"><section className="modal"><h2 id="status-title">{statusAction(statusTarget)} this job?</h2><p>This will change “{job.title}” from {job.status} to {statusTarget}. {statusImpact(statusTarget)}</p><label>Reason<textarea aria-label="Reason" maxLength={500} rows={3} value={reason} onChange={event => setReason(event.target.value)} placeholder="Explain why this status change is needed"/></label><div className="actions"><button type="button" className="button secondary" disabled={changeStatus.isPending} onClick={() => {setStatusTarget(null); setReason('');}}>Cancel</button><button type="button" className={statusTarget === 'CLOSED' ? 'button danger' : 'button primary'} disabled={changeStatus.isPending || !reason.trim()} onClick={confirmStatusChange}>{changeStatus.isPending ? 'Updating…' : `Confirm ${statusAction(statusTarget).toLowerCase()}`}</button></div></section></div>}
   </>;
 }
 
-function presentPublishError(caught: unknown): PublishError {
-  if (!(caught instanceof AuthApiError)) return {message: 'Unable to publish this job. Please try again.', reload: false};
-  if (caught.status === 403) return {message: 'Your company must be approved and you must have permission to publish this job.', reload: false};
-  if (caught.code === 'VERSION_CONFLICT') return {message: 'This job changed after you opened it. Reload the latest version before publishing.', reload: true};
-  if (caught.status === 404) return {message: 'This job no longer exists or is not part of your company.', reload: false};
-  if (caught.code === 'INVALID_JOB_TRANSITION') return {message: 'Only a draft job can be published. Reload the latest job state.', reload: true};
-  if (caught.code === 'NETWORK_ERROR') return {message: 'Unable to reach the server. Check your connection and try again.', reload: false};
-  return {message: 'Unable to publish this job. Please try again.', reload: false};
+function statusAction(target: RecruiterJobStatusTarget): string {
+  if (target === 'PAUSED') return 'Pause';
+  if (target === 'ACTIVE') return 'Resume';
+  return 'Close';
+}
+
+function statusImpact(target: RecruiterJobStatusTarget): string {
+  if (target === 'PAUSED') return 'Candidates will no longer see it as an active opening.';
+  if (target === 'ACTIVE') return 'It will become active again; your company must still be approved.';
+  return 'Closing is permanent and this job cannot be reopened.';
+}
+
+function presentPublishError(caught: unknown): ActionError {
+  if (!(caught instanceof AuthApiError)) return {title: 'Unable to publish job', message: 'Unable to publish this job. Please try again.', reload: false};
+  if (caught.status === 403) return {title: 'Unable to publish job', message: 'Your company must be approved and you must have permission to publish this job.', reload: false};
+  if (caught.code === 'VERSION_CONFLICT') return {title: 'Unable to publish job', message: 'This job changed after you opened it. Reload the latest version before publishing.', reload: true};
+  if (caught.status === 404) return {title: 'Unable to publish job', message: 'This job no longer exists or is not part of your company.', reload: false};
+  if (caught.code === 'INVALID_JOB_TRANSITION') return {title: 'Unable to publish job', message: 'Only a draft job can be published. Reload the latest job state.', reload: true};
+  if (caught.code === 'NETWORK_ERROR') return {title: 'Unable to publish job', message: 'Unable to reach the server. Check your connection and try again.', reload: false};
+  return {title: 'Unable to publish job', message: 'Unable to publish this job. Please try again.', reload: false};
+}
+
+function presentStatusError(caught: unknown): ActionError {
+  if (!(caught instanceof AuthApiError)) return {title: 'Unable to update job status', message: 'Unable to update this job. Please try again.', reload: false};
+  if (caught.status === 403) return {title: 'Unable to update job status', message: 'Your company must be approved to resume this job, and you must have permission to manage it.', reload: false};
+  if (caught.code === 'VERSION_CONFLICT') return {title: 'Unable to update job status', message: 'This job changed after you opened it. Reload the latest version before trying again.', reload: true};
+  if (caught.code === 'INVALID_JOB_TRANSITION') return {title: 'Unable to update job status', message: 'This job is no longer in a state that allows that action. Reload the latest job state.', reload: true};
+  if (caught.status === 404) return {title: 'Unable to update job status', message: 'This job no longer exists or is not part of your company.', reload: false};
+  if (caught.code === 'NETWORK_ERROR') return {title: 'Unable to update job status', message: 'Unable to reach the server. Check your connection and try again.', reload: false};
+  return {title: 'Unable to update job status', message: 'Unable to update this job. Please try again.', reload: false};
 }

@@ -8,7 +8,8 @@ const failIfDemoError = async () => {
   if (sessionStorage.getItem('ad_mock_error') === 'true') throw new Error('Mock service is unavailable.');
 };
 
-type MockOnlyRepository = Omit<RecruiterRepository, 'listJobs' | 'getJob' | 'createJob' | 'publishJob'>;
+type MockOnlyRepository = Omit<RecruiterRepository,
+  'listJobs' | 'getJob' | 'createJob' | 'updateJob' | 'publishJob' | 'changeJobStatus'>;
 
 export const mockRecruiterRepository: MockOnlyRepository = {
   async signIn(email, password) {

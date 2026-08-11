@@ -7,6 +7,7 @@ import com.adproject.company.infrastructure.CompanyEntity;
 import com.adproject.company.infrastructure.CompanyMemberRepository;
 import com.adproject.company.infrastructure.CompanyRepository;
 import com.adproject.job.api.CreateJobRequest;
+import com.adproject.job.api.ChangeJobStatusRequest;
 import com.adproject.job.api.JobResponses.Company;
 import com.adproject.job.api.JobResponses.JobListResponse;
 import com.adproject.job.api.JobResponses.JobResponse;
@@ -15,6 +16,7 @@ import com.adproject.job.api.JobResponses.RecruiterJobDetail;
 import com.adproject.job.api.JobResponses.Salary;
 import com.adproject.job.api.JobResponses.User;
 import com.adproject.job.api.PublishJobRequest;
+import com.adproject.job.api.UpdateJobRequest;
 import com.adproject.job.domain.EmploymentType;
 import com.adproject.job.domain.JobStatus;
 import com.adproject.job.infrastructure.JobEntity;
@@ -134,6 +136,62 @@ public class JobService {
     }
 
     @Transactional
+    public JobResponse update(AuthenticatedUser currentUser, String jobId, UpdateJobRequest request) {
+        requireRecruiter(currentUser);
+        Scope scope = requireScope(currentUser.userId());
+        JobEntity job = jobRepository.findOwnJobForUpdate(jobId, scope.company().getId())
+                .orElseThrow(JobService::notFound);
+        if (job.getVersion() != request.getExpectedVersion()) {
+            throw new ApiException(HttpStatus.CONFLICT, "VERSION_CONFLICT",
+                    "The job has changed; reload it before editing");
+        }
+        if (job.getStatus() != JobStatus.DRAFT) {
+            throw new ApiException(HttpStatus.CONFLICT, "INVALID_JOB_TRANSITION",
+                    "Only draft jobs can be edited");
+        }
+        Map<String, String> fieldErrors = validateUpdate(request);
+        if (!fieldErrors.isEmpty()) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR",
+                    "Request validation failed", fieldErrors);
+        }
+        var salary = request.getSalary();
+        job.updateDetails(
+                request.getTitle() == null ? job.getTitle() : request.getTitle().trim(),
+                request.getEmploymentType() == null ? job.getEmploymentType() : request.getEmploymentType(),
+                request.getWorkplaceType() == null ? job.getWorkplaceType() : request.getWorkplaceType(),
+                request.getLocation() == null ? job.getLocation() : request.getLocation().trim(),
+                salary == null ? job.getSalaryMin() : salary.min(),
+                salary == null ? job.getSalaryMax() : salary.max(),
+                salary == null ? job.getSalaryCurrency() : salary.currency(),
+                salary == null ? job.getSalaryPeriod() : salary.period(),
+                request.getDescription() == null ? job.getDescription() : request.getDescription(),
+                request.getRequirements() == null ? job.getRequirementsJson() : writeList(request.getRequirements()),
+                request.getSkills() == null ? job.getSkillsJson() : writeList(request.getSkills()),
+                request.isDeadlinePresent()
+                        ? request.getDeadline() == null ? null : Instant.parse(request.getDeadline())
+                        : job.getDeadline(),
+                request.getVisibility() == null ? job.getVisibility() : request.getVisibility(),
+                clock.instant());
+        jobRepository.flush();
+        return new JobResponse(toDetail(job, scope.company()));
+    }
+
+    private static Map<String, String> validateUpdate(UpdateJobRequest request) {
+        java.util.LinkedHashMap<String, String> errors = new java.util.LinkedHashMap<>();
+        if (request.getTitle() != null && request.getTitle().isBlank()) errors.put("title", "must not be blank");
+        if (request.getLocation() != null && request.getLocation().isBlank()) {
+            errors.put("location", "must not be blank");
+        }
+        if (request.getDescription() != null && request.getDescription().isBlank()) {
+            errors.put("description", "must not be blank");
+        }
+        if (request.getSalary() != null && request.getSalary().max() < request.getSalary().min()) {
+            errors.put("salary.max", "must be greater than or equal to salary.min");
+        }
+        return errors;
+    }
+
+    @Transactional
     public JobResponse publish(AuthenticatedUser currentUser, String jobId, PublishJobRequest request,
                                String requestId) {
         requireRecruiter(currentUser);
@@ -159,6 +217,46 @@ public class JobService {
                 JobStatus.ACTIVE, now, "Job published", requestId));
         jobRepository.flush();
         return new JobResponse(toDetail(job, scope.company()));
+    }
+
+    @Transactional
+    public JobResponse changeStatus(AuthenticatedUser currentUser, String jobId, ChangeJobStatusRequest request,
+                                    String requestId) {
+        requireRecruiter(currentUser);
+        Scope scope = requireScope(currentUser.userId());
+        JobEntity job = jobRepository.findOwnJobForUpdate(jobId, scope.company().getId())
+                .orElseThrow(JobService::notFound);
+        if (job.getVersion() != request.expectedVersion()) {
+            throw new ApiException(HttpStatus.CONFLICT, "VERSION_CONFLICT",
+                    "The job has changed; reload it before changing its status");
+        }
+        JobStatus fromStatus = job.getStatus();
+        JobStatus toStatus = JobStatus.valueOf(request.status().name());
+        if (!isAllowedStatusTransition(fromStatus, toStatus)) {
+            throw new ApiException(HttpStatus.CONFLICT, "INVALID_JOB_TRANSITION",
+                    "The requested job status transition is not allowed");
+        }
+        if (toStatus == JobStatus.ACTIVE
+                && scope.company().getVerificationStatus() != CompanyVerificationStatus.APPROVED) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN",
+                    "Only recruiters from an approved company can resume jobs");
+        }
+        Instant now = clock.instant();
+        String reason = request.reason().trim();
+        job.changeStatus(toStatus, now);
+        auditRepository.save(new JobAuditEventEntity(UUID.randomUUID().toString(), job.getId(),
+                currentUser.userId(), scope.company().getId(), "JOB_STATUS_CHANGED", fromStatus,
+                toStatus, now, reason, requestId));
+        jobRepository.flush();
+        return new JobResponse(toDetail(job, scope.company()));
+    }
+
+    private static boolean isAllowedStatusTransition(JobStatus fromStatus, JobStatus toStatus) {
+        return switch (fromStatus) {
+            case ACTIVE -> toStatus == JobStatus.PAUSED || toStatus == JobStatus.CLOSED;
+            case PAUSED -> toStatus == JobStatus.ACTIVE || toStatus == JobStatus.CLOSED;
+            case DRAFT, CLOSED -> false;
+        };
     }
 
     private Scope requireScope(String userId) {
