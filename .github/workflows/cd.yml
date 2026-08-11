@@ -64,9 +64,9 @@ jobs:
             code=000
             for i in $(seq 1 30); do
               code=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost/api/v1/auth/login || true)
-              if [ "$code" != "000" ]; then
-                break
-              fi
-              sleep 2
+              case "$code" in
+                000|5*) sleep 2 ;;
+                *) break ;;
+              esac
             done
             echo "health_probe=$code"
