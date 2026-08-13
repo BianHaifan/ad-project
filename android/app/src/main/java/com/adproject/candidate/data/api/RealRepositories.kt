@@ -5,12 +5,18 @@ import com.adproject.candidate.data.contract.CandidateJob
 import com.adproject.candidate.data.contract.CandidateJobApplicationState
 import com.adproject.candidate.data.contract.CandidateJobDetail
 import com.adproject.candidate.data.contract.CandidateRegisterRequest
+import com.adproject.candidate.data.contract.ConversationDetail
+import com.adproject.candidate.data.contract.ConversationSummary
+import com.adproject.candidate.data.contract.CursorMeta
 import com.adproject.candidate.data.contract.EmploymentType
 import com.adproject.candidate.data.contract.ErrorEnvelope
 import com.adproject.candidate.data.contract.LoginRequest
+import com.adproject.candidate.data.contract.Message
 import com.adproject.candidate.data.contract.PageMeta
+import com.adproject.candidate.data.contract.ReadStateRequest
 import com.adproject.candidate.data.contract.RefreshTokenRequest
 import com.adproject.candidate.data.contract.CandidateApplication
+import com.adproject.candidate.data.contract.SendMessageRequest
 import com.adproject.candidate.data.contract.SubmitApplicationRequest
 import com.adproject.candidate.data.contract.ApplicationListFilter
 import com.adproject.candidate.data.contract.CandidateApplicationPage
@@ -42,8 +48,11 @@ class RealAuthRepository(
 ) : AuthRepository {
     private val errors = ApiErrorParser(moshi)
 
-    override suspend fun login(email: String, password: String): ApiResult<Unit> = callAuth {
-        publicApi.login(LoginRequest(email, password))
+    override suspend fun login(email: String, password: String): ApiResult<Unit> {
+        val result = callAuth { publicApi.login(LoginRequest(email, password)) }
+        return if (result is ApiResult.Failure && result.statusCode == 401) {
+            result.copy(message = "Incorrect email or password.")
+        } else result
     }
 
     override suspend fun register(fullName: String, email: String, password: String): ApiResult<Unit> = callAuth {
@@ -246,5 +255,90 @@ class RealCandidateApplicationRepository(
     private fun applicationFailure(statusCode: Int, body: String?): ApiResult.Failure {
         val failure = errors.failure(statusCode, body)
         return if (statusCode == 404) failure.copy(message = "This application is no longer available.") else failure
+    }
+}
+
+data class ConversationListResult(val conversations: List<ConversationSummary>, val meta: PageMeta)
+data class MessageListResult(val messages: List<Message>, val meta: CursorMeta)
+
+interface CandidateConversationRepository {
+    suspend fun conversations(): ApiResult<ConversationListResult>
+    suspend fun conversation(conversationId: String): ApiResult<ConversationDetail>
+    suspend fun messages(conversationId: String, before: String? = null): ApiResult<MessageListResult>
+    suspend fun sendMessage(conversationId: String, idempotencyKey: String, request: SendMessageRequest): ApiResult<Message>
+    suspend fun markRead(conversationId: String, request: ReadStateRequest): ApiResult<Unit>
+}
+
+class RealCandidateConversationRepository(
+    private val api: CandidateConversationHttpApi,
+    moshi: Moshi,
+) : CandidateConversationRepository {
+    private val errors = ApiErrorParser(moshi)
+
+    override suspend fun conversations(): ApiResult<ConversationListResult> = try {
+        val response = api.conversations()
+        val body = response.body()
+        if (response.isSuccessful && body != null) ApiResult.Success(ConversationListResult(body.data, body.meta))
+        else conversationFailure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load conversations. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to load conversations right now.")
+    }
+
+    override suspend fun conversation(conversationId: String): ApiResult<ConversationDetail> = try {
+        val response = api.conversation(conversationId)
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else conversationFailure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load this conversation. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to load this conversation right now.")
+    }
+
+    override suspend fun messages(conversationId: String, before: String?): ApiResult<MessageListResult> = try {
+        val response = api.messages(conversationId, before)
+        val body = response.body()
+        if (response.isSuccessful && body != null) ApiResult.Success(MessageListResult(body.data, body.meta))
+        else conversationFailure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load messages. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to load messages right now.")
+    }
+
+    override suspend fun sendMessage(conversationId: String, idempotencyKey: String,
+                                    request: SendMessageRequest): ApiResult<Message> = try {
+        val response = api.sendMessage(conversationId, idempotencyKey, request)
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else {
+            val failure = errors.failure(response.code(), response.errorBody()?.string())
+            when (failure.code) {
+                "IDEMPOTENCY_KEY_REUSED" -> failure.copy(message = "This message could not be retried safely. Please send a new message.")
+                "CONVERSATION_CLOSED" -> failure.copy(message = "This conversation is read-only.")
+                else -> failure
+            }
+        }
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to send your message. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to send your message right now.")
+    }
+
+    override suspend fun markRead(conversationId: String, request: ReadStateRequest): ApiResult<Unit> = try {
+        val response = api.markRead(conversationId, request)
+        if (response.isSuccessful) ApiResult.Success(Unit)
+        else conversationFailure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to update this conversation. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to update this conversation right now.")
+    }
+
+    private fun conversationFailure(statusCode: Int, body: String?): ApiResult.Failure {
+        val failure = errors.failure(statusCode, body)
+        return if (statusCode == 404) failure.copy(message = "This conversation is no longer available.") else failure
     }
 }

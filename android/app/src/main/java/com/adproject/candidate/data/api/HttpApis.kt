@@ -3,15 +3,21 @@ package com.adproject.candidate.data.api
 import com.adproject.candidate.data.contract.AuthData
 import com.adproject.candidate.data.contract.CandidateRegisterRequest
 import com.adproject.candidate.data.contract.Company
+import com.adproject.candidate.data.contract.ConversationDetail
+import com.adproject.candidate.data.contract.ConversationSummary
+import com.adproject.candidate.data.contract.CursorMeta
 import com.adproject.candidate.data.contract.DataEnvelope
 import com.adproject.candidate.data.contract.EmploymentType
 import com.adproject.candidate.data.contract.ListEnvelope
 import com.adproject.candidate.data.contract.LoginRequest
 import com.adproject.candidate.data.contract.MatchAnalysis
+import com.adproject.candidate.data.contract.Message
 import com.adproject.candidate.data.contract.PageMeta
+import com.adproject.candidate.data.contract.ReadStateRequest
 import com.adproject.candidate.data.contract.RecruiterContact
 import com.adproject.candidate.data.contract.RefreshTokenRequest
 import com.adproject.candidate.data.contract.Salary
+import com.adproject.candidate.data.contract.SendMessageRequest
 import com.adproject.candidate.data.contract.TokenData
 import com.adproject.candidate.data.contract.Visibility
 import com.adproject.candidate.data.contract.WorkplaceType
@@ -82,6 +88,37 @@ interface CandidateApplicationHttpApi {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body request: com.adproject.candidate.data.contract.SubmitApplicationRequest,
     ): Response<DataEnvelope<com.adproject.candidate.data.contract.CandidateApplication>>
+}
+
+interface CandidateConversationHttpApi {
+    @GET("candidate/conversations")
+    suspend fun conversations(
+        @Query("page") page: Int = 1,
+        @Query("pageSize") pageSize: Int = 20,
+    ): Response<ListEnvelope<ConversationSummary, PageMeta>>
+
+    @GET("candidate/conversations/{conversationId}")
+    suspend fun conversation(@Path("conversationId") conversationId: String): Response<DataEnvelope<ConversationDetail>>
+
+    @GET("candidate/conversations/{conversationId}/messages")
+    suspend fun messages(
+        @Path("conversationId") conversationId: String,
+        @Query("before") before: String?,
+        @Query("limit") limit: Int = 30,
+    ): Response<ListEnvelope<Message, CursorMeta>>
+
+    @POST("candidate/conversations/{conversationId}/messages")
+    suspend fun sendMessage(
+        @Path("conversationId") conversationId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body request: SendMessageRequest,
+    ): Response<DataEnvelope<Message>>
+
+    @PUT("candidate/conversations/{conversationId}/read-state")
+    suspend fun markRead(
+        @Path("conversationId") conversationId: String,
+        @Body request: ReadStateRequest,
+    ): Response<Unit>
 }
 
 data class NetworkCandidateJob(

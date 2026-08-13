@@ -27,13 +27,6 @@ class CandidateApiTest {
     }
 
     @Test
-    fun sentChatMessageIsReturnedAsOutgoing() {
-        val message = api.sendMessage("mia", "Hello")
-        assertEquals("Hello", message.body)
-        assertEquals(com.adproject.candidate.data.contract.SenderType.CANDIDATE, message.senderType)
-    }
-
-    @Test
     fun applicationStatusesAndCandidatePathsMatchTheFinalContract() {
         assertEquals(
             listOf("APPLIED", "IN_REVIEW", "INTERVIEW", "REJECTED", "WITHDRAWN"),

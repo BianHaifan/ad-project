@@ -22,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -60,8 +59,6 @@ fun SignInScreen(
         Spacer(Modifier.height(24.dp))
         AdCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("SIGN IN AS", color = Color(0xFF89929B), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                RoleSelector()
                 AuthField("EMAIL", state.email, onEmail, error = state.fieldErrors["email"])
                 AuthField("PASSWORD", state.password, onPassword, password = true, error = state.fieldErrors["password"])
                 state.message?.let { Text(it, color = Color(0xFFB42318), fontSize = 11.sp) }
@@ -103,8 +100,6 @@ fun CreateAccountScreen(
         Spacer(Modifier.height(16.dp))
         AdCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("REGISTER AS", color = Color(0xFF89929B), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
-                RoleSelector()
                 AuthField("FULL NAME", state.fullName, onFullName, error = state.fieldErrors["fullName"])
                 AuthField("EMAIL", state.email, onEmail, error = state.fieldErrors["email"])
                 AuthField("PASSWORD", state.password, onPassword, password = true, error = state.fieldErrors["password"])
@@ -124,25 +119,6 @@ fun CreateAccountScreen(
                 Spacer(Modifier.height(84.dp))
             }
         }
-    }
-}
-
-@Composable
-private fun RoleSelector() {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        RoleChip("Candidate", true, Modifier.weight(1f))
-        RoleChip("Recruiter", false, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun RoleChip(text: String, selected: Boolean, modifier: Modifier = Modifier) {
-    Box(
-        modifier.height(42.dp).clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Color(0xFFE4F8F6) else Color(0xFFF3F5F6)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, color = if (selected) AdTealDark else Color(0xFF68737E), fontSize = 11.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
     }
 }
 
