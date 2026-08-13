@@ -1,13 +1,16 @@
 import {mockRecruiterRepository} from '../mocks/mockRecruiterRepository';
 import {jobHttpClient} from './jobHttpClient';
 import {applicationHttpClient} from './applicationHttpClient';
+import {dashboardHttpClient} from './dashboardHttpClient';
+import {conversationHttpClient} from './conversationHttpClient';
 import type {RecruiterRepository} from './recruiterRepository';
 
 export type RecruiterBusinessRepository = Omit<RecruiterRepository, 'signIn' | 'register'>;
 
-// Auth, jobs, and applications use real HTTP clients. Dashboard and messages remain intentionally mocked.
+// Dashboard, jobs, applications, and conversations all use real HTTP clients.
 export const recruiterRepository: RecruiterBusinessRepository = {
   ...mockRecruiterRepository,
+  getDashboard: () => dashboardHttpClient.getDashboard(),
   listJobs: params => jobHttpClient.listJobs(params),
   getJob: jobId => jobHttpClient.getJob(jobId),
   createJob: input => jobHttpClient.createJob(input),
@@ -19,4 +22,9 @@ export const recruiterRepository: RecruiterBusinessRepository = {
   getApplication: applicationId => applicationHttpClient.getApplication(applicationId),
   updateApplicationStatus: (applicationId, status, reason, expectedVersion) =>
     applicationHttpClient.updateApplicationStatus(applicationId, status, reason, expectedVersion),
+  listConversations: () => conversationHttpClient.listConversations(),
+  getConversation: conversationId => conversationHttpClient.getConversation(conversationId),
+  listMessages: conversationId => conversationHttpClient.listMessages(conversationId),
+  sendMessage: (conversationId, body) => conversationHttpClient.sendMessage(conversationId, body),
+  markRead: (conversationId, lastReadMessageId) => conversationHttpClient.markRead(conversationId, lastReadMessageId),
 };

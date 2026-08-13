@@ -49,7 +49,7 @@ function parseDetailEnvelope(payload: unknown): RecruiterApplicationDetail {
   return parseDetail(payload.data);
 }
 
-function parseSummary(value: unknown): RecruiterApplicationSummary {
+export function parseSummary(value: unknown): RecruiterApplicationSummary {
   if (!isRecord(value) || typeof value.applicationId !== 'string' || typeof value.jobId !== 'string' ||
       !isStatus(value.status) || typeof value.appliedAt !== 'string' || typeof value.updatedAt !== 'string' ||
       typeof value.version !== 'number' || !isCandidate(value.candidate) || typeof value.jobTitle !== 'string' ||

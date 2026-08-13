@@ -32,6 +32,13 @@ describe('real recruiter job pages', () => {
     expect(list).toHaveBeenCalledWith({q: '', status: undefined, page: 1, pageSize: 20});
   });
 
+  it('applies the status filter from the URL query string', async () => {
+    const list = vi.spyOn(recruiterRepository, 'listJobs').mockResolvedValue({data: [testJob], meta: {page: 1, pageSize: 20, total: 1, hasNext: false}});
+    renderRoute('/recruiter/jobs?status=ACTIVE', [{path: '/recruiter/jobs', element: <JobsPage/>}]);
+    expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
+    expect(list).toHaveBeenCalledWith({q: '', status: 'ACTIVE', page: 1, pageSize: 20});
+  });
+
   it('handles empty and network-error list states', async () => {
     vi.spyOn(recruiterRepository, 'listJobs').mockResolvedValue({data: [], meta: {page: 1, pageSize: 20, total: 0, hasNext: false}});
     renderRoute('/recruiter/jobs', [{path: '/recruiter/jobs', element: <JobsPage/>}]);
@@ -42,6 +49,30 @@ describe('real recruiter job pages', () => {
     renderRoute('/recruiter/jobs', [{path: '/recruiter/jobs', element: <JobsPage/>}]);
     expect(await screen.findByText('Something went wrong')).toBeInTheDocument();
     expect(screen.queryByText('private detail')).not.toBeInTheDocument();
+  });
+
+  it('navigates to the new-job form from the header Create job button', async () => {
+    vi.spyOn(recruiterRepository, 'listJobs').mockResolvedValue({data: [testJob], meta: {page: 1, pageSize: 20, total: 1, hasNext: false}});
+    const {router} = renderRoute('/recruiter/jobs', [
+      {path: '/recruiter/jobs', element: <JobsPage/>},
+      {path: '/recruiter/jobs/new', element: <div>New job form route</div>},
+    ]);
+    expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Create job'}));
+    expect(router.state.location.pathname).toBe('/recruiter/jobs/new');
+  });
+
+  it('navigates to the new-job form from the empty-state Create job button', async () => {
+    vi.spyOn(recruiterRepository, 'listJobs').mockResolvedValue({data: [], meta: {page: 1, pageSize: 20, total: 0, hasNext: false}});
+    const {router} = renderRoute('/recruiter/jobs', [
+      {path: '/recruiter/jobs', element: <JobsPage/>},
+      {path: '/recruiter/jobs/new', element: <div>New job form route</div>},
+    ]);
+    expect(await screen.findByText('No job postings found')).toBeInTheDocument();
+    const buttons = screen.getAllByRole('button', {name: 'Create job'});
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[1]);
+    expect(router.state.location.pathname).toBe('/recruiter/jobs/new');
   });
 
   it('creates once while pending and navigates to the persisted detail', async () => {

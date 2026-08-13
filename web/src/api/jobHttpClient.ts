@@ -85,7 +85,7 @@ function parseJobList(payload: unknown): JobListResult {
   return {data: payload.data.map(item => parseJob(item)), meta: payload.meta};
 }
 
-function parseJob(value: unknown): RecruiterJobSummary {
+export function parseJob(value: unknown): RecruiterJobSummary {
   if (!isRecord(value) || typeof value.jobId !== 'string' || typeof value.title !== 'string' ||
       !isRecord(value.company) || typeof value.company.companyId !== 'string' || typeof value.company.name !== 'string' ||
       !isRecord(value.salary) || typeof value.salary.min !== 'number' || typeof value.salary.max !== 'number' ||
