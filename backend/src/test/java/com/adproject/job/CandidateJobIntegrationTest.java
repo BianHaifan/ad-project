@@ -163,6 +163,30 @@ class CandidateJobIntegrationTest {
                 .andExpect(jsonPath("$.error.requestId").isNotEmpty());
     }
 
+    @Test
+    void listSurvivesJobsWithEmptyOrMalformedListJson() throws Exception {
+        Account recruiter = recruiter("candidate-robust-json");
+        Account candidate = candidate("candidate-robust-json");
+        String marker = "robust-" + UUID.randomUUID();
+        String good = insertJob(recruiter, marker + " good", "ACTIVE", "PUBLIC", "FULL_TIME",
+                "2026-08-11T08:00:00Z");
+        insertJobWithListJson(recruiter, marker + " empty-req", "ACTIVE", "PUBLIC", "FULL_TIME",
+                "2026-08-11T09:00:00Z", "", "[\"Java\"]");
+        insertJobWithListJson(recruiter, marker + " empty-skills", "ACTIVE", "PUBLIC", "FULL_TIME",
+                "2026-08-11T10:00:00Z", "[\"Java\"]", "");
+        insertJobWithListJson(recruiter, marker + " malformed", "ACTIVE", "PUBLIC", "FULL_TIME",
+                "2026-08-11T11:00:00Z", "not-json", "[\"Java\"]");
+
+        // A single row with empty/malformed list JSON must not 500 the whole list.
+        mockMvc.perform(get("/api/v1/jobs").queryParam("q", marker)
+                        .header("Authorization", bearer(candidate)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.meta.total").value(4))
+                .andExpect(jsonPath("$.data.length()").value(4))
+                .andExpect(jsonPath("$.data[?(@.jobId == '%s')].requirements[0]".formatted(good))
+                        .value("Reliable APIs"));
+    }
+
     private void assertNotFound(Account candidate, String jobId) throws Exception {
         mockMvc.perform(get("/api/v1/jobs/{jobId}", jobId).header("Authorization", bearer(candidate)))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("NOT_FOUND"))
@@ -180,6 +204,23 @@ class CandidateJobIntegrationTest {
                 jobId, recruiter.companyId(), recruiter.userId(), recruiter.userId(), title, employmentType,
                 "HYBRID", "Singapore", 5000, 8000, "SGD", "MONTH", "Real persisted description",
                 "[\"Reliable APIs\"]", "[\"Java\",\"MySQL\"]", Timestamp.from(Instant.parse("2026-09-30T15:59:59Z")),
+                visibility, status, 0, publishedAt == null ? null : Timestamp.from(Instant.parse(publishedAt)),
+                2, created, created);
+        return jobId;
+    }
+
+    private String insertJobWithListJson(Account recruiter, String title, String status, String visibility,
+                                         String employmentType, String publishedAt,
+                                         String requirementsJson, String skillsJson) {
+        String jobId = UUID.randomUUID().toString();
+        Timestamp created = Timestamp.from(Instant.parse("2026-08-11T06:00:00Z"));
+        jdbcTemplate.update("insert into jobs (id,company_id,created_by,owner_id,title,employment_type," +
+                        "workplace_type,location,salary_min,salary_max,salary_currency,salary_period,description," +
+                        "requirements_json,skills_json,deadline,visibility,status,applicant_count,published_at,version," +
+                        "created_at,updated_at) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                jobId, recruiter.companyId(), recruiter.userId(), recruiter.userId(), title, employmentType,
+                "HYBRID", "Singapore", 5000, 8000, "SGD", "MONTH", "Real persisted description",
+                requirementsJson, skillsJson, Timestamp.from(Instant.parse("2026-09-30T15:59:59Z")),
                 visibility, status, 0, publishedAt == null ? null : Timestamp.from(Instant.parse(publishedAt)),
                 2, created, created);
         return jobId;

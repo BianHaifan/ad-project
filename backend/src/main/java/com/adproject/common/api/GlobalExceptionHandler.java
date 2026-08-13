@@ -13,6 +13,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -53,6 +54,13 @@ public class GlobalExceptionHandler {
                                                      HttpServletRequest request) {
         return response(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request validation failed",
                 Map.of(exception.getName(), "has an invalid value"), request);
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException exception,
+                                                      HttpServletRequest request) {
+        return response(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request validation failed",
+                Map.of(exception.getHeaderName(), "is required"), request);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

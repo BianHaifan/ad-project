@@ -40,8 +40,9 @@ class MySqlFlywayIntegrationTest {
         Integer count = jdbcTemplate.queryForObject(
                 "select count(*) from information_schema.tables where table_schema = database() and table_name in " +
                         "('users','companies','company_members','refresh_tokens','jobs','job_audit_events','candidate_profiles','resumes'," +
-                        "'resume_snapshots','applications','application_status_events','idempotency_records')", Integer.class);
-        assertThat(count).isEqualTo(12);
+                        "'resume_snapshots','applications','application_status_events','idempotency_records'," +
+                        "'conversations','messages','conversation_read_states')", Integer.class);
+        assertThat(count).isEqualTo(15);
         Integer indexes = jdbcTemplate.queryForObject(
                 "select count(distinct index_name) from information_schema.statistics where table_schema = database() " +
                         "and table_name = 'jobs' and index_name in " +
@@ -52,6 +53,34 @@ class MySqlFlywayIntegrationTest {
                         "and table_name = 'job_audit_events' and index_name in " +
                         "('idx_job_audit_job_occurred','idx_job_audit_company_occurred')", Integer.class);
         assertThat(auditIndexes).isEqualTo(2);
+    }
+
+    @Test
+    void v6MigrationCreatesConversationSchemaWithIdempotencyConstraints() {
+        Integer tables = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.tables where table_schema = database() and table_name in " +
+                        "('conversations','messages','conversation_read_states')", Integer.class);
+        assertThat(tables).isEqualTo(3);
+
+        Integer uniqueConstraints = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.table_constraints where table_schema = database() " +
+                        "and constraint_type = 'UNIQUE' and constraint_name in " +
+                        "('uk_conversations_application','uk_messages_conversation_client','uk_messages_sender_idempotency')",
+                Integer.class);
+        assertThat(uniqueConstraints).isEqualTo(3);
+
+        Integer indexes = jdbcTemplate.queryForObject(
+                "select count(distinct index_name) from information_schema.statistics where table_schema = database() " +
+                        "and index_name in " +
+                        "('idx_conversations_candidate','idx_conversations_company','idx_messages_conversation_sent')",
+                Integer.class);
+        assertThat(indexes).isEqualTo(3);
+
+        Integer checkConstraints = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.table_constraints where table_schema = database() " +
+                        "and table_name = 'messages' and constraint_type = 'CHECK' and constraint_name = 'chk_messages_body'",
+                Integer.class);
+        assertThat(checkConstraints).isEqualTo(1);
     }
 
     @Test

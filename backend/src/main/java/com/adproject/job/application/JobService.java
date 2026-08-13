@@ -126,6 +126,20 @@ public class JobService {
     }
 
     @Transactional(readOnly = true)
+    public long activeJobCount(String companyId) {
+        return jobRepository.countByCompanyIdAndStatus(companyId, JobStatus.ACTIVE);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RecruiterJobDetail> recentJobs(String companyId, int limit) {
+        CompanyEntity company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Insufficient permission"));
+        return jobRepository.findByCompanyId(companyId,
+                        PageRequest.of(0, limit, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))))
+                .stream().map(job -> toDetail(job, company)).toList();
+    }
+
+    @Transactional(readOnly = true)
     public JobResponse get(AuthenticatedUser currentUser, String jobId) {
         requireRecruiter(currentUser);
         Scope scope = requireScope(currentUser.userId());
