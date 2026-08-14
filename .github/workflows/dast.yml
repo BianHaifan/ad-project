@@ -107,6 +107,8 @@ jobs:
           echo "CANDIDATE_TOKEN=$CANDIDATE_TOKEN" >> "$GITHUB_ENV"
           echo "RECRUITER_TOKEN=$RECRUITER_TOKEN" >> "$GITHUB_ENV"
       - name: ZAP API scan (anonymous)
+        id: api-anonymous
+        continue-on-error: true
         uses: zaproxy/action-api-scan@v0.10.0
         with:
           target: /zap/wrk/docs/openapi-v1.yaml
@@ -114,6 +116,7 @@ jobs:
           rules_file_name: .zap/rules.tsv
           cmd_options: -z "-config api.disablekey=true"
           artifact_name: zap-api-anonymous
+          allow_issue_writing: false
       - name: upload ZAP API report (anonymous)
         uses: actions/upload-artifact@v4
         if: always()
@@ -125,6 +128,8 @@ jobs:
             report_md.md
           if-no-files-found: ignore
       - name: ZAP API scan (candidate)
+        id: api-candidate
+        continue-on-error: true
         uses: zaproxy/action-api-scan@v0.10.0
         env:
           ZAP_AUTH_HEADER: Authorization
@@ -136,6 +141,7 @@ jobs:
           rules_file_name: .zap/rules.tsv
           cmd_options: -z "-config api.disablekey=true"
           artifact_name: zap-api-candidate
+          allow_issue_writing: false
       - name: upload ZAP API report (candidate)
         uses: actions/upload-artifact@v4
         if: always()
@@ -147,6 +153,8 @@ jobs:
             report_md.md
           if-no-files-found: ignore
       - name: ZAP API scan (recruiter)
+        id: api-recruiter
+        continue-on-error: true
         uses: zaproxy/action-api-scan@v0.10.0
         env:
           ZAP_AUTH_HEADER: Authorization
@@ -158,6 +166,7 @@ jobs:
           rules_file_name: .zap/rules.tsv
           cmd_options: -z "-config api.disablekey=true"
           artifact_name: zap-api-recruiter
+          allow_issue_writing: false
       - name: upload ZAP API report (recruiter)
         uses: actions/upload-artifact@v4
         if: always()
@@ -169,12 +178,15 @@ jobs:
             report_md.md
           if-no-files-found: ignore
       - name: ZAP full scan (web, AJAX spider for SPA)
+        id: zap-full
+        continue-on-error: true
         uses: zaproxy/action-full-scan@v0.13.0
         with:
           target: http://localhost
           rules_file_name: .zap/rules.tsv
           cmd_options: -a -j
           artifact_name: zap-web-full
+          allow_issue_writing: false
       - name: upload ZAP full scan report
         uses: actions/upload-artifact@v4
         if: always()
@@ -185,3 +197,21 @@ jobs:
             report_json.json
             report_md.md
           if-no-files-found: ignore
+      - name: fail if any ZAP scan failed
+        if: always()
+        run: |
+          statuses=(
+            "${{ steps.api-anonymous.outcome }}"
+            "${{ steps.api-candidate.outcome }}"
+            "${{ steps.api-recruiter.outcome }}"
+            "${{ steps.zap-full.outcome }}"
+          )
+          failed=0
+          for s in "${statuses[@]}"; do
+            if [ "$s" = "failure" ]; then failed=1; fi
+          done
+          if [ "$failed" -eq 1 ]; then
+            echo "One or more ZAP scan steps failed, see reports above."
+            exit 1
+          fi
+          echo "All ZAP scan steps passed."
