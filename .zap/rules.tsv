@@ -1,11 +1,18 @@
 # ZAP alert rules policy.
-# Format: <alert_id>\t<WARN|FAIL|IGNORE>
+# Format: <alert_id>\t<WARN|FAIL|IGNORE|INFO>
 # Used by zaproxy/action-baseline, action-full-scan and action-api-scan
 # to control whether an alert passes or fails the build.
+# Rules NOT listed here default to WARN: they fail the build when detected.
 #
-# Adjust entries as findings are triaged. Only IGNORE confirmed false positives.
-10038	WARN
-10096	WARN
-10108	WARN
-10027	WARN
-10049	WARN
+# Only IGNORE confirmed false positives and INFO accepted/acceptable findings.
+#
+# 10049  Storable and Cacheable Content
+#        Informational: static SPA responses are cacheable by design.
+# 10109  Modern Web Application
+#        Informational: ZAP explicitly states "no changes are required".
+# 90005  Sec-Fetch-* headers (Dest/Mode/Site/User)
+#        Request headers sent by the browser; the server cannot set them.
+#        False positive for a server-side baseline scan.
+10049	INFO
+10109	INFO
+90005	IGNORE
