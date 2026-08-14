@@ -34,6 +34,14 @@ jobs:
       - uses: github/codeql-action/analyze@v4
         with:
           category: /language:java-kotlin
+          output: codeql-results-backend
+      - name: upload backend codeql report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codeql-backend-sarif
+          path: codeql-results-backend/
+          if-no-files-found: ignore
 
   analyze-android:
     name: Analyze android (Kotlin)
@@ -59,6 +67,14 @@ jobs:
       - uses: github/codeql-action/analyze@v4
         with:
           category: /language:java-kotlin
+          output: codeql-results-android
+      - name: upload android codeql report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codeql-android-sarif
+          path: codeql-results-android/
+          if-no-files-found: ignore
 
   analyze-web:
     name: Analyze web (JavaScript/TypeScript)
@@ -82,3 +98,11 @@ jobs:
       - uses: github/codeql-action/analyze@v4
         with:
           category: /language:javascript-typescript
+          output: codeql-results-web
+      - name: upload web codeql report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codeql-web-sarif
+          path: codeql-results-web/
+          if-no-files-found: ignore
