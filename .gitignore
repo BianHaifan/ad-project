@@ -1,6 +1,17 @@
 .env
 backend/target/
 *.log
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+infra/terraform/*.tfvars
+*.pem
 .DS_Store
 .idea/
 *.iml
+node_modules/
+**/node_modules/
+android/.gradle/
+android/.kotlin/
+android/app/build/
+android/build/
