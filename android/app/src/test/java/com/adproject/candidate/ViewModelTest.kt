@@ -80,6 +80,34 @@ class ViewModelTest {
         assertFalse(viewModel.signIn.value.submitting)
     }
 
+    @Test fun registerFailureClearsOnEditAndAllowsRetry() = runTest(main.dispatcher) {
+        val auth = QueuedAuthRepository(
+            ApiResult.Failure("Email already registered", mapOf("email" to "already registered")),
+            ApiResult.Success(Unit),
+        )
+        val viewModel = AuthViewModel(auth)
+        viewModel.updateFullName("Candidate")
+        viewModel.updateRegisterEmail("taken@example.com")
+        viewModel.updateRegisterPassword("UnitOnly9!")
+        viewModel.updateConfirmPassword("UnitOnly9!")
+        viewModel.updateAgreed(true)
+        viewModel.register()
+        advanceUntilIdle()
+        assertEquals(1, auth.registerCalls)
+        assertEquals("Email already registered", viewModel.register.value.message)
+        assertEquals("already registered", viewModel.register.value.fieldErrors["email"])
+        assertFalse(viewModel.register.value.submitting)
+
+        viewModel.updateRegisterEmail("fresh@example.com")
+        assertNull(viewModel.register.value.message)
+        assertFalse(viewModel.register.value.fieldErrors.containsKey("email"))
+        viewModel.register()
+        advanceUntilIdle()
+        assertEquals(2, auth.registerCalls)
+        assertNull(viewModel.register.value.message)
+        assertTrue(viewModel.register.value.fieldErrors.isEmpty())
+    }
+
     @Test fun jobFeedCoversContentEmptyErrorRetryAndRefresh() = runTest(main.dispatcher) {
         val repository = QueueJobRepository(
             ApiResult.Success(CandidateJobPage(listOf(job()), PageMeta(1, 20, 1, false))),
@@ -148,6 +176,15 @@ private class ControllableAuthRepository : AuthRepository {
     val registerResult = CompletableDeferred<ApiResult<Unit>>()
     override suspend fun login(email: String, password: String): ApiResult<Unit> { loginCalls++; return loginResult.await() }
     override suspend fun register(fullName: String, email: String, password: String): ApiResult<Unit> { registerCalls++; return registerResult.await() }
+    override suspend fun logout(): ApiResult<Unit> = ApiResult.Success(Unit)
+}
+
+private class QueuedAuthRepository(vararg results: ApiResult<Unit>) : AuthRepository {
+    var loginCalls = 0
+    var registerCalls = 0
+    private val queue = results.toMutableList()
+    override suspend fun login(email: String, password: String): ApiResult<Unit> { loginCalls++; return queue.removeFirst() }
+    override suspend fun register(fullName: String, email: String, password: String): ApiResult<Unit> { registerCalls++; return queue.removeFirst() }
     override suspend fun logout(): ApiResult<Unit> = ApiResult.Success(Unit)
 }
 

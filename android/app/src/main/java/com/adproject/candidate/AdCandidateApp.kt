@@ -4,12 +4,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -30,10 +34,12 @@ import com.adproject.candidate.feature.auth.AuthViewModel
 import com.adproject.candidate.feature.jobs.JobDetailScreen
 import com.adproject.candidate.feature.jobs.JobFeedScreen
 import com.adproject.candidate.feature.jobs.LearningScreen
-import com.adproject.candidate.feature.jobs.MessagesScreen
-import com.adproject.candidate.feature.jobs.ChatDetailScreen
 import com.adproject.candidate.feature.jobs.JobFeedViewModel
 import com.adproject.candidate.feature.jobs.JobDetailViewModel
+import com.adproject.candidate.feature.messages.MessagesScreen
+import com.adproject.candidate.feature.messages.ChatScreen
+import com.adproject.candidate.feature.messages.MessagesViewModel
+import com.adproject.candidate.feature.messages.ChatViewModel
 import com.adproject.candidate.core.network.CandidateAppContainer
 import com.adproject.candidate.feature.profile.RealProfileScreen
 import com.adproject.candidate.feature.profile.RealResumeScreen
@@ -62,6 +68,35 @@ private object Route {
     fun apply(id: String) = "apply/$id"
     fun submitted(id: String) = "submitted/$id"
     fun applicationDetail(id: String) = "application-detail/$id"
+}
+
+/**
+ * Bridges the Compose lifecycle (foreground + route visibility) into a ViewModel's
+ * start/stop callbacks without firing any network request from the Composable layer.
+ *
+ * `LocalLifecycleOwner` inside a NavHost destination is that destination's
+ * `NavBackStackEntry`, whose lifecycle is capped by the host activity. ON_START/ON_STOP
+ * therefore fire when the app backgrounds or the destination is left, and again when the
+ * destination becomes visible or the app returns to the foreground.
+ */
+@Composable
+private fun ScreenLifecyclePolling(onStarted: () -> Unit, onStopped: () -> Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> onStarted()
+                Lifecycle.Event.ON_STOP -> onStopped()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) onStarted()
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            onStopped()
+        }
+    }
 }
 
 @Composable
@@ -162,15 +197,40 @@ fun AdCandidateApp(
             }
             composable(Route.Learning) { LearningScreen(fakeCandidateFeatures.getLearning(), ::openTab) }
             composable(Route.Messages) {
-                MessagesScreen(fakeCandidateFeatures.getConversations(), ::openTab) { navController.navigate(Route.chatDetail(it)) }
+                val messagesViewModel: MessagesViewModel = viewModel(
+                    factory = MessagesViewModel.factory(container.candidateConversationRepository),
+                )
+                val state by messagesViewModel.state.collectAsStateWithLifecycle()
+                ScreenLifecyclePolling(
+                    onStarted = messagesViewModel::onScreenStarted,
+                    onStopped = messagesViewModel::onScreenStopped,
+                )
+                MessagesScreen(
+                    state = state,
+                    onRetry = messagesViewModel::retry,
+                    onRefresh = messagesViewModel::refresh,
+                    onTab = ::openTab,
+                    onConversation = { navController.navigate(Route.chatDetail(it)) },
+                )
             }
             composable(Route.ChatDetail) { entry ->
-                val conversationId = entry.arguments?.getString("conversationId") ?: "mia"
-                ChatDetailScreen(
-                    thread = fakeCandidateFeatures.getChatThread(conversationId),
+                val conversationId = entry.arguments?.getString("conversationId").orEmpty()
+                val chatViewModel: ChatViewModel = viewModel(
+                    key = "chat-$conversationId",
+                    factory = ChatViewModel.factory(conversationId, container.candidateConversationRepository),
+                )
+                val state by chatViewModel.state.collectAsStateWithLifecycle()
+                ScreenLifecyclePolling(
+                    onStarted = chatViewModel::onScreenStarted,
+                    onStopped = chatViewModel::onScreenStopped,
+                )
+                ChatScreen(
+                    state = state,
                     onBack = { navigateBack(Route.Messages) },
+                    onRetry = chatViewModel::retry,
+                    onDraft = chatViewModel::updateDraft,
+                    onSend = chatViewModel::send,
                     onViewJob = { navController.navigate(Route.jobDetail(it)) },
-                    onSendMessage = { fakeCandidateFeatures.sendMessage(conversationId, it) },
                 )
             }
             composable(Route.Profile) {

@@ -1,5 +1,5 @@
 import type {
-  Company, ConversationView, EmploymentType, JobStatus, Message, RecruiterApplicationDetail,
+  Company, EmploymentType, JobStatus, RecruiterApplicationDetail,
   RecruiterJobSummary, RecruiterProfile, ResumeSnapshot, User, WorkplaceType,
 } from '../models/recruiter';
 
@@ -103,19 +103,3 @@ export const applications: RecruiterApplicationDetail[] = [
   makeApplication('app_006', 5, 'job_002', 'APPLIED', 89, '2026-08-09T00:15:00Z'),
   makeApplication('app_007', 6, 'job_001', 'INTERVIEW', 91, '2026-08-01T07:00:00Z'),
 ];
-
-const message = (messageId: string, conversationId: string, body: string, senderType: Message['senderType'], sentAt: string): Message =>
-  ({messageId, conversationId, body, senderType, sentAt, clientMessageId: null, deliveryStatus: 'DELIVERED'});
-
-export const conversations: ConversationView[] = applications.slice(0, 3).map((application, index) => {
-  const conversationId = `conv_00${index + 1}`;
-  const messages = [message(`msg_${index + 1}`, conversationId, index === 0 ? 'Thank you for reviewing my application.' : 'Thank you for the update.', 'CANDIDATE', application.appliedAt)];
-  return {
-    conversationId, applicationId: application.applicationId, jobId: application.jobId,
-    createdAt: application.appliedAt, updatedAt: now,
-    participant: {userId: application.candidate.candidateId, fullName: application.candidate.fullName,
-      avatarUrl: application.candidate.avatarUrl, title: application.candidate.headline, company: null, online: index === 0},
-    lastMessage: messages[0], unreadCount: index === 0 ? 2 : 0, jobTitle: application.jobTitle,
-    messages, matchScore: application.matchScore,
-  };
-});

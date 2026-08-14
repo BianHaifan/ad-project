@@ -1,8 +1,9 @@
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
 import {recruiterRepository as repo} from './repository';
+import {DETAIL_INTERVAL_MS, LIST_INTERVAL_MS, usePollingQuery} from './polling';
 import type {JobDraft} from '../models/recruiter';
 import type {ListApplicationsParams,ListJobsParams,RecruiterJobStatusTarget,RecruiterTransitionStatus} from './recruiterRepository';
-export const keys={me:['me'] as const,dashboard:['dashboard'] as const,jobs:(params:ListJobsParams={})=>['jobs',params] as const,job:(id:string)=>['job',id] as const,applications:(params:ListApplicationsParams={})=>['applications',params] as const,application:(id:string)=>['application',id] as const,conversations:['conversations'] as const,conversation:(id:string)=>['conversation',id] as const};
+export const keys={me:['me'] as const,dashboard:['dashboard'] as const,jobs:(params:ListJobsParams={})=>['jobs',params] as const,job:(id:string)=>['job',id] as const,applications:(params:ListApplicationsParams={})=>['applications',params] as const,application:(id:string)=>['application',id] as const,conversations:['conversations'] as const,conversation:(id:string)=>['conversation',id] as const,messages:(id:string)=>['messages',id] as const};
 export const useMe=()=>useQuery({queryKey:keys.me,queryFn:()=>repo.getMe()});
 export const useDashboard=()=>useQuery({queryKey:keys.dashboard,queryFn:()=>repo.getDashboard()});
 export const useJobs=(params:ListJobsParams={})=>useQuery({queryKey:keys.jobs(params),queryFn:()=>repo.listJobs(params)});
@@ -14,6 +15,8 @@ export const useChangeJobStatus=()=>{const qc=useQueryClient();return useMutatio
 export const useApplications=(params:ListApplicationsParams={})=>useQuery({queryKey:keys.applications(params),queryFn:()=>repo.listApplications(params)});
 export const useApplication=(id:string)=>useQuery({queryKey:keys.application(id),queryFn:()=>repo.getApplication(id),enabled:!!id});
 export const useUpdateApplication=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,status,reason,expectedVersion}:{id:string;status:RecruiterTransitionStatus;reason:string;expectedVersion:number})=>repo.updateApplicationStatus(id,status,reason,expectedVersion),onSuccess:(a)=>{qc.invalidateQueries({queryKey:['applications']});qc.setQueryData(keys.application(a.applicationId),a);}});};
-export const useConversations=()=>useQuery({queryKey:keys.conversations,queryFn:()=>repo.listConversations()});
-export const useConversation=(id:string)=>useQuery({queryKey:keys.conversation(id),queryFn:()=>repo.getConversation(id),enabled:!!id});
-export const useSendMessage=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,body}:{id:string;body:string})=>repo.sendMessage(id,body),onSuccess:r=>{qc.setQueryData(keys.conversation(r.conversation.conversationId),r.conversation);qc.invalidateQueries({queryKey:keys.conversations});}});};
+export const useConversations=()=>usePollingQuery({queryKey:keys.conversations,queryFn:()=>repo.listConversations(),enabled:true,intervalMs:LIST_INTERVAL_MS});
+export const useConversation=(id:string)=>usePollingQuery({queryKey:keys.conversation(id),queryFn:()=>repo.getConversation(id),enabled:!!id,intervalMs:DETAIL_INTERVAL_MS});
+export const useMessages=(id:string)=>usePollingQuery({queryKey:keys.messages(id),queryFn:()=>repo.listMessages(id),enabled:!!id,intervalMs:DETAIL_INTERVAL_MS});
+export const useSendMessage=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,body}:{id:string;body:string})=>repo.sendMessage(id,body),onSuccess:(_message,{id})=>{qc.invalidateQueries({queryKey:keys.messages(id)});qc.invalidateQueries({queryKey:keys.conversation(id)});qc.invalidateQueries({queryKey:keys.conversations});}});};
+export const useMarkConversationRead=()=>{const qc=useQueryClient();return useMutation({mutationFn:({id,lastReadMessageId}:{id:string;lastReadMessageId:string})=>repo.markRead(id,lastReadMessageId),onSuccess:(_data,{id})=>{qc.invalidateQueries({queryKey:keys.conversation(id)});qc.invalidateQueries({queryKey:keys.conversations});}});};

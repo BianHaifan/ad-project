@@ -5,7 +5,7 @@ plugins {
 }
 
 val debugApiBaseUrl = providers.gradleProperty("AD_API_BASE_URL")
-    .orElse("http://10.0.2.2:8080/api/v1/")
+    .orElse("http://10.0.2.2:8081/api/v1/")
 val releaseApiBaseUrl = providers.gradleProperty("AD_API_BASE_URL")
     .orElse("https://api.invalid/api/v1/")
 

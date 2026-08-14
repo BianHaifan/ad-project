@@ -70,13 +70,24 @@ public class RecruiterApplicationService {
         }
         var result = applications.findAll(specification, PageRequest.of(page - 1, pageSize, sort(sort)));
         var data = result.getContent().stream().map(this::summary).toList();
-        var counts = new RecruiterApplicationDtos.Counts(
+        return new RecruiterApplicationDtos.ListResponse(data, new RecruiterApplicationDtos.Meta(
+                page, pageSize, result.getTotalElements(), result.hasNext(), counts(companyId)));
+    }
+
+    @Transactional(readOnly = true)
+    public RecruiterApplicationDtos.Counts counts(String companyId) {
+        return new RecruiterApplicationDtos.Counts(
                 applications.countByCompanyIdAndStatus(companyId, ApplicationStatus.APPLIED),
                 applications.countByCompanyIdAndStatus(companyId, ApplicationStatus.IN_REVIEW),
                 applications.countByCompanyIdAndStatus(companyId, ApplicationStatus.INTERVIEW),
                 applications.countByCompanyIdAndStatus(companyId, ApplicationStatus.REJECTED));
-        return new RecruiterApplicationDtos.ListResponse(data, new RecruiterApplicationDtos.Meta(
-                page, pageSize, result.getTotalElements(), result.hasNext(), counts));
+    }
+
+    @Transactional(readOnly = true)
+    public List<RecruiterApplicationDtos.Summary> recentSummaries(String companyId, int limit) {
+        return applications.findAll(companyScope(companyId),
+                        PageRequest.of(0, limit, Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id"))))
+                .getContent().stream().map(this::summary).toList();
     }
 
     @Transactional(readOnly = true)

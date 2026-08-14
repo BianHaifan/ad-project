@@ -1,13 +1,20 @@
 import {describe, expect, it} from 'vitest';
 import {mockRecruiterRepository} from '../mocks/mockRecruiterRepository';
 import {recruiterRepository} from './repository';
-import {applicationHttpClient} from './applicationHttpClient';
 
 describe('repository data-source boundaries', () => {
-  it('keeps only dashboard and messages mocked while jobs and applications use real clients', () => {
-    expect(recruiterRepository.getDashboard).toBe(mockRecruiterRepository.getDashboard);
-    expect(recruiterRepository.listConversations).toBe(mockRecruiterRepository.listConversations);
-    expect(recruiterRepository.listApplications).not.toBe(applicationHttpClient.listApplications);
+  it('keeps only auth mocked while dashboard, jobs, applications, and conversations use real clients', () => {
+    expect('getDashboard' in mockRecruiterRepository).toBe(false);
+    expect('listConversations' in mockRecruiterRepository).toBe(false);
+    expect('getConversation' in mockRecruiterRepository).toBe(false);
+    expect('listMessages' in mockRecruiterRepository).toBe(false);
+    expect('sendMessage' in mockRecruiterRepository).toBe(false);
+    expect('markRead' in mockRecruiterRepository).toBe(false);
+    expect(typeof recruiterRepository.listConversations).toBe('function');
+    expect(typeof recruiterRepository.getConversation).toBe('function');
+    expect(typeof recruiterRepository.listMessages).toBe('function');
+    expect(typeof recruiterRepository.sendMessage).toBe('function');
+    expect(typeof recruiterRepository.markRead).toBe('function');
     expect('listApplications' in mockRecruiterRepository).toBe(false);
     expect('getApplication' in mockRecruiterRepository).toBe(false);
     expect('updateApplicationStatus' in mockRecruiterRepository).toBe(false);

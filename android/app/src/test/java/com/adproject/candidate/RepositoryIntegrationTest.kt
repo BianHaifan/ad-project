@@ -78,8 +78,15 @@ class RepositoryIntegrationTest {
 
         server.enqueue(jsonResponse(errorBody("UNAUTHORIZED", "internal authentication detail"), 401))
         val login = repository.login("candidate@example.com", "wrong-password") as ApiResult.Failure
-        assertEquals("Your session has expired. Please sign in again.", login.message)
+        assertEquals("Incorrect email or password.", login.message)
         assertFalse(login.message.contains("internal"))
+    }
+
+    @Test fun protectedEndpoint401StillMapsToSessionExpired() = runTest {
+        val jobs = RealCandidateJobRepository(retrofit().create(CandidateJobHttpApi::class.java), moshi)
+        server.enqueue(jsonResponse(errorBody("UNAUTHORIZED", "expired token"), 401))
+        val failure = jobs.jobs(null, null) as ApiResult.Failure
+        assertEquals("Your session has expired. Please sign in again.", failure.message)
     }
 
     @Test fun jobsExposeContentEmptyErrorAndDetail404WithoutFakeScores() = runTest {

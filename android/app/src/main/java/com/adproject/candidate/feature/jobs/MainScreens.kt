@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -30,7 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adproject.candidate.R
@@ -48,7 +46,6 @@ import com.adproject.candidate.core.designsystem.TagChip
 import com.adproject.candidate.core.designsystem.PrimaryButton
 import com.adproject.candidate.data.contract.EmploymentType
 import com.adproject.candidate.data.model.CandidateProfile
-import com.adproject.candidate.data.model.Conversation
 import com.adproject.candidate.data.model.Job
 import com.adproject.candidate.data.model.JobFeedData
 import com.adproject.candidate.data.model.LearningData
@@ -177,56 +174,6 @@ fun LearningScreen(data: LearningData, onTab: (MainTab) -> Unit) {
         }
     }
 }
-
-@Composable
-fun MessagesScreen(conversations: List<Conversation>, onTab: (MainTab) -> Unit, onConversation: (String) -> Unit) {
-    Scaffold(bottomBar = { AdBottomBar(MainTab.Messages, onTab) }, containerColor = AdBackground) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 18.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Messages", color = Color(0xFF0E1114), fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Text("Recruiters and hiring teams", color = Color(0xFF6B7885), fontSize = 12.sp)
-                }
-                Box(Modifier.size(36.dp).clip(CircleShape).background(AdTealSoft), contentAlignment = Alignment.Center) {
-                    Text("+", color = AdTeal, fontSize = 22.sp, fontWeight = FontWeight.Medium)
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            Box(Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(22.dp)).background(Color.White).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
-                Text("Search conversations", color = Color(0xFF8C96A1), fontSize = 13.sp)
-            }
-            Spacer(Modifier.height(16.dp))
-            LazyColumn(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(16.dp)).background(Color.White)) {
-                items(conversations, key = { it.conversationId }) { conversation ->
-                    Row(
-                        Modifier.fillMaxWidth().height(104.dp).clickable { onConversation(conversation.conversationId) }.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(Modifier.size(48.dp).clip(CircleShape).background(AdTealSoft), contentAlignment = Alignment.Center) {
-                            Text(conversation.initial, color = AdTeal, fontWeight = FontWeight.SemiBold, fontSize = if (conversation.initial.length > 1) 11.sp else 15.sp)
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(conversation.fullName, color = AdText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                            Text(conversation.preview, color = AdMuted, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        }
-                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(formatConversationTime(conversation.lastMessageAt), color = Color(0xFF89939D), fontSize = 10.sp)
-                            if (conversation.unread > 0) Box(Modifier.size(22.dp).clip(CircleShape).background(AdTeal), contentAlignment = Alignment.Center) {
-                                Text(conversation.unread.toString(), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
-                    HorizontalDivider(color = Color(0xFFE8EDF0))
-                }
-            }
-        }
-    }
-}
-
-private fun formatConversationTime(value: String): String = runCatching {
-    java.time.OffsetDateTime.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm"))
-}.getOrDefault(value)
 
 @Composable
 fun ProfileScreen(data: CandidateProfile, onTab: (MainTab) -> Unit, onApplications: () -> Unit,

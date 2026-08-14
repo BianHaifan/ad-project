@@ -35,6 +35,7 @@ describe('real recruiter application pages', () => {
     expect(screen.getByText('Unavailable')).toBeInTheDocument();
     expect(screen.getByText('Unassigned')).toBeInTheDocument();
     expect(screen.queryByText('0% match')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: /Create job/i})).not.toBeInTheDocument();
     expect(list).toHaveBeenCalledWith({status: undefined, q: '', page: 1, pageSize: 20, sort: 'appliedAt,desc'});
   });
 

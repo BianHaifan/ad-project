@@ -217,11 +217,47 @@ export interface ConversationSummary {
   jobTitle: string;
 }
 
-export interface ConversationView extends ConversationSummary { messages: Message[]; matchScore: number | null }
+export interface ConversationDetail {
+  conversationId: string;
+  applicationId: string;
+  jobId: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+  participant: ConversationParticipant;
+  context: InterviewContext | null;
+}
+
+export interface InterviewContext {
+  type: 'INTERVIEW_INVITATION';
+  interviewId: string;
+  applicationId: string;
+  jobId: string;
+  jobTitle: string;
+  scheduledAt: ISODateTime;
+  mode: InterviewMode;
+  timezone: string;
+  durationMinutes: number;
+  locationOrMeetingUrl: string | null;
+  status: InterviewStatus;
+}
+
+export interface MessageListMeta { nextCursor: string | null; hasMore: boolean }
+export interface MessageListResult { data: Message[]; meta: MessageListMeta }
+export interface ConversationListResult { data: ConversationSummary[]; meta: PageMeta }
+
+export type CompanyVerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface DashboardMetrics {
+  activeJobs: number;
+  appliedApplications: number;
+  inReviewApplications: number;
+  interviewApplications: number;
+  companyVerificationStatus: CompanyVerificationStatus;
+}
 
 export interface Dashboard {
-  metrics: Record<string, number | string>;
-  recommendedApplications: RecruiterApplicationSummary[];
+  metrics: DashboardMetrics;
+  recentApplications: RecruiterApplicationSummary[];
   recentJobs: RecruiterJobSummary[];
 }
 

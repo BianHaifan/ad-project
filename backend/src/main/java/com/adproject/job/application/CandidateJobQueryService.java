@@ -26,6 +26,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -35,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CandidateJobQueryService {
+    private static final Logger log = LoggerFactory.getLogger(CandidateJobQueryService.class);
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
     private final JobRepository jobRepository;
@@ -119,10 +122,15 @@ public class CandidateJobQueryService {
     }
 
     private List<String> readList(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
         try {
-            return objectMapper.readValue(value, STRING_LIST);
+            List<String> parsed = objectMapper.readValue(value, STRING_LIST);
+            return parsed == null ? List.of() : parsed;
         } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("Stored job list field is invalid", exception);
+            log.warn("Stored job list field is not a valid JSON string array; treating as empty", exception);
+            return List.of();
         }
     }
 

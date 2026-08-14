@@ -8,7 +8,7 @@ import {
 } from '../api/authClient';
 
 type AuthClientPort = Pick<AuthClient, 'signIn' | 'register'>;
-type FormField = 'fullName' | 'companyName' | 'email' | 'password' | 'acceptedTermsVersion';
+type FormField = 'fullName' | 'companyName' | 'email' | 'password' | 'confirmPassword' | 'acceptedTermsVersion';
 type FieldErrors = Partial<Record<FormField, string>>;
 
 export function AuthPage({mode, client = authClient}: {
@@ -21,6 +21,7 @@ export function AuthPage({mode, client = authClient}: {
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [remember, setRemember] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -31,7 +32,7 @@ export function AuthPage({mode, client = authClient}: {
     event.preventDefault();
     if (submittingRef.current) return;
 
-    const validationErrors = validateForm({mode, fullName, companyName, email, password, acceptedTerms});
+    const validationErrors = validateForm({mode, fullName, companyName, email, password, confirmPassword, acceptedTerms});
     setFieldErrors(validationErrors);
     setPageError('');
     if (Object.keys(validationErrors).length > 0) return;
@@ -63,6 +64,7 @@ export function AuthPage({mode, client = authClient}: {
 
   const clearFieldError = (field: FormField) => {
     setFieldErrors(current => current[field] ? {...current, [field]: undefined} : current);
+    setPageError('');
   };
 
   return <main className="auth-layout">
@@ -98,11 +100,17 @@ export function AuthPage({mode, client = authClient}: {
           {fieldErrors.email && <span className="form-error">{fieldErrors.email}</span>}
         </label>
         <label>PASSWORD
-          <input value={password} onChange={event => {setPassword(event.target.value); clearFieldError('password')}}
+          <input value={password} onChange={event => {setPassword(event.target.value); clearFieldError('password'); clearFieldError('confirmPassword')}}
             type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
             placeholder="••••••••••" aria-invalid={Boolean(fieldErrors.password)}/>
           {fieldErrors.password && <span className="form-error">{fieldErrors.password}</span>}
         </label>
+        {mode === 'register' && <label>CONFIRM PASSWORD
+          <input value={confirmPassword} onChange={event => {setConfirmPassword(event.target.value); clearFieldError('confirmPassword')}}
+            type="password" autoComplete="new-password"
+            placeholder="••••••••••" aria-invalid={Boolean(fieldErrors.confirmPassword)}/>
+          {fieldErrors.confirmPassword && <span className="form-error">{fieldErrors.confirmPassword}</span>}
+        </label>}
         {mode === 'signin' && <div className="form-options">
           <label className="check"><input type="checkbox" checked={remember}
             onChange={event => setRemember(event.target.checked)}/>Remember me</label>
@@ -132,11 +140,13 @@ function validateForm(input: {
   companyName: string;
   email: string;
   password: string;
+  confirmPassword: string;
   acceptedTerms: boolean;
 }): FieldErrors {
   const errors: FieldErrors = {};
   if (!/^\S+@\S+\.\S+$/.test(input.email.trim())) errors.email = 'Enter a valid work email.';
   if (input.password.length < 8) errors.password = 'Password must contain at least 8 characters.';
+  if (input.mode === 'register' && input.password !== input.confirmPassword) errors.confirmPassword = 'Passwords do not match.';
   if (input.mode === 'register' && !input.fullName.trim()) errors.fullName = 'Full name is required.';
   if (input.mode === 'register' && !input.companyName.trim()) errors.companyName = 'Company name is required.';
   if (input.mode === 'register' && !input.acceptedTerms) errors.acceptedTermsVersion = 'You must agree to the current terms.';

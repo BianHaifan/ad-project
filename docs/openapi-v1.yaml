@@ -357,11 +357,11 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Candidate
       x-permission: Candidate conversation participant only
-      description: 'Permission: Candidate conversation participant only. Status: DRAFT. Clients: Candidate.'
+      description: 'Permission: Candidate conversation participant only. Status: IMPLEMENTED. Clients: Candidate.'
       x-mvp-scope: MVP
   /candidate/conversations/{conversationId}:
     get:
@@ -389,11 +389,11 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Candidate
       x-permission: Candidate conversation participant only
-      description: 'Permission: Candidate conversation participant only. Status: DRAFT. Clients: Candidate.'
+      description: 'Permission: Candidate conversation participant only. Status: IMPLEMENTED. Clients: Candidate.'
       x-mvp-scope: MVP
   /candidate/conversations/{conversationId}/messages:
     get:
@@ -428,11 +428,11 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Candidate
       x-permission: Candidate conversation participant only
-      description: 'Permission: Candidate conversation participant only. Status: DRAFT. Clients: Candidate.'
+      description: 'Permission: Candidate conversation participant only. Status: IMPLEMENTED. Clients: Candidate.'
       x-mvp-scope: MVP
     post:
       tags:
@@ -470,11 +470,11 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Candidate
       x-permission: Candidate conversation participant only
-      description: 'Permission: Candidate conversation participant only. Status: DRAFT. Clients: Candidate. Idempotency:
+      description: 'Permission: Candidate conversation participant only. Status: IMPLEMENTED. Clients: Candidate. Idempotency:
         same key + same payload returns the original result; same key + different payload returns 409 IDEMPOTENCY_KEY_REUSED.
         clientMessageId is also unique within the conversation and duplicate reuse returns the original Message
         when the payload matches.'
@@ -506,11 +506,11 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Candidate
       x-permission: Candidate conversation participant only
-      description: 'Permission: Candidate conversation participant only. Status: DRAFT. Clients: Candidate.'
+      description: 'Permission: Candidate conversation participant only. Status: IMPLEMENTED. Clients: Candidate.'
       x-mvp-scope: MVP
   /candidate/profile:
     get:
@@ -787,21 +787,10 @@ paths:
       - Profile
       summary: Get own-company dashboard
       operationId: getRecruiterDashboard
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter; own-company aggregate
-      parameters:
-      - name: from
-        in: query
-        schema:
-          type: string
-          format: date
-      - name: to
-        in: query
-        schema:
-          type: string
-          format: date
       responses:
         '200':
           description: Success
@@ -820,7 +809,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         '403':
           $ref: '#/components/responses/Forbidden'
-      description: 'Permission: Recruiter; own-company aggregate. Status: DRAFT. Clients: Recruiter.'
+      description: 'Permission: Recruiter; own-company aggregate. Status: IMPLEMENTED. Clients: Recruiter. Read-only:
+        aggregates the current company''s active jobs, application-stage counts, verification status, and the three
+        most recently updated applications and created jobs. Cross-company resources return 403/404 per policy.'
       x-mvp-scope: MVP
   /recruiter/jobs:
     get:
@@ -1148,7 +1139,7 @@ paths:
           $ref: '#/components/responses/NotFound'
         '403':
           $ref: '#/components/responses/Forbidden'
-      description: 'Permission: Recruiter; applications to own-company jobs. Status: DRAFT. Clients: Recruiter.
+      description: 'Permission: Recruiter; applications to own-company jobs. Status: IMPLEMENTED. Clients: Recruiter.
         Default stable sort is appliedAt DESC then applicationId DESC. ownerId is deferred until Application owner
         persistence exists; minMatchScore is deferred until persisted ML results exist.'
       x-mvp-scope: MVP
@@ -1572,7 +1563,7 @@ paths:
       - Conversations
       summary: List own-company conversations
       operationId: listRecruiterConversations
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter participant; own-company jobs
@@ -1607,7 +1598,7 @@ paths:
           $ref: '#/components/responses/NotFound'
         '403':
           $ref: '#/components/responses/Forbidden'
-      description: 'Permission: Recruiter participant; own-company jobs. Status: DRAFT. Clients: Recruiter.'
+      description: 'Permission: Recruiter participant; own-company jobs. Status: IMPLEMENTED. Clients: Recruiter.'
       x-mvp-scope: MVP
   /recruiter/conversations/{conversationId}:
     get:
@@ -1615,7 +1606,7 @@ paths:
       - Conversations
       summary: Get recruiter conversation
       operationId: getRecruiterConversation
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter participant; own-company conversation; cross-company resources return 404
@@ -1644,7 +1635,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
       description: 'Permission: Recruiter participant; own-company conversation; cross-company resources return
-        404. Status: DRAFT. Clients: Recruiter.'
+        404. Status: IMPLEMENTED. Clients: Recruiter.'
       x-mvp-scope: MVP
   /recruiter/conversations/{conversationId}/messages:
     get:
@@ -1652,7 +1643,7 @@ paths:
       - Messages
       summary: Get recruiter message history
       operationId: listRecruiterMessages
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter participant; own-company conversation; cross-company resources return 404
@@ -1687,14 +1678,14 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
       description: 'Permission: Recruiter participant; own-company conversation; cross-company resources return
-        404. Status: DRAFT. Clients: Recruiter.'
+        404. Status: IMPLEMENTED. Clients: Recruiter.'
       x-mvp-scope: MVP
     post:
       tags:
       - Messages
       summary: Send recruiter message
       operationId: sendRecruiterMessage
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter participant; own-company conversation; cross-company resources return 404
@@ -1734,7 +1725,7 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
       description: 'Permission: Recruiter participant; own-company conversation; cross-company resources return
-        404. Status: DRAFT. Clients: Recruiter. Idempotency: same key + same payload returns the original result;
+        404. Status: IMPLEMENTED. Clients: Recruiter. Idempotency: same key + same payload returns the original result;
         same key + different payload returns 409 IDEMPOTENCY_KEY_REUSED. clientMessageId is also unique within the
         conversation and duplicate reuse returns the original Message when the payload matches.'
       x-mvp-scope: MVP
@@ -1744,7 +1735,7 @@ paths:
       - Conversations
       summary: Update recruiter read state
       operationId: updateRecruiterConversationReadState
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter participant; own-company conversation; cross-company resources return 404
@@ -1774,7 +1765,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
       description: 'Permission: Recruiter participant; own-company conversation; cross-company resources return
-        404. Status: DRAFT. Clients: Recruiter.'
+        404. Status: IMPLEMENTED. Clients: Recruiter.'
       x-mvp-scope: MVP
   /candidate/applications/{applicationId}/withdraw:
     post:
@@ -3123,16 +3114,12 @@ components:
       type: object
       required:
       - metrics
-      - recommendedApplications
+      - recentApplications
       - recentJobs
       properties:
         metrics:
-          type: object
-          additionalProperties:
-            type:
-            - integer
-            - string
-        recommendedApplications:
+          $ref: '#/components/schemas/RecruiterDashboardMetrics'
+        recentApplications:
           type: array
           items:
             $ref: '#/components/schemas/RecruiterApplicationSummary'
@@ -3140,6 +3127,33 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RecruiterJobSummary'
+    RecruiterDashboardMetrics:
+      type: object
+      required:
+      - activeJobs
+      - appliedApplications
+      - inReviewApplications
+      - interviewApplications
+      - companyVerificationStatus
+      properties:
+        activeJobs:
+          type: integer
+          minimum: 0
+        appliedApplications:
+          type: integer
+          minimum: 0
+        inReviewApplications:
+          type: integer
+          minimum: 0
+        interviewApplications:
+          type: integer
+          minimum: 0
+        companyVerificationStatus:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
     CreateJobRequest:
       type: object
       required:

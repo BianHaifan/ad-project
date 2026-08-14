@@ -1,6 +1,7 @@
 import type {
-  ApplicationStatus, ConversationView, Dashboard, JobDraft, EmploymentType, JobStatus, PageMeta,
-  RecruiterApplicationDetail, RecruiterApplicationListResult, RecruiterJobSummary, RecruiterProfile,
+  ApplicationStatus, ConversationDetail, ConversationListResult, Dashboard, JobDraft, EmploymentType,
+  JobStatus, Message, MessageListResult, PageMeta, RecruiterApplicationDetail, RecruiterApplicationListResult,
+  RecruiterJobSummary, RecruiterProfile,
 } from '../models/recruiter';
 
 export type RecruiterTransitionStatus = Extract<ApplicationStatus, 'IN_REVIEW' | 'INTERVIEW' | 'REJECTED'>;
@@ -41,9 +42,9 @@ export interface RecruiterRepository {
   getApplication(applicationId: string): Promise<RecruiterApplicationDetail>;
   updateApplicationStatus(applicationId: string, status: RecruiterTransitionStatus, reason: string,
                           expectedVersion: number): Promise<RecruiterApplicationDetail>;
-  listConversations(): Promise<ConversationView[]>;
-  getConversation(conversationId: string): Promise<ConversationView | undefined>;
-  sendMessage(conversationId: string, body: string): Promise<MessageResult>;
+  listConversations(): Promise<ConversationListResult>;
+  getConversation(conversationId: string): Promise<ConversationDetail>;
+  listMessages(conversationId: string): Promise<MessageListResult>;
+  sendMessage(conversationId: string, body: string): Promise<Message>;
+  markRead(conversationId: string, lastReadMessageId: string): Promise<void>;
 }
-
-export interface MessageResult { conversation: ConversationView }

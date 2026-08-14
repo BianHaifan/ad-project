@@ -8,6 +8,7 @@ import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.company.infrastructure.CompanyEntity;
 import com.adproject.company.infrastructure.CompanyRepository;
+import com.adproject.conversation.application.ConversationProvisioningService;
 import com.adproject.job.domain.JobStatus;
 import com.adproject.job.domain.Visibility;
 import com.adproject.job.infrastructure.JobEntity;
@@ -45,6 +46,7 @@ public class CandidateApplicationService {
     private final ApplicationRepository applications;
     private final ApplicationStatusEventRepository events;
     private final IdempotencyRecordRepository idempotencyRecords;
+    private final ConversationProvisioningService conversationProvisioning;
     private final ObjectMapper mapper;
     private final Clock clock;
 
@@ -52,10 +54,12 @@ public class CandidateApplicationService {
                                        ResumeRepository resumes, ResumeSnapshotRepository snapshots,
                                        ApplicationRepository applications, ApplicationStatusEventRepository events,
                                        IdempotencyRecordRepository idempotencyRecords,
+                                       ConversationProvisioningService conversationProvisioning,
                                        ObjectMapper mapper, Clock clock) {
         this.users = users; this.jobs = jobs; this.companies = companies; this.resumes = resumes;
         this.snapshots = snapshots; this.applications = applications; this.events = events;
-        this.idempotencyRecords = idempotencyRecords; this.mapper = mapper; this.clock = clock;
+        this.idempotencyRecords = idempotencyRecords; this.conversationProvisioning = conversationProvisioning;
+        this.mapper = mapper; this.clock = clock;
     }
 
     @Transactional
@@ -110,6 +114,7 @@ public class CandidateApplicationService {
                 candidate.getId(), job.getCompanyId(), null, ApplicationStatus.APPLIED, now,
                 "Application submitted", requestId));
         job.incrementApplicantCount();
+        conversationProvisioning.provision(applicationId, job.getId(), candidate.getId(), job.getCompanyId(), now);
 
         CandidateApplicationDetailResponse response = response(application, snapshot, job, company);
         idempotencyRecords.save(new IdempotencyRecordEntity(UUID.randomUUID().toString(), candidate.getId(),

@@ -228,6 +228,51 @@ data class Message(
     val deliveryStatus: DeliveryStatus,
 )
 
+data class ConversationParticipant(
+    val userId: String,
+    val fullName: String,
+    val avatarUrl: String?,
+    val title: String?,
+    val company: Company?,
+    val online: Boolean,
+)
+
+data class ConversationSummary(
+    val conversationId: String,
+    val applicationId: String,
+    val jobId: String,
+    val createdAt: String,
+    val updatedAt: String,
+    val participant: ConversationParticipant,
+    val lastMessage: Message?,
+    val unreadCount: Int,
+    val jobTitle: String,
+)
+
+data class ConversationDetail(
+    val conversationId: String,
+    val applicationId: String,
+    val jobId: String,
+    val createdAt: String,
+    val updatedAt: String,
+    val participant: ConversationParticipant,
+    val context: InterviewContext?,
+)
+
+data class InterviewContext(
+    val type: String,
+    val interviewId: String,
+    val applicationId: String,
+    val jobId: String,
+    val jobTitle: String,
+    val scheduledAt: String,
+    val mode: InterviewMode,
+    val timezone: String,
+    val durationMinutes: Int,
+    val locationOrMeetingUrl: String?,
+    val status: InterviewStatus,
+)
+
 data class LoginRequest(val email: String, val password: String)
 data class RefreshTokenRequest(val refreshToken: String)
 data class CandidateRegisterRequest(

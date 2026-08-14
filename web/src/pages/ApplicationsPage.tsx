@@ -35,8 +35,7 @@ export function ApplicationsPage() {
   const last = Math.min(meta.total, (meta.page - 1) * meta.pageSize + applications.length);
 
   return <>
-    <PageHeader title="Applications" subtitle="Review candidates and record every supported stage decision."
-      actions={<button className="button primary" onClick={() => nav('/recruiter/jobs/new')}>Create job posting</button>}/>
+    <PageHeader title="Applications" subtitle="Review candidates and record every supported stage decision."/>
     <section className="metric-grid four stage-cards">{stages.map(([countKey, status, label, help]) =>
       <button key={status} className={`metric-card stage-${status.toLowerCase()} ${selected === status ? 'selected' : ''}`}
         onClick={() => chooseStage(selected === status ? undefined : status)}>
