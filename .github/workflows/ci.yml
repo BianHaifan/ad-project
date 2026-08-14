@@ -22,6 +22,9 @@ jobs:
       - name: run maven tests
         working-directory: backend
         run: mvn -B test
+      - name: run maven pmd static analysis
+        working-directory: backend
+        run: mvn -B pmd:check
       - name: upload backend test report
         uses: actions/upload-artifact@v4
         if: always()
@@ -95,6 +98,7 @@ jobs:
           ignore-unfixed: true
           exit-code: 1
           format: table
+          output: trivy-backend.txt
       - name: scan web (npm)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -105,6 +109,7 @@ jobs:
           ignore-unfixed: true
           exit-code: 1
           format: table
+          output: trivy-web.txt
           skip-setup-trivy: true
       - name: scan android (Gradle)
         uses: aquasecurity/trivy-action@v0.36.0
@@ -115,7 +120,17 @@ jobs:
           ignore-unfixed: true
           exit-code: 1
           format: table
+          output: trivy-android.txt
           skip-setup-trivy: true
+      - name: upload trivy reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-sca-reports
+          path: |
+            trivy-backend.txt
+            trivy-web.txt
+            trivy-android.txt
 
   docker-build:              
     runs-on: ubuntu-latest

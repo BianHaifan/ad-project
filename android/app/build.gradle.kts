@@ -32,6 +32,22 @@ android {
             isMinifyEnabled = false
             buildConfigField("String", "API_BASE_URL", "\"${releaseApiBaseUrl.get()}\"")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            val keystorePath = providers.gradleProperty("RELEASE_KEYSTORE_PATH").orNull
+                ?: System.getenv("RELEASE_KEYSTORE_PATH")
+            val storePass = providers.gradleProperty("RELEASE_KEYSTORE_PASSWORD").orNull
+                ?: System.getenv("RELEASE_KEYSTORE_PASSWORD")
+            val keyPass = providers.gradleProperty("RELEASE_KEY_ALIAS_PASSWORD").orNull
+                ?: System.getenv("RELEASE_KEY_ALIAS_PASSWORD")
+            val keyAlias = providers.gradleProperty("RELEASE_KEY_ALIAS").orNull
+                ?: System.getenv("RELEASE_KEY_ALIAS")
+            if (keystorePath != null && storePass != null && keyPass != null && keyAlias != null) {
+                signingConfig = signingConfigs.create("release") {
+                    storeFile = file(keystorePath)
+                    storePassword = storePass
+                    keyAlias = keyAlias
+                    keyPassword = keyPass
+                }
+            }
         }
     }
 
