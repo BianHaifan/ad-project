@@ -20,13 +20,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -43,15 +38,15 @@ import com.adproject.candidate.core.designsystem.AdTealDark
 import com.adproject.candidate.core.designsystem.AdText
 import com.adproject.candidate.core.designsystem.Logo
 import com.adproject.candidate.core.designsystem.PrimaryButton
-import com.adproject.candidate.data.model.RegistrationDefaults
-import com.adproject.candidate.data.model.SignInDefaults
 
 @Composable
-fun SignInScreen(data: SignInDefaults, onSignIn: () -> Unit, onCreateAccount: () -> Unit) {
-    var email by remember(data) { mutableStateOf(data.email) }
-    var password by remember(data) { mutableStateOf(data.password) }
-    var showPassword by remember { mutableStateOf(false) }
-
+fun SignInScreen(
+    state: SignInUiState,
+    onEmail: (String) -> Unit,
+    onPassword: (String) -> Unit,
+    onSignIn: () -> Unit,
+    onCreateAccount: () -> Unit,
+) {
     Column(
         Modifier.fillMaxSize().background(AdBackground).verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp, vertical = 32.dp),
@@ -64,14 +59,12 @@ fun SignInScreen(data: SignInDefaults, onSignIn: () -> Unit, onCreateAccount: ()
         Spacer(Modifier.height(24.dp))
         AdCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("SIGN IN AS", color = Color(0xFF89929B), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                RoleSelector()
-                AuthField("EMAIL", email, { email = it })
-                AuthField("PASSWORD", password, { password = it }, password = !showPassword, trailing = if (showPassword) "Hide" else "Show") {
-                    showPassword = !showPassword
-                }
+                AuthField("EMAIL", state.email, onEmail, error = state.fieldErrors["email"])
+                AuthField("PASSWORD", state.password, onPassword, password = true, error = state.fieldErrors["password"])
+                state.message?.let { Text(it, color = Color(0xFFB42318), fontSize = 11.sp) }
                 Text("Forgot password?", Modifier.fillMaxWidth(), color = AdTealDark, fontSize = 10.sp, textAlign = TextAlign.End)
-                PrimaryButton("Sign in", onSignIn, Modifier.fillMaxWidth())
+                PrimaryButton(if (state.submitting) "Signing in…" else "Sign in", onSignIn,
+                    Modifier.fillMaxWidth(), enabled = !state.submitting)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE1E6E9)))
                     Text("Or", Modifier.padding(horizontal = 10.dp), color = Color(0xFF929AA2), fontSize = 10.sp)
@@ -85,13 +78,16 @@ fun SignInScreen(data: SignInDefaults, onSignIn: () -> Unit, onCreateAccount: ()
 }
 
 @Composable
-fun CreateAccountScreen(data: RegistrationDefaults, onCreate: () -> Unit, onSignIn: () -> Unit) {
-    var fullName by remember(data) { mutableStateOf(data.fullName) }
-    var email by remember(data) { mutableStateOf(data.email) }
-    var password by remember(data) { mutableStateOf(data.password) }
-    var confirm by remember(data) { mutableStateOf(data.password) }
-    var agreed by remember(data) { mutableStateOf(data.agreed) }
-
+fun CreateAccountScreen(
+    state: RegisterUiState,
+    onFullName: (String) -> Unit,
+    onEmail: (String) -> Unit,
+    onPassword: (String) -> Unit,
+    onConfirmPassword: (String) -> Unit,
+    onAgreed: (Boolean) -> Unit,
+    onCreate: () -> Unit,
+    onSignIn: () -> Unit,
+) {
     Column(
         Modifier.fillMaxSize().background(AdBackground).verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp, vertical = 24.dp),
@@ -104,41 +100,25 @@ fun CreateAccountScreen(data: RegistrationDefaults, onCreate: () -> Unit, onSign
         Spacer(Modifier.height(16.dp))
         AdCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("REGISTER AS", color = Color(0xFF89929B), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
-                RoleSelector()
-                AuthField("FULL NAME", fullName, { fullName = it })
-                AuthField("EMAIL", email, { email = it })
-                AuthField("PASSWORD", password, { password = it }, password = true, trailing = "Show")
-                AuthField("CONFIRM PASSWORD", confirm, { confirm = it }, password = true, trailing = "Show")
+                AuthField("FULL NAME", state.fullName, onFullName, error = state.fieldErrors["fullName"])
+                AuthField("EMAIL", state.email, onEmail, error = state.fieldErrors["email"])
+                AuthField("PASSWORD", state.password, onPassword, password = true, error = state.fieldErrors["password"])
+                AuthField("CONFIRM PASSWORD", state.confirmPassword, onConfirmPassword, password = true,
+                    error = state.fieldErrors["confirmPassword"])
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(agreed, { agreed = it }, colors = CheckboxDefaults.colors(checkedColor = AdTeal))
+                    Checkbox(state.agreed, onAgreed, enabled = !state.submitting,
+                        colors = CheckboxDefaults.colors(checkedColor = AdTeal))
                     Text("I agree to the Terms of Service and Privacy Policy.", color = AdMuted, fontSize = 9.sp)
                 }
-                PrimaryButton("Create account", onCreate, Modifier.fillMaxWidth(), enabled = agreed && password == confirm)
+                state.fieldErrors["agreed"]?.let { Text(it, color = Color(0xFFB42318), fontSize = 10.sp) }
+                state.message?.let { Text(it, color = Color(0xFFB42318), fontSize = 11.sp) }
+                PrimaryButton(if (state.submitting) "Creating account…" else "Create account", onCreate,
+                    Modifier.fillMaxWidth(), enabled = !state.submitting)
                 Text("Already have an account?  Sign in", Modifier.fillMaxWidth().clickable(onClick = onSignIn), color = AdTealDark, fontSize = 10.sp, textAlign = TextAlign.Center)
                 Text("We'll send a verification email before your account becomes active.", color = Color(0xFF8B949E), fontSize = 8.sp)
                 Spacer(Modifier.height(84.dp))
             }
         }
-    }
-}
-
-@Composable
-private fun RoleSelector() {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        RoleChip("Candidate", true, Modifier.weight(1f))
-        RoleChip("Recruiter", false, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun RoleChip(text: String, selected: Boolean, modifier: Modifier = Modifier) {
-    Box(
-        modifier.height(42.dp).clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Color(0xFFE4F8F6) else Color(0xFFF3F5F6)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, color = if (selected) AdTealDark else Color(0xFF68737E), fontSize = 11.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
     }
 }
 
@@ -150,6 +130,7 @@ private fun AuthField(
     password: Boolean = false,
     trailing: String? = null,
     onTrailing: () -> Unit = {},
+    error: String? = null,
 ) {
     OutlinedTextField(
         value = value,
@@ -159,6 +140,8 @@ private fun AuthField(
         singleLine = true,
         visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
         trailingIcon = trailing?.let { { Text(it, Modifier.clickable(onClick = onTrailing), color = AdTealDark, fontSize = 10.sp) } },
+        isError = error != null,
+        supportingText = error?.let { { Text(it, fontSize = 10.sp) } },
         shape = RoundedCornerShape(11.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = AdTeal,

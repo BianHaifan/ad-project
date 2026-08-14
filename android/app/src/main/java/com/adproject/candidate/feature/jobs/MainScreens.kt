@@ -19,7 +19,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,7 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adproject.candidate.R
@@ -43,41 +43,89 @@ import com.adproject.candidate.core.designsystem.AdText
 import com.adproject.candidate.core.designsystem.FigmaSvg
 import com.adproject.candidate.core.designsystem.MainTab
 import com.adproject.candidate.core.designsystem.TagChip
+import com.adproject.candidate.core.designsystem.PrimaryButton
+import com.adproject.candidate.data.contract.EmploymentType
 import com.adproject.candidate.data.model.CandidateProfile
-import com.adproject.candidate.data.model.Conversation
 import com.adproject.candidate.data.model.Job
 import com.adproject.candidate.data.model.JobFeedData
 import com.adproject.candidate.data.model.LearningData
 import com.adproject.candidate.data.model.ProfileTool
 
 @Composable
-fun JobFeedScreen(data: JobFeedData, onTab: (MainTab) -> Unit, onJob: (String) -> Unit) {
+fun JobFeedScreen(
+    state: JobFeedUiState,
+    onQuery: (String) -> Unit,
+    onSearch: () -> Unit,
+    onEmploymentType: (EmploymentType?) -> Unit,
+    onRefresh: () -> Unit,
+    onRetry: () -> Unit,
+    onTab: (MainTab) -> Unit,
+    onJob: (String) -> Unit,
+) {
     Scaffold(bottomBar = { AdBottomBar(MainTab.Jobs, onTab) }, containerColor = AdBackground) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding)) {
             item {
                 Column(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.Bottom) {
-                        Text("Full-time", fontSize = 27.sp, fontWeight = FontWeight.Bold, color = AdText)
-                        Text("Internship", fontSize = 22.sp, color = Color(0xFF6E7781))
-                        Text("Part-time", fontSize = 22.sp, color = Color(0xFF6E7781), maxLines = 1)
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
+                        EmploymentType.entries.forEach { type ->
+                            Text(
+                                type.name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase),
+                                Modifier.clickable { onEmploymentType(type) },
+                                fontSize = if (state.employmentType == type) 22.sp else 17.sp,
+                                fontWeight = if (state.employmentType == type) FontWeight.Bold else FontWeight.Normal,
+                                color = if (state.employmentType == type) AdText else Color(0xFF6E7781),
+                                maxLines = 1,
+                            )
+                        }
                     }
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(AdBackground).padding(horizontal = 14.dp, vertical = 11.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Text("Search", color = Color(0xFF6E7781), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                        Text(data.searchSuggestion, color = Color(0xFF6E7781), fontSize = 14.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = state.query,
+                            onValueChange = onQuery,
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("Search job titles", fontSize = 12.sp) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(24.dp),
+                        )
+                        Text("Search", Modifier.clickable(onClick = onSearch), color = AdTealDark,
+                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Recommended", color = AdText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Text("AI / LLM", color = Color(0xFF6E7781), fontSize = 15.sp)
-                        Text("Backend", color = Color(0xFF6E7781), fontSize = 15.sp)
-                        Text("Data", color = Color(0xFF6E7781), fontSize = 15.sp)
+                        Text("Latest published jobs", color = AdText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text(if (state.refreshing) "Refreshing…" else "Refresh",
+                            Modifier.clickable(enabled = !state.refreshing, onClick = onRefresh),
+                            color = AdTealDark, fontSize = 13.sp)
                     }
                 }
             }
-            item { Text("Filter", Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 16.dp), color = Color(0xFF6E7781), fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.End) }
-            items(data.jobs, key = { it.jobId }) { job -> JobCard(job, onJob) }
+            when {
+                state.loading -> item {
+                    Box(Modifier.fillParentMaxSize().padding(72.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = AdTeal)
+                    }
+                }
+                state.message != null && state.data == null -> item {
+                    Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Text(state.message, color = AdMuted, fontSize = 13.sp)
+                        PrimaryButton("Try again", onRetry)
+                    }
+                }
+                state.data?.jobs.isNullOrEmpty() -> item {
+                    Column(Modifier.fillMaxWidth().padding(42.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("No active jobs found", color = AdText, fontWeight = FontWeight.SemiBold)
+                        Text("Try another title or employment type.", color = AdMuted, fontSize = 12.sp)
+                    }
+                }
+                else -> {
+                    state.message?.let { message -> item {
+                        Text(message, Modifier.fillMaxWidth().padding(16.dp), color = Color(0xFFB42318), fontSize = 12.sp)
+                    } }
+                    items(state.data?.jobs.orEmpty(), key = { it.jobId }) { job -> JobCard(job, onJob) }
+                }
+            }
             item { Spacer(Modifier.height(18.dp)) }
         }
     }
@@ -96,8 +144,9 @@ private fun JobCard(job: Job, onJob: (String) -> Unit) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 FigmaSvg(R.raw.recruiter_avatar, "Recruiter avatar", Modifier.size(28.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("${job.recruiter.fullName} - ${job.recruiter.title}", Modifier.weight(1f), color = Color(0xFF34404B), fontSize = 12.sp)
-                TagChip("AI Match ${job.match}%", accent = true)
+                Text(job.recruiter?.let { "${it.fullName} - ${it.title}" } ?: "Recruiter contact unavailable",
+                    Modifier.weight(1f), color = Color(0xFF34404B), fontSize = 12.sp)
+                job.match?.let { TagChip("AI Match $it%", accent = true) }
             }
         }
     }
@@ -127,57 +176,8 @@ fun LearningScreen(data: LearningData, onTab: (MainTab) -> Unit) {
 }
 
 @Composable
-fun MessagesScreen(conversations: List<Conversation>, onTab: (MainTab) -> Unit, onConversation: (String) -> Unit) {
-    Scaffold(bottomBar = { AdBottomBar(MainTab.Messages, onTab) }, containerColor = AdBackground) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 18.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Messages", color = Color(0xFF0E1114), fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Text("Recruiters and hiring teams", color = Color(0xFF6B7885), fontSize = 12.sp)
-                }
-                Box(Modifier.size(36.dp).clip(CircleShape).background(AdTealSoft), contentAlignment = Alignment.Center) {
-                    Text("+", color = AdTeal, fontSize = 22.sp, fontWeight = FontWeight.Medium)
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            Box(Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(22.dp)).background(Color.White).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
-                Text("Search conversations", color = Color(0xFF8C96A1), fontSize = 13.sp)
-            }
-            Spacer(Modifier.height(16.dp))
-            LazyColumn(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(16.dp)).background(Color.White)) {
-                items(conversations, key = { it.conversationId }) { conversation ->
-                    Row(
-                        Modifier.fillMaxWidth().height(104.dp).clickable { onConversation(conversation.conversationId) }.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(Modifier.size(48.dp).clip(CircleShape).background(AdTealSoft), contentAlignment = Alignment.Center) {
-                            Text(conversation.initial, color = AdTeal, fontWeight = FontWeight.SemiBold, fontSize = if (conversation.initial.length > 1) 11.sp else 15.sp)
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(conversation.fullName, color = AdText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                            Text(conversation.preview, color = AdMuted, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        }
-                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(formatConversationTime(conversation.lastMessageAt), color = Color(0xFF89939D), fontSize = 10.sp)
-                            if (conversation.unread > 0) Box(Modifier.size(22.dp).clip(CircleShape).background(AdTeal), contentAlignment = Alignment.Center) {
-                                Text(conversation.unread.toString(), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
-                    HorizontalDivider(color = Color(0xFFE8EDF0))
-                }
-            }
-        }
-    }
-}
-
-private fun formatConversationTime(value: String): String = runCatching {
-    java.time.OffsetDateTime.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm"))
-}.getOrDefault(value)
-
-@Composable
-fun ProfileScreen(data: CandidateProfile, onTab: (MainTab) -> Unit, onApplications: () -> Unit, onResume: () -> Unit) {
+fun ProfileScreen(data: CandidateProfile, onTab: (MainTab) -> Unit, onApplications: () -> Unit,
+                  onResume: () -> Unit, onLogout: () -> Unit) {
     Scaffold(bottomBar = { AdBottomBar(MainTab.Me, onTab) }, containerColor = AdBackground) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
             Column(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -201,6 +201,7 @@ fun ProfileScreen(data: CandidateProfile, onTab: (MainTab) -> Unit, onApplicatio
             }
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 data.toolGroups.forEach { group -> ToolCard(group.title, group.tools, onResume) }
+                PrimaryButton("Sign out", onLogout, Modifier.fillMaxWidth())
             }
         }
     }

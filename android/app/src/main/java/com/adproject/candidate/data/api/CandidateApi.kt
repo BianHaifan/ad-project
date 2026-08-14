@@ -4,9 +4,6 @@ import com.adproject.candidate.data.model.Application
 import com.adproject.candidate.data.model.ApplicationsData
 import com.adproject.candidate.data.model.ApplyConfirmationData
 import com.adproject.candidate.data.model.CandidateProfile
-import com.adproject.candidate.data.model.ChatMessage
-import com.adproject.candidate.data.model.ChatThread
-import com.adproject.candidate.data.model.Conversation
 import com.adproject.candidate.data.model.Job
 import com.adproject.candidate.data.model.JobDetailData
 import com.adproject.candidate.data.model.JobFeedData
@@ -15,27 +12,19 @@ import com.adproject.candidate.data.model.NextStep
 import com.adproject.candidate.data.model.ProfileStat
 import com.adproject.candidate.data.model.ProfileTool
 import com.adproject.candidate.data.model.ProfileToolGroup
-import com.adproject.candidate.data.model.RegistrationDefaults
 import com.adproject.candidate.data.model.ResumeData
 import com.adproject.candidate.data.model.ResumeExperience
-import com.adproject.candidate.data.model.SignInDefaults
 import com.adproject.candidate.data.model.SubmissionData
 import com.adproject.candidate.data.contract.ApplicationStatus
 import com.adproject.candidate.data.contract.Experience
 import com.adproject.candidate.data.contract.ResumeSnapshot
-import com.adproject.candidate.data.contract.SenderType
 import com.adproject.candidate.data.contract.TimelineStep
 import com.adproject.candidate.data.model.RecruiterContact
 
 interface CandidateRepository {
-    fun getSignInDefaults(): SignInDefaults
-    fun getRegistrationDefaults(): RegistrationDefaults
     fun getJobFeed(): JobFeedData
     fun getJobDetail(jobId: String): JobDetailData
     fun getLearning(): LearningData
-    fun getConversations(): List<Conversation>
-    fun getChatThread(conversationId: String): ChatThread
-    fun sendMessage(conversationId: String, body: String): ChatMessage
     fun getProfile(): CandidateProfile
     fun getApplications(): ApplicationsData
     fun getApplyConfirmation(jobId: String): ApplyConfirmationData
@@ -55,15 +44,6 @@ object FakeCandidateRepository : CandidateRepository {
         Job("moonshot", "AI Backend Engineer", "Moonshot AI", "M", "Series B · 500–999", "SGD 5–8K", listOf("Python", "LLM", "K8s", "RAG"), 96, recruiter),
         Job("bytelab", "Machine Learning Platform", "ByteDance Seed", "B", "10000+", "SGD 6–9K", listOf("Intern", "PyTorch", "MLOps"), 91, recruiter),
         Job("minimax", "Full Stack Engineer, AI Tools", "MiniMax", "M", "No financing needed", "SGD 5–7K", listOf("React", "Node", "AI Agent"), 84, recruiter),
-    )
-
-    override fun getSignInDefaults() = SignInDefaults("bohao.yan@example.com", "password123")
-
-    override fun getRegistrationDefaults() = RegistrationDefaults(
-        fullName = "Yan Bohao",
-        email = "bohao.yan@example.com",
-        password = "password123",
-        agreed = true,
     )
 
     override fun getJobFeed() = JobFeedData(
@@ -90,37 +70,6 @@ object FakeCandidateRepository : CandidateRepository {
         title = "Learning is not available yet",
         description = "We're preparing personalized learning paths. Continue with Jobs, Messages, or Me below.",
     )
-
-    override fun getConversations() = listOf(
-        Conversation("mia", "M", "Mia Chen", "Moonshot AI · We'd like to invite you to interview.", NOW, 2),
-        Conversation("daniel", "D", "Daniel Wu", "ByteLab · Your application has moved to Interview.", "2026-08-08T02:00:00Z", 1),
-        Conversation("sophie", "S", "Sophie Lin", "MiniMax · Thanks for applying. We'll review your resume.", "2026-08-04T02:00:00Z"),
-        Conversation("kevin", "K", "Kevin Zhao", "Talent Partner · Could you share your availability this week?", "2026-08-03T02:00:00Z"),
-        Conversation("support", "AD", "AD Project Support", "Welcome! Your profile is ready.", "2026-08-01T02:00:00Z"),
-    )
-
-    override fun getChatThread(conversationId: String) = ChatThread(
-        conversationId = conversationId,
-        participantInitial = "M",
-        participantName = "Mia Chen",
-        participantSubtitle = "Moonshot AI · Online",
-        jobId = "moonshot",
-        invitationLabel = "INTERVIEW INVITATION",
-        jobTitle = "AI Backend Engineer",
-        scheduledAt = "2026-08-11T06:00:00Z",
-        mode = com.adproject.candidate.data.contract.InterviewMode.ONLINE,
-        dayLabel = "Today",
-        messages = listOf(
-            ChatMessage("msg_001", conversationId, "Hi Bohao, thanks for applying to the AI Backend Engineer role. We'd like to invite you to a 30-minute interview.", SenderType.RECRUITER, "2026-08-09T01:36:00Z"),
-            ChatMessage("msg_002", conversationId, "Would Tuesday, Aug 11 at 2:00 PM work for you? The interview will be held online.", SenderType.RECRUITER, "2026-08-09T01:37:00Z"),
-            ChatMessage("msg_003", conversationId, "Thank you! Tuesday at 2:00 PM works for me.", SenderType.CANDIDATE, "2026-08-09T01:40:00Z"),
-            ChatMessage("msg_004", conversationId, "Great — I’ve sent the meeting details. You can also view them in My Applications.", SenderType.RECRUITER, NOW),
-        ),
-        status = "✓ Interview scheduled · Tuesday, Aug 11",
-    )
-
-    override fun sendMessage(conversationId: String, body: String) =
-        ChatMessage("msg_local", conversationId, body, SenderType.CANDIDATE, NOW)
 
     override fun getProfile() = CandidateProfile(
         fullName = "Yan Bohao",

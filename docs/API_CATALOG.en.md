@@ -83,13 +83,13 @@ Counting formula: `20 + 29 - 4 = 45`.
 | DRAFT | MVP | GET | `/recruiter/me` | `getRecruiterMe` | NO | YES | Recruiter self | — | 200 | 401, 404, 403 |
 | DRAFT | MVP | GET | `/recruiter/company` | `getRecruiterCompany` | NO | YES | Recruiter company member; current company scope only | — | 200 | 401, 404, 403 |
 | DRAFT | MVP | PATCH | `/recruiter/company` | `updateRecruiterCompany` | NO | YES | Recruiter company admin capability; current company scope only | body: UpdateCompanyRequest | 200 | 401, 404, 403, 409, 422 |
-| DRAFT | MVP | GET | `/recruiter/dashboard` | `getRecruiterDashboard` | NO | YES | Recruiter; own-company aggregate | params: from/to | 200 | 401, 404, 403 |
+| IMPLEMENTED | MVP | GET | `/recruiter/dashboard` | `getRecruiterDashboard` | NO | YES | Recruiter; own-company aggregate | — | 200 | 401, 404, 403 |
 
 ### Jobs
 
 | Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | MVP | GET | `/jobs` | `listJobs` | YES | NO | Candidate role; returns ACTIVE visible jobs only | params: q/employmentType/category/Page/PageSize | 200 | 401, 403 |
+| DRAFT | MVP | GET | `/jobs` | `listJobs` | YES | NO | Candidate role; returns ACTIVE visible jobs only | params: q/employmentType/Page/PageSize | 200 | 401, 403 |
 | DRAFT | MVP | GET | `/jobs/{jobId}` | `getJob` | YES | NO | Candidate role; ACTIVE visible job only | params: JobId | 200 | 404, 401, 403 |
 | DRAFT | MVP | GET | `/recruiter/jobs` | `listRecruiterJobs` | NO | YES | Recruiter; own company | params: q/status/employmentType/location/ownerId/Page/PageSize | 200 | 401, 404, 403 |
 | DRAFT | MVP | POST | `/recruiter/jobs` | `createRecruiterJob` | NO | YES | Recruiter; verified own company | body: CreateJobRequest | 201 | 401, 404, 403, 409, 422 |
@@ -124,21 +124,21 @@ Counting formula: `20 + 29 - 4 = 45`.
 
 | Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | MVP | GET | `/candidate/conversations` | `listConversations` | YES | NO | Candidate conversation participant only | params: Page/PageSize | 200 | 401, 403 |
-| DRAFT | MVP | GET | `/candidate/conversations/{conversationId}` | `getConversation` | YES | NO | Candidate conversation participant only | params: ConversationId | 200 | 404, 401, 403 |
-| DRAFT | MVP | PUT | `/candidate/conversations/{conversationId}/read-state` | `updateConversationReadState` | YES | NO | Candidate conversation participant only | params: ConversationId; body: ReadStateRequest | 204 | 404, 401, 403, 409, 422 |
-| DRAFT | MVP | GET | `/recruiter/conversations` | `listRecruiterConversations` | NO | YES | Recruiter participant; own-company jobs | params: q/unreadOnly/Page/PageSize | 200 | 401, 404, 403 |
-| DRAFT | MVP | GET | `/recruiter/conversations/{conversationId}` | `getRecruiterConversation` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId | 200 | 401, 404, 403 |
-| DRAFT | MVP | PUT | `/recruiter/conversations/{conversationId}/read-state` | `updateRecruiterConversationReadState` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId; body: ReadStateRequest | 204 | 401, 403, 409, 422, 404 |
+| IMPLEMENTED | MVP | GET | `/candidate/conversations` | `listConversations` | YES | NO | Candidate conversation participant only | params: Page/PageSize | 200 | 401, 403 |
+| IMPLEMENTED | MVP | GET | `/candidate/conversations/{conversationId}` | `getConversation` | YES | NO | Candidate conversation participant only | params: ConversationId | 200 | 404, 401, 403 |
+| IMPLEMENTED | MVP | PUT | `/candidate/conversations/{conversationId}/read-state` | `updateConversationReadState` | YES | NO | Candidate conversation participant only | params: ConversationId; body: ReadStateRequest | 204 | 404, 401, 403, 409, 422 |
+| IMPLEMENTED | MVP | GET | `/recruiter/conversations` | `listRecruiterConversations` | NO | YES | Recruiter participant; own-company jobs | params: q/unreadOnly/Page/PageSize | 200 | 401, 404, 403 |
+| IMPLEMENTED | MVP | GET | `/recruiter/conversations/{conversationId}` | `getRecruiterConversation` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId | 200 | 401, 404, 403 |
+| IMPLEMENTED | MVP | PUT | `/recruiter/conversations/{conversationId}/read-state` | `updateRecruiterConversationReadState` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId; body: ReadStateRequest | 204 | 401, 403, 409, 422, 404 |
 
 ### Messages
 
 | Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DRAFT | MVP | GET | `/candidate/conversations/{conversationId}/messages` | `listMessages` | YES | NO | Candidate conversation participant only | params: ConversationId/before/limit | 200 | 404, 401, 403 |
-| DRAFT | MVP | POST | `/candidate/conversations/{conversationId}/messages` | `sendMessage` | YES | NO | Candidate conversation participant only | params: ConversationId/IdempotencyKey; body: SendMessageRequest | 201 | 404, 422, 401, 403, 409 |
-| DRAFT | MVP | GET | `/recruiter/conversations/{conversationId}/messages` | `listRecruiterMessages` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId/before/limit | 200 | 401, 404, 403 |
-| DRAFT | MVP | POST | `/recruiter/conversations/{conversationId}/messages` | `sendRecruiterMessage` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId/IdempotencyKey; body: SendMessageRequest | 201 | 401, 404, 403, 409, 422 |
+| IMPLEMENTED | MVP | GET | `/candidate/conversations/{conversationId}/messages` | `listMessages` | YES | NO | Candidate conversation participant only | params: ConversationId/before/limit | 200 | 404, 401, 403 |
+| IMPLEMENTED | MVP | POST | `/candidate/conversations/{conversationId}/messages` | `sendMessage` | YES | NO | Candidate conversation participant only | params: ConversationId/IdempotencyKey; body: SendMessageRequest | 201 | 404, 422, 401, 403, 409 |
+| IMPLEMENTED | MVP | GET | `/recruiter/conversations/{conversationId}/messages` | `listRecruiterMessages` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId/before/limit | 200 | 401, 404, 403 |
+| IMPLEMENTED | MVP | POST | `/recruiter/conversations/{conversationId}/messages` | `sendRecruiterMessage` | NO | YES | Recruiter participant; own-company conversation; cross-company resources return 404 | params: conversationId/IdempotencyKey; body: SendMessageRequest | 201 | 401, 404, 403, 409, 422 |
 
 ### Resume
 

@@ -15,7 +15,7 @@
 ```text
 User 1 ── 0..1 CandidateProfile
 User 1 ── 0..1 RecruiterProfile
-User 1 ── N Resume
+User 1 ── 0..1 Resume
 Company 1 ── N RecruiterProfile
 Company 1 ── N Job
 User(Candidate) 1 ── N Application
@@ -54,6 +54,11 @@ User(Admin) 1 ── N AuditLog
 | location | VARCHAR(100) | 可空 |
 | bio | TEXT | 可空 |
 | phone | VARCHAR(32) | 可空，敏感字段 |
+| version | INT | NOT NULL，乐观锁版本 |
+| created_at | DATETIME(6) | NOT NULL |
+| updated_at | DATETIME(6) | NOT NULL |
+
+当前 OpenAPI MVP 投影只使用 `headline` 和 `location`；`bio`、`phone` 不进入本阶段 API。
 
 ### companies
 
@@ -84,17 +89,17 @@ User(Admin) 1 ── N AuditLog
 |---|---|---|
 | id | UUID/CHAR(36) | PK |
 | candidate_id | UUID/CHAR(36) | FK users, NOT NULL |
-| title | VARCHAR(150) | NOT NULL |
-| summary | TEXT | 可空 |
-| structured_data | JSON | 技能、经历、教育、项目 |
-| file_url | VARCHAR(1000) | 可空 |
-| parse_status | VARCHAR(32) | NOT_REQUIRED/PENDING/SUCCEEDED/FAILED |
-| is_default | BOOLEAN | NOT NULL |
+| full_name | VARCHAR(100) | NOT NULL |
+| age | INT | NOT NULL，16–100 |
+| location | VARCHAR(100) | NOT NULL |
+| headline | VARCHAR(200) | NOT NULL |
+| summary | TEXT | NOT NULL |
+| experiences_json | TEXT/JSON | OpenAPI Experience 数组，保持提交顺序 |
 | version | INT | 乐观锁或业务版本 |
 | created_at | DATETIME(6) | NOT NULL |
 | updated_at | DATETIME(6) | NOT NULL |
 
-每个求职者最多一份默认简历。可通过事务、唯一辅助字段或服务端规则保证。
+MVP 每个求职者最多一份简历，由 `UNIQUE(candidate_id)` 强制保证。多简历、文件上传、教育和技能字段在契约确定前不加入正式表。
 
 ### jobs
 
@@ -126,15 +131,39 @@ User(Admin) 1 ── N AuditLog
 | job_id | UUID/CHAR(36) | FK jobs, NOT NULL |
 | candidate_id | UUID/CHAR(36) | FK users, NOT NULL |
 | resume_id | UUID/CHAR(36) | FK resumes, NOT NULL |
-| resume_snapshot | JSON | 投递时简历快照，NOT NULL |
-| status | VARCHAR(32) | SUBMITTED/SCREENING/INTERVIEW/OFFERED/REJECTED/WITHDRAWN |
-| recruiter_note | TEXT | 仅招聘者可见 |
-| submitted_at | DATETIME(6) | NOT NULL |
+| resume_snapshot_id | UUID/CHAR(36) | FK resume_snapshots, UNIQUE, NOT NULL |
+| contact_email | VARCHAR(255) | 投递时使用的联系邮箱，NOT NULL |
+| share_profile | BOOLEAN | 是否共享 Candidate Profile，NOT NULL |
+| status | VARCHAR(32) | APPLIED/IN_REVIEW/INTERVIEW/REJECTED/WITHDRAWN |
+| applied_at | DATETIME(6) | NOT NULL |
 | updated_at | DATETIME(6) | NOT NULL |
+| version | INT | NOT NULL，初始值为 1 |
 
 唯一约束：`UNIQUE(job_id, candidate_id)`。
 
-### application_status_history
+### resume_snapshots
+
+每次成功投递创建一行不可变快照，字段复制投递瞬间的完整 Resume：
+
+| 字段 | 类型建议 | 约束/说明 |
+|---|---|---|
+| id | UUID/CHAR(36) | PK，对外 `snapshotId` |
+| resume_id | UUID/CHAR(36) | FK resumes, NOT NULL |
+| candidate_id | UUID/CHAR(36) | FK users, NOT NULL |
+| full_name | VARCHAR(100) | NOT NULL |
+| age | INT | NOT NULL |
+| location | VARCHAR(100) | NOT NULL |
+| headline | VARCHAR(200) | NOT NULL |
+| summary | TEXT | NOT NULL |
+| experiences_json | TEXT/JSON | 保持 Resume Experience 提交顺序 |
+| resume_version | INT | 投递瞬间的 Resume version，NOT NULL |
+| resume_created_at | DATETIME(6) | 投递瞬间 Resume createdAt，NOT NULL |
+| resume_updated_at | DATETIME(6) | 投递瞬间 Resume updatedAt，NOT NULL |
+| captured_at | DATETIME(6) | NOT NULL |
+
+快照不提供修改 API；后续 Resume 更新不得改变既有快照。
+
+### application_status_events
 
 | 字段 | 类型建议 | 约束/说明 |
 |---|---|---|
@@ -145,6 +174,9 @@ User(Admin) 1 ── N AuditLog
 | changed_by | UUID/CHAR(36) | FK users |
 | note | VARCHAR(500) | 可空 |
 | changed_at | DATETIME(6) | NOT NULL |
+
+首次记录使用 `from_status=NULL`、`to_status=APPLIED`，并与 Application、Resume Snapshot、
+幂等结果和职位申请人数更新处于同一事务。
 
 ### recommendation_events
 

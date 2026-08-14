@@ -1,30 +1,50 @@
 import type {
-  ApplicationStatus, ConversationView, CreateInterviewRequest, Dashboard, JobDraft,
-  JobStatus, RecruiterApplicationCounts, RecruiterApplicationDetail,
+  ApplicationStatus, ConversationDetail, ConversationListResult, Dashboard, JobDraft, EmploymentType,
+  JobStatus, Message, MessageListResult, PageMeta, RecruiterApplicationDetail, RecruiterApplicationListResult,
   RecruiterJobSummary, RecruiterProfile,
 } from '../models/recruiter';
 
 export type RecruiterTransitionStatus = Extract<ApplicationStatus, 'IN_REVIEW' | 'INTERVIEW' | 'REJECTED'>;
-export interface ListApplicationsParams { status?: ApplicationStatus; search?: string; jobId?: string }
+export type RecruiterJobStatusTarget = Extract<JobStatus, 'ACTIVE' | 'PAUSED' | 'CLOSED'>;
+export type ApplicationSort = 'appliedAt,desc' | 'appliedAt,asc' | 'updatedAt,desc' | 'updatedAt,asc';
+export interface ListApplicationsParams {
+  status?: ApplicationStatus;
+  q?: string;
+  jobId?: string;
+  page?: number;
+  pageSize?: number;
+  sort?: ApplicationSort;
+}
+export interface ListJobsParams {
+  q?: string;
+  status?: JobStatus;
+  employmentType?: EmploymentType;
+  location?: string;
+  ownerId?: string;
+  page?: number;
+  pageSize?: number;
+}
+export interface JobListResult { data: RecruiterJobSummary[]; meta: PageMeta }
 
 export interface RecruiterRepository {
   signIn(email: string, password: string): Promise<RecruiterProfile>;
   register(fullName: string, companyName: string, email: string, password: string): Promise<RecruiterProfile>;
   getMe(): Promise<RecruiterProfile>;
   getDashboard(): Promise<Dashboard>;
-  listJobs(): Promise<RecruiterJobSummary[]>;
-  getJob(jobId: string): Promise<RecruiterJobSummary | undefined>;
-  saveJob(input: JobDraft, jobId?: string, publish?: boolean): Promise<RecruiterJobSummary>;
-  setJobStatus(jobId: string, status: JobStatus): Promise<RecruiterJobSummary>;
-  getApplicationCounts(): Promise<RecruiterApplicationCounts>;
-  listApplications(params: ListApplicationsParams): Promise<RecruiterApplicationDetail[]>;
-  getApplication(applicationId: string): Promise<RecruiterApplicationDetail | undefined>;
-  updateApplicationStatus(applicationId: string, status: RecruiterTransitionStatus): Promise<RecruiterApplicationDetail>;
-  saveApplicationNote(applicationId: string, body: string): Promise<RecruiterApplicationDetail>;
-  scheduleInterview(applicationId: string, request: CreateInterviewRequest): Promise<RecruiterApplicationDetail>;
-  listConversations(): Promise<ConversationView[]>;
-  getConversation(conversationId: string): Promise<ConversationView | undefined>;
-  sendMessage(conversationId: string, body: string): Promise<MessageResult>;
+  listJobs(params?: ListJobsParams): Promise<JobListResult>;
+  getJob(jobId: string): Promise<RecruiterJobSummary>;
+  createJob(input: JobDraft): Promise<RecruiterJobSummary>;
+  updateJob(jobId: string, input: JobDraft, expectedVersion: number): Promise<RecruiterJobSummary>;
+  publishJob(jobId: string, expectedVersion: number): Promise<RecruiterJobSummary>;
+  changeJobStatus(jobId: string, status: RecruiterJobStatusTarget, reason: string,
+                  expectedVersion: number): Promise<RecruiterJobSummary>;
+  listApplications(params?: ListApplicationsParams): Promise<RecruiterApplicationListResult>;
+  getApplication(applicationId: string): Promise<RecruiterApplicationDetail>;
+  updateApplicationStatus(applicationId: string, status: RecruiterTransitionStatus, reason: string,
+                          expectedVersion: number): Promise<RecruiterApplicationDetail>;
+  listConversations(): Promise<ConversationListResult>;
+  getConversation(conversationId: string): Promise<ConversationDetail>;
+  listMessages(conversationId: string): Promise<MessageListResult>;
+  sendMessage(conversationId: string, body: string): Promise<Message>;
+  markRead(conversationId: string, lastReadMessageId: string): Promise<void>;
 }
-
-export interface MessageResult { conversation: ConversationView }

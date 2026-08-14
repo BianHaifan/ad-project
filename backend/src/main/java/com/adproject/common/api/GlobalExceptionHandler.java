@@ -1,6 +1,8 @@
 package com.adproject.common.api;
 
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import jakarta.validation.ConstraintViolationException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -10,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -36,8 +40,39 @@ public class GlobalExceptionHandler {
         if (exception.getCause() instanceof UnrecognizedPropertyException unrecognized) {
             field = unrecognized.getPropertyName();
         }
+        if (exception.getCause() instanceof InvalidFormatException invalid && invalid.getTargetType().isEnum()) {
+            field = invalid.getPath().isEmpty() ? "request" : invalid.getPath().getLast().getFieldName();
+            return response(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request validation failed",
+                    Map.of(field, "has an invalid enum value"), request);
+        }
         return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Malformed request body",
                 Map.of(field, "is not allowed or has an invalid value"), request);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException exception,
+                                                     HttpServletRequest request) {
+        return response(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request validation failed",
+                Map.of(exception.getName(), "has an invalid value"), request);
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException exception,
+                                                      HttpServletRequest request) {
+        return response(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request validation failed",
+                Map.of(exception.getHeaderName(), "is required"), request);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException exception,
+                                                            HttpServletRequest request) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        exception.getConstraintViolations().forEach(violation -> {
+            String path = violation.getPropertyPath().toString();
+            String field = path.substring(path.lastIndexOf('.') + 1);
+            errors.putIfAbsent(field, violation.getMessage());
+        });
+        return response(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request validation failed", errors, request);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

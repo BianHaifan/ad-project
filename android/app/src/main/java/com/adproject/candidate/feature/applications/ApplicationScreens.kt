@@ -175,64 +175,6 @@ private fun NextStep(number: String, title: String, copy: String) {
     }
 }
 
-@Composable
-fun MyApplicationsScreen(data: ApplicationsData, onTab: (MainTab) -> Unit, onBack: () -> Unit, onApplication: (String) -> Unit) {
-    Scaffold(bottomBar = { AdBottomBar(MainTab.Me, onTab) }, containerColor = AdBackground) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            Row(Modifier.fillMaxWidth().height(96.dp).background(Color.White).padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
-                    FigmaSvg(R.raw.icon_back, "Back", Modifier.size(24.dp))
-                }
-                Column(Modifier.weight(1f)) {
-                    Text("My applications", color = AdText, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                    Text("Track every application and next step", color = AdMuted, fontSize = 12.sp)
-                }
-                TagChip("${data.activeCount} active", accent = true)
-            }
-            Row(Modifier.fillMaxWidth().height(54.dp).background(Color.White).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Active  ${data.activeCount}", "Interview  ${data.interviewCount}", "Archived  ${data.archivedCount}").forEachIndexed { index, text ->
-                    Box(Modifier.weight(1f).height(38.dp).clip(RoundedCornerShape(11.dp)).background(if (index == 0) Color(0xFFE4F8F6) else Color(0xFFF4F6F7)), contentAlignment = Alignment.Center) {
-                        Text(text, color = if (index == 0) AdTealDark else Color(0xFF6B7682), fontSize = 12.sp, fontWeight = if (index == 0) FontWeight.SemiBold else FontWeight.Medium)
-                    }
-                }
-            }
-            LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                items(data.applications, key = { it.applicationId }) { app -> ApplicationCard(app, onApplication) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ApplicationCard(application: Application, onApplication: (String) -> Unit) {
-    AdCard(Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { onApplication(application.jobId) }) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(AdTealSoft), contentAlignment = Alignment.Center) { Text(application.initial, color = AdTealDark, fontSize = 12.sp) }
-                Spacer(Modifier.width(9.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(application.title, color = Color(0xFF111827), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text(application.company, color = AdMuted, fontSize = 10.sp)
-                }
-                TagChip(application.status.displayLabel(), accent = true)
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(application.scheduledAt?.let { "Interview · ${formatDateTime(it)}" } ?: "Applied ${formatDateTime(application.appliedAt)}", color = Color(0xFF8A939C), fontSize = 9.sp)
-                Text("${application.match}% ML match", color = AdTealDark, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { application.timeline.forEach { step -> StatusDot(step.status.displayLabel(), step.completed) } }
-        }
-    }
-}
-
-private fun com.adproject.candidate.data.contract.ApplicationStatus.displayLabel() = when (this) {
-    com.adproject.candidate.data.contract.ApplicationStatus.APPLIED -> "Applied"
-    com.adproject.candidate.data.contract.ApplicationStatus.IN_REVIEW -> "In review"
-    com.adproject.candidate.data.contract.ApplicationStatus.INTERVIEW -> "Interview"
-    com.adproject.candidate.data.contract.ApplicationStatus.REJECTED -> "Rejected"
-    com.adproject.candidate.data.contract.ApplicationStatus.WITHDRAWN -> "Withdrawn"
-}
-
 private fun formatDateTime(value: String): String = runCatching {
     java.time.OffsetDateTime.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm"))
 }.getOrDefault(value)

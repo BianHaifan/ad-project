@@ -1,22 +1,54 @@
 import {useNavigate} from 'react-router-dom';
 import {useDashboard} from '../api/queries';
-import {ErrorState, LoadingState} from '../components/AsyncState';
+import {EmptyState, ErrorState, LoadingState} from '../components/AsyncState';
 import {PageHeader} from '../components/PageHeader';
 import {StatusBadge} from '../components/StatusBadge';
+import type {Dashboard} from '../models/recruiter';
 
 export function DashboardPage() {
-  const nav = useNavigate(); const query = useDashboard();
-  if (query.isLoading) return <LoadingState/>;
+  const nav = useNavigate();
+  const query = useDashboard();
+  if (query.isLoading) return <LoadingState label="Loading dashboard…"/>;
   if (query.isError || !query.data) return <ErrorState onRetry={() => query.refetch()}/>;
   const dashboard = query.data;
-  const metrics = [
-    ['Open Roles', dashboard.metrics.openRoles, '4 AI/LLM roles need updates', '/recruiter/jobs'],
-    ['New Matches', dashboard.metrics.newMatches, 'Recommended by ML algorithm', '/recruiter/applications'],
-    ['Pending Resumes', dashboard.metrics.pendingResumes, 'Need HR review', '/recruiter/applications?stage=APPLIED'],
-    ['Interviews', dashboard.metrics.interviews, 'Scheduled this week', '/recruiter/applications?stage=INTERVIEW'],
-    ['Verification', dashboard.metrics.verification, 'Company profile verified', ''],
-  ];
-  return <><PageHeader title="Recruiter Dashboard" subtitle="Manage AI roles, review resumes, and discover matching candidates." actions={<button className="button primary" onClick={() => nav('/recruiter/jobs/new')}>Create Job Posting</button>}/><section className="metric-grid">{metrics.map(([label, value, help, to]) => <button className="metric-card" key={label} onClick={() => to && nav(String(to))}><strong>{value}</strong><b>{label}</b><small>{help}</small></button>)}</section><section className="dashboard-grid"><article className="panel"><h2>Talent Pool Recommendations</h2><div className="stack-list">{dashboard.recommendedApplications.map(application => <button className="candidate-card" key={application.applicationId} onClick={() => nav(`/recruiter/applications/${application.applicationId}`)}><span className="avatar large">{initials(application.candidate.fullName)}</span><span className="grow"><b>{application.candidate.fullName}</b><small>{application.candidate.headline}</small></span><span className="match-badge">{application.matchScore ?? 0}% match</span><StatusBadge status={application.status}/></button>)}</div></article><article className="panel"><h2>Job Postings</h2><div className="stack-list">{dashboard.recentJobs.map(job => <button className="job-card" key={job.jobId} onClick={() => nav(`/recruiter/jobs/${job.jobId}/edit`)}><span><b>{job.title}</b><small><StatusBadge status={job.status}/> · {job.applicantCount} applicants</small></span><span className="muted">Edit</span></button>)}</div></article></section></>;
+  const cards = metricCards(dashboard);
+  return <>
+    <PageHeader title="Recruiter Dashboard" subtitle="Track your company's active roles and incoming applications."/>
+    <section className="metric-grid">{cards.map(card =>
+      <button className="metric-card" key={card.label} onClick={() => card.to && nav(card.to)}>
+        <strong>{card.value}</strong><b>{card.label}</b><small>{card.help}</small>
+      </button>)}</section>
+    <section className="dashboard-grid">
+      <article className="panel"><h2>Recent applications</h2>
+        {dashboard.recentApplications.length === 0
+          ? <EmptyState title="No applications yet" description="Applications to your company's jobs will appear here."/>
+          : <div className="stack-list">{dashboard.recentApplications.map(application =>
+            <button className="candidate-card" key={application.applicationId}
+              onClick={() => nav(`/recruiter/applications/${application.applicationId}`)}>
+              <span className="avatar large">{initials(application.candidate.fullName)}</span>
+              <span className="grow"><b>{application.candidate.fullName}</b>
+                <small>{application.jobTitle}</small></span>
+              <StatusBadge status={application.status}/>
+            </button>)}</div>}
+      </article>
+      <article className="panel"><h2>Recent job postings</h2>
+        {dashboard.recentJobs.length === 0
+          ? <EmptyState title="No job postings yet" description="Create a job posting to get started."/>
+          : <div className="stack-list">{dashboard.recentJobs.map(job =>
+            <button className="job-card" key={job.jobId} onClick={() => nav(`/recruiter/jobs/${job.jobId}`)}>
+              <span><b>{job.title}</b><small><StatusBadge status={job.status}/> · {job.applicantCount} applicants</small></span>
+            </button>)}</div>}
+      </article>
+    </section>
+  </>;
 }
+
+const metricCards = (dashboard: Dashboard): {label: string; value: number | string; help: string; to: string}[] => [
+  {label: 'Open Roles', value: dashboard.metrics.activeJobs, help: 'Active job postings', to: '/recruiter/jobs?status=ACTIVE'},
+  {label: 'New Applications', value: dashboard.metrics.appliedApplications, help: 'Awaiting review', to: '/recruiter/applications?stage=APPLIED'},
+  {label: 'In Review', value: dashboard.metrics.inReviewApplications, help: 'Under recruiter review', to: '/recruiter/applications?stage=IN_REVIEW'},
+  {label: 'Interviews', value: dashboard.metrics.interviewApplications, help: 'Moved to interview', to: '/recruiter/applications?stage=INTERVIEW'},
+  {label: 'Verification', value: dashboard.metrics.companyVerificationStatus, help: 'Company verification status', to: ''},
+];
 
 const initials = (fullName: string) => fullName.split(' ').map(part => part[0]).join('').slice(0, 2);

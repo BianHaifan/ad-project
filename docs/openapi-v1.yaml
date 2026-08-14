@@ -155,15 +155,6 @@ paths:
         in: query
         schema:
           $ref: '#/components/schemas/EmploymentType'
-      - name: category
-        in: query
-        schema:
-          type: string
-          enum:
-          - RECOMMENDED
-          - AI_LLM
-          - BACKEND
-          - DATA
       - $ref: '#/components/parameters/Page'
       - $ref: '#/components/parameters/PageSize'
       responses:
@@ -297,7 +288,11 @@ paths:
       x-clients:
       - Candidate
       x-permission: Candidate self only
-      description: 'Permission: Candidate self only. Status: DRAFT. Clients: Candidate.'
+      description: 'Permission: Candidate self only. Status: DRAFT. Clients: Candidate. Filter groups: ACTIVE
+        maps to APPLIED and IN_REVIEW; INTERVIEW maps to INTERVIEW; ARCHIVED maps to REJECTED and WITHDRAWN.
+        Counts are calculated across all of the current Candidate''s applications before filtering and pagination.
+        Default stable sort: appliedAt DESC, then applicationId DESC. Timeline entries come from persisted
+        application_status_events ordered by occurredAt ASC, then event id ASC.'
       x-mvp-scope: MVP
   /candidate/applications/{applicationId}:
     get:
@@ -362,11 +357,11 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Candidate
       x-permission: Candidate conversation participant only
-      description: 'Permission: Candidate conversation participant only. Status: DRAFT. Clients: Candidate.'
+      description: 'Permission: Candidate conversation participant only. Status: IMPLEMENTED. Clients: Candidate.'
       x-mvp-scope: MVP
   /candidate/conversations/{conversationId}:
     get:
@@ -394,11 +389,11 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Candidate
       x-permission: Candidate conversation participant only
-      description: 'Permission: Candidate conversation participant only. Status: DRAFT. Clients: Candidate.'
+      description: 'Permission: Candidate conversation participant only. Status: IMPLEMENTED. Clients: Candidate.'
       x-mvp-scope: MVP
   /candidate/conversations/{conversationId}/messages:
     get:
@@ -433,11 +428,11 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Candidate
       x-permission: Candidate conversation participant only
-      description: 'Permission: Candidate conversation participant only. Status: DRAFT. Clients: Candidate.'
+      description: 'Permission: Candidate conversation participant only. Status: IMPLEMENTED. Clients: Candidate.'
       x-mvp-scope: MVP
     post:
       tags:
@@ -475,11 +470,11 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Candidate
       x-permission: Candidate conversation participant only
-      description: 'Permission: Candidate conversation participant only. Status: DRAFT. Clients: Candidate. Idempotency:
+      description: 'Permission: Candidate conversation participant only. Status: IMPLEMENTED. Clients: Candidate. Idempotency:
         same key + same payload returns the original result; same key + different payload returns 409 IDEMPOTENCY_KEY_REUSED.
         clientMessageId is also unique within the conversation and duplicate reuse returns the original Message
         when the payload matches.'
@@ -511,11 +506,11 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Candidate
       x-permission: Candidate conversation participant only
-      description: 'Permission: Candidate conversation participant only. Status: DRAFT. Clients: Candidate.'
+      description: 'Permission: Candidate conversation participant only. Status: IMPLEMENTED. Clients: Candidate.'
       x-mvp-scope: MVP
   /candidate/profile:
     get:
@@ -792,21 +787,10 @@ paths:
       - Profile
       summary: Get own-company dashboard
       operationId: getRecruiterDashboard
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter; own-company aggregate
-      parameters:
-      - name: from
-        in: query
-        schema:
-          type: string
-          format: date
-      - name: to
-        in: query
-        schema:
-          type: string
-          format: date
       responses:
         '200':
           description: Success
@@ -825,7 +809,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         '403':
           $ref: '#/components/responses/Forbidden'
-      description: 'Permission: Recruiter; own-company aggregate. Status: DRAFT. Clients: Recruiter.'
+      description: 'Permission: Recruiter; own-company aggregate. Status: IMPLEMENTED. Clients: Recruiter. Read-only:
+        aggregates the current company''s active jobs, application-stage counts, verification status, and the three
+        most recently updated applications and created jobs. Cross-company resources return 403/404 per policy.'
       x-mvp-scope: MVP
   /recruiter/jobs:
     get:
@@ -962,7 +948,7 @@ paths:
       x-status: DRAFT
       x-clients:
       - Recruiter
-      x-permission: Recruiter; own-company job + edit capability; cross-company resources return 404
+      x-permission: Recruiter; own-company DRAFT job + edit capability; cross-company resources return 404
       parameters:
       - $ref: '#/components/parameters/JobId'
       requestBody:
@@ -993,7 +979,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: 'Permission: Recruiter; own-company job + edit capability; cross-company resources return 404.
+      description: 'Permission: Recruiter; own-company DRAFT job + edit capability; cross-company resources return
+        404. Only DRAFT jobs are editable; ACTIVE, PAUSED, and CLOSED jobs return 409 INVALID_JOB_TRANSITION.
         Status: DRAFT. Clients: Recruiter. Concurrency: Require expectedVersion; compare atomically; on success
         increment version; mismatch returns 409 VERSION_CONFLICT.'
       x-concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch returns
@@ -1056,7 +1043,8 @@ paths:
       x-status: DRAFT
       x-clients:
       - Recruiter
-      x-permission: Recruiter; own-company job; cross-company resources return 404
+      x-permission: Recruiter; own-company job; cross-company resources return 404; PAUSED to ACTIVE additionally
+        requires an APPROVED company
       parameters:
       - $ref: '#/components/parameters/JobId'
       requestBody:
@@ -1087,12 +1075,21 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: 'Permission: Recruiter; own-company job; cross-company resources return 404. Status: DRAFT. Clients:
-        Recruiter. Audit: record actorId, companyId, before/after values, occurredAt, reason, and requestId. Concurrency:
-        Require expectedVersion; compare atomically; on success increment version; mismatch returns 409 VERSION_CONFLICT.'
+      description: 'Permission: Recruiter; own-company job; cross-company resources return 404; PAUSED to ACTIVE
+        additionally requires an APPROVED company. Allowed transitions: ACTIVE to PAUSED or CLOSED, and PAUSED
+        to ACTIVE or CLOSED. DRAFT to ACTIVE is only available through the publish endpoint; DRAFT cannot be changed
+        through this endpoint. CLOSED is terminal. Invalid or repeated transitions return 409 INVALID_JOB_TRANSITION.
+        Status: DRAFT. Clients: Recruiter. Audit: record actorId, companyId, before/after values, occurredAt, reason,
+        and requestId. Concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch
+        returns 409 VERSION_CONFLICT.'
       x-audit: true
       x-concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch returns
         409 VERSION_CONFLICT.
+      x-state-transitions:
+      - ACTIVE->PAUSED
+      - ACTIVE->CLOSED
+      - PAUSED->ACTIVE
+      - PAUSED->CLOSED
       x-mvp-scope: MVP
   /recruiter/applications:
     get:
@@ -1117,22 +1114,18 @@ paths:
         in: query
         schema:
           type: string
-      - name: ownerId
-        in: query
-        schema:
-          type: string
-      - name: minMatchScore
-        in: query
-        schema:
-          type: integer
-          minimum: 0
-          maximum: 100
+        description: Case-insensitive Candidate fullName or email search.
       - $ref: '#/components/parameters/Page'
       - $ref: '#/components/parameters/PageSize'
       - name: sort
         in: query
         schema:
           type: string
+          enum:
+          - appliedAt,desc
+          - appliedAt,asc
+          - updatedAt,desc
+          - updatedAt,asc
       responses:
         '200':
           description: Success
@@ -1146,7 +1139,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         '403':
           $ref: '#/components/responses/Forbidden'
-      description: 'Permission: Recruiter; applications to own-company jobs. Status: DRAFT. Clients: Recruiter.'
+      description: 'Permission: Recruiter; applications to own-company jobs. Status: IMPLEMENTED. Clients: Recruiter.
+        Default stable sort is appliedAt DESC then applicationId DESC. ownerId is deferred until Application owner
+        persistence exists; minMatchScore is deferred until persisted ML results exist.'
       x-mvp-scope: MVP
   /recruiter/applications/{applicationId}:
     get:
@@ -1568,7 +1563,7 @@ paths:
       - Conversations
       summary: List own-company conversations
       operationId: listRecruiterConversations
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter participant; own-company jobs
@@ -1603,7 +1598,7 @@ paths:
           $ref: '#/components/responses/NotFound'
         '403':
           $ref: '#/components/responses/Forbidden'
-      description: 'Permission: Recruiter participant; own-company jobs. Status: DRAFT. Clients: Recruiter.'
+      description: 'Permission: Recruiter participant; own-company jobs. Status: IMPLEMENTED. Clients: Recruiter.'
       x-mvp-scope: MVP
   /recruiter/conversations/{conversationId}:
     get:
@@ -1611,7 +1606,7 @@ paths:
       - Conversations
       summary: Get recruiter conversation
       operationId: getRecruiterConversation
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter participant; own-company conversation; cross-company resources return 404
@@ -1640,7 +1635,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
       description: 'Permission: Recruiter participant; own-company conversation; cross-company resources return
-        404. Status: DRAFT. Clients: Recruiter.'
+        404. Status: IMPLEMENTED. Clients: Recruiter.'
       x-mvp-scope: MVP
   /recruiter/conversations/{conversationId}/messages:
     get:
@@ -1648,7 +1643,7 @@ paths:
       - Messages
       summary: Get recruiter message history
       operationId: listRecruiterMessages
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter participant; own-company conversation; cross-company resources return 404
@@ -1683,14 +1678,14 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
       description: 'Permission: Recruiter participant; own-company conversation; cross-company resources return
-        404. Status: DRAFT. Clients: Recruiter.'
+        404. Status: IMPLEMENTED. Clients: Recruiter.'
       x-mvp-scope: MVP
     post:
       tags:
       - Messages
       summary: Send recruiter message
       operationId: sendRecruiterMessage
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter participant; own-company conversation; cross-company resources return 404
@@ -1730,7 +1725,7 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
       description: 'Permission: Recruiter participant; own-company conversation; cross-company resources return
-        404. Status: DRAFT. Clients: Recruiter. Idempotency: same key + same payload returns the original result;
+        404. Status: IMPLEMENTED. Clients: Recruiter. Idempotency: same key + same payload returns the original result;
         same key + different payload returns 409 IDEMPOTENCY_KEY_REUSED. clientMessageId is also unique within the
         conversation and duplicate reuse returns the original Message when the payload matches.'
       x-mvp-scope: MVP
@@ -1740,7 +1735,7 @@ paths:
       - Conversations
       summary: Update recruiter read state
       operationId: updateRecruiterConversationReadState
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter participant; own-company conversation; cross-company resources return 404
@@ -1770,7 +1765,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
       description: 'Permission: Recruiter participant; own-company conversation; cross-company resources return
-        404. Status: DRAFT. Clients: Recruiter.'
+        404. Status: IMPLEMENTED. Clients: Recruiter.'
       x-mvp-scope: MVP
   /candidate/applications/{applicationId}/withdraw:
     post:
@@ -1780,8 +1775,11 @@ paths:
       operationId: withdrawCandidateApplication
       description: 'Permission: Candidate application owner only. Status: DRAFT. Clients: Candidate. Allowed from
         APPLIED, IN_REVIEW, or INTERVIEW; transitions to terminal WITHDRAWN. Concurrency: require expectedVersion,
-        compare atomically, increment version on success, and return 409 VERSION_CONFLICT on mismatch. Audit actorId,
-        before/after status, occurredAt, reason, and requestId.'
+        compare atomically, increment version on success, and return 409 VERSION_CONFLICT on mismatch before
+        evaluating the transition. A matching version with a terminal source state returns 409
+        INVALID_APPLICATION_TRANSITION. Audit actorId, before/after status, occurredAt, reason, and requestId.
+        Withdrawal preserves the Application and ResumeSnapshot and does not decrement the cumulative Job
+        applicantCount.'
       parameters:
       - name: applicationId
         in: path
@@ -2655,7 +2653,8 @@ components:
       - ACTIVE
       - PAUSED
       - CLOSED
-      description: 'MVP transitions: DRAFT->ACTIVE; ACTIVE->PAUSED|CLOSED; PAUSED->ACTIVE|CLOSED; CLOSED is terminal.'
+      description: 'MVP transitions: DRAFT->ACTIVE only through the publish endpoint; ACTIVE->PAUSED|CLOSED and
+        PAUSED->ACTIVE|CLOSED through the recruiter status endpoint; CLOSED is terminal.'
     Visibility:
       type: string
       enum:
@@ -3115,16 +3114,12 @@ components:
       type: object
       required:
       - metrics
-      - recommendedApplications
+      - recentApplications
       - recentJobs
       properties:
         metrics:
-          type: object
-          additionalProperties:
-            type:
-            - integer
-            - string
-        recommendedApplications:
+          $ref: '#/components/schemas/RecruiterDashboardMetrics'
+        recentApplications:
           type: array
           items:
             $ref: '#/components/schemas/RecruiterApplicationSummary'
@@ -3132,6 +3127,33 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RecruiterJobSummary'
+    RecruiterDashboardMetrics:
+      type: object
+      required:
+      - activeJobs
+      - appliedApplications
+      - inReviewApplications
+      - interviewApplications
+      - companyVerificationStatus
+      properties:
+        activeJobs:
+          type: integer
+          minimum: 0
+        appliedApplications:
+          type: integer
+          minimum: 0
+        inReviewApplications:
+          type: integer
+          minimum: 0
+        interviewApplications:
+          type: integer
+          minimum: 0
+        companyVerificationStatus:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
     CreateJobRequest:
       type: object
       required:
@@ -3237,6 +3259,10 @@ components:
           - CLOSED
         reason:
           type: string
+          minLength: 1
+          maxLength: 500
+          pattern: ^.*\S.*$
+          description: Required non-blank audit reason for the requested status transition.
         expectedVersion:
           type: integer
           minimum: 1

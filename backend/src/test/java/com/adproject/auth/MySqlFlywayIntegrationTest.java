@@ -2,6 +2,9 @@ package com.adproject.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,7 +39,72 @@ class MySqlFlywayIntegrationTest {
     void flywayMigratesAnEmptyMySqlDatabase() {
         Integer count = jdbcTemplate.queryForObject(
                 "select count(*) from information_schema.tables where table_schema = database() and table_name in " +
-                        "('users','companies','company_members','refresh_tokens')", Integer.class);
-        assertThat(count).isEqualTo(4);
+                        "('users','companies','company_members','refresh_tokens','jobs','job_audit_events','candidate_profiles','resumes'," +
+                        "'resume_snapshots','applications','application_status_events','idempotency_records'," +
+                        "'conversations','messages','conversation_read_states')", Integer.class);
+        assertThat(count).isEqualTo(15);
+        Integer indexes = jdbcTemplate.queryForObject(
+                "select count(distinct index_name) from information_schema.statistics where table_schema = database() " +
+                        "and table_name = 'jobs' and index_name in " +
+                        "('idx_jobs_company_status','idx_jobs_company_created_id','idx_jobs_company_owner')", Integer.class);
+        assertThat(indexes).isEqualTo(3);
+        Integer auditIndexes = jdbcTemplate.queryForObject(
+                "select count(distinct index_name) from information_schema.statistics where table_schema = database() " +
+                        "and table_name = 'job_audit_events' and index_name in " +
+                        "('idx_job_audit_job_occurred','idx_job_audit_company_occurred')", Integer.class);
+        assertThat(auditIndexes).isEqualTo(2);
+    }
+
+    @Test
+    void v6MigrationCreatesConversationSchemaWithIdempotencyConstraints() {
+        Integer tables = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.tables where table_schema = database() and table_name in " +
+                        "('conversations','messages','conversation_read_states')", Integer.class);
+        assertThat(tables).isEqualTo(3);
+
+        Integer uniqueConstraints = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.table_constraints where table_schema = database() " +
+                        "and constraint_type = 'UNIQUE' and constraint_name in " +
+                        "('uk_conversations_application','uk_messages_conversation_client','uk_messages_sender_idempotency')",
+                Integer.class);
+        assertThat(uniqueConstraints).isEqualTo(3);
+
+        Integer indexes = jdbcTemplate.queryForObject(
+                "select count(distinct index_name) from information_schema.statistics where table_schema = database() " +
+                        "and index_name in " +
+                        "('idx_conversations_candidate','idx_conversations_company','idx_messages_conversation_sent')",
+                Integer.class);
+        assertThat(indexes).isEqualTo(3);
+
+        Integer checkConstraints = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.table_constraints where table_schema = database() " +
+                        "and table_name = 'messages' and constraint_type = 'CHECK' and constraint_name = 'chk_messages_body'",
+                Integer.class);
+        assertThat(checkConstraints).isEqualTo(1);
+    }
+
+    @Test
+    void mysqlPersistsCompleteJobRowsBeyondTheApplicationTransaction() {
+        String userId = UUID.randomUUID().toString();
+        String companyId = UUID.randomUUID().toString();
+        String jobId = UUID.randomUUID().toString();
+        Timestamp now = Timestamp.from(Instant.parse("2026-08-11T05:00:00Z"));
+        jdbcTemplate.update("insert into users (id,email,password_hash,full_name,role,status,accepted_terms_version,created_at,updated_at) " +
+                        "values (?,?,?,?,?,?,?,?,?)", userId, userId + "@example.com", "test-hash", "MySQL Recruiter",
+                "RECRUITER", "ACTIVE", "2026-08", now, now);
+        jdbcTemplate.update("insert into companies (id,name,verification_status,version,created_by,created_at,updated_at) " +
+                "values (?,?,?,?,?,?,?)", companyId, "MySQL Company", "APPROVED", 1, userId, now, now);
+        jdbcTemplate.update("insert into jobs (id,company_id,created_by,owner_id,title,employment_type,workplace_type," +
+                        "location,salary_min,salary_max,salary_currency,salary_period,description,requirements_json," +
+                        "skills_json,visibility,status,applicant_count,version,created_at,updated_at) " +
+                        "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                jobId, companyId, userId, userId, "Persisted MySQL Role", "FULL_TIME", "HYBRID", "Singapore",
+                5000, 8000, "SGD", "MONTH", "Persisted description", "[\"Reliable APIs\"]", "[\"Java\"]",
+                "PUBLIC", "DRAFT", 0, 1, now, now);
+
+        assertThat(jdbcTemplate.queryForObject("select title from jobs where id = ?", String.class, jobId))
+                .isEqualTo("Persisted MySQL Role");
+        assertThat(jdbcTemplate.queryForObject("select company_id from jobs where id = ?", String.class, jobId))
+                .isEqualTo(companyId);
     }
 }

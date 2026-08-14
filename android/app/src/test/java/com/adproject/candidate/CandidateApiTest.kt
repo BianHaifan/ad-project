@@ -15,7 +15,7 @@ class CandidateApiTest {
     fun recommendationFeedIsRankedAndHasStableIds() {
         val jobs = api.getJobFeed().jobs
         assertEquals(jobs.size, jobs.map { it.jobId }.distinct().size)
-        assertTrue(jobs.zipWithNext().all { (left, right) -> left.match >= right.match })
+        assertTrue(jobs.zipWithNext().all { (left, right) -> (left.match ?: 0) >= (right.match ?: 0) })
     }
 
     @Test
@@ -24,13 +24,6 @@ class CandidateApiTest {
         val applications = api.getApplications().applications
         assertTrue(applications.all { it.timeline.size == 3 })
         assertTrue(applications.all { it.jobId in jobIds })
-    }
-
-    @Test
-    fun sentChatMessageIsReturnedAsOutgoing() {
-        val message = api.sendMessage("mia", "Hello")
-        assertEquals("Hello", message.body)
-        assertEquals(com.adproject.candidate.data.contract.SenderType.CANDIDATE, message.senderType)
     }
 
     @Test
