@@ -1,0 +1,11 @@
+# ZAP alert rules policy.
+# Format: <alert_id>\t<WARN|FAIL|IGNORE>
+# Used by zaproxy/action-baseline, action-full-scan and action-api-scan
+# to control whether an alert passes or fails the build.
+#
+# Adjust entries as findings are triaged. Only IGNORE confirmed false positives.
+10038	WARN
+10096	WARN
+10108	WARN
+10027	WARN
+10049	WARN

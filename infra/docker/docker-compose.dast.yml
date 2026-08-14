@@ -1,0 +1,24 @@
+services:
+  mysql:
+    image: mysql:8.4
+
+  backend:
+    image: adproject-backend:dast
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.backend
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/adproject?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+      DB_USERNAME: adproject
+      DB_PASSWORD: ${DB_PASSWORD:-adproject}
+      JWT_SECRET: ${JWT_SECRET:-}
+    ports:
+      - "8080:8080"
+
+  web:
+    image: adproject-web:dast
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
+    ports:
+      - "80:80"
