@@ -25,6 +25,12 @@ jobs:
       - name: run maven pmd static analysis
         working-directory: backend
         run: mvn -B pmd:check
+      - name: upload backend pmd report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-pmd-report
+          path: backend/target/pmd.xml
       - name: upload backend test report
         uses: actions/upload-artifact@v4
         if: always()

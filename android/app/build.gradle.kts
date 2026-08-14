@@ -38,13 +38,13 @@ android {
                 ?: System.getenv("RELEASE_KEYSTORE_PASSWORD")
             val keyPass = providers.gradleProperty("RELEASE_KEY_ALIAS_PASSWORD").orNull
                 ?: System.getenv("RELEASE_KEY_ALIAS_PASSWORD")
-            val keyAlias = providers.gradleProperty("RELEASE_KEY_ALIAS").orNull
+            val alias = providers.gradleProperty("RELEASE_KEY_ALIAS").orNull
                 ?: System.getenv("RELEASE_KEY_ALIAS")
-            if (keystorePath != null && storePass != null && keyPass != null && keyAlias != null) {
+            if (keystorePath != null && storePass != null && keyPass != null && alias != null) {
                 signingConfig = signingConfigs.create("release") {
                     storeFile = file(keystorePath)
                     storePassword = storePass
-                    keyAlias = keyAlias
+                    keyAlias = alias
                     keyPassword = keyPass
                 }
             }
