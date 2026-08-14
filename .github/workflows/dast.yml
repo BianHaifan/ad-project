@@ -39,7 +39,7 @@ jobs:
           curl -s -o /dev/null -w 'backend login probe: %{http_code}\n' -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{}'
           curl -s -o /dev/null -w 'web index: %{http_code}\n' http://localhost/
       - name: ZAP baseline scan
-        uses: zaproxy/action-baseline@v0.12.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: http://localhost
           rules_file_name: .zap/rules.tsv
