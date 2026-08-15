@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -144,6 +145,7 @@ class GoogleOAuthIntegrationTest {
                 .andExpect(status().isSeeOther())
                 .andExpect(header().string("Location", WEB_RETURN_URI + "?googleOAuth=failed"))
                 .andExpect(header().string("Cache-Control", "no-store"));
+        verifyNoInteractions(googleOAuthClient);
     }
 
     @Test void callbackRejectsReplayedState() throws Exception {

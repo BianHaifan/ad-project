@@ -39,11 +39,12 @@ public class SecretCipher {
             Cipher cipher = Cipher.getInstance(ALGORITHM);
             cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(TAG_LENGTH_BITS, iv));
             byte[] ciphertext = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
-            byte[] combined = new byte[iv.length + ciphertext.length];
+            int combinedLength = Math.addExact(IV_LENGTH_BYTES, ciphertext.length);
+            byte[] combined = new byte[combinedLength];
             System.arraycopy(iv, 0, combined, 0, iv.length);
             System.arraycopy(ciphertext, 0, combined, iv.length, ciphertext.length);
             return Base64.getEncoder().encodeToString(combined);
-        } catch (GeneralSecurityException e) {
+        } catch (GeneralSecurityException | ArithmeticException e) {
             throw new IllegalStateException("Unable to encrypt secret", e);
         }
     }

@@ -1,7 +1,9 @@
 package com.adproject.integration.google.application;
 
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 
 /**
  * Validates the server-configured Google OAuth "web return URI": the single
@@ -11,7 +13,7 @@ import java.net.URISyntaxException;
  *
  * <p>Rules: the URI must be absolute, carry no userinfo or fragment, and use
  * HTTPS. Plain HTTP is allowed only for an explicit loopback host ({@code
- * localhost}, {@code 127.0.0.1}, {@code ::1}) during local development.
+ * localhost} or an IP loopback address during local development.
  */
 public final class WebReturnUriValidator {
     private WebReturnUriValidator() {}
@@ -66,8 +68,21 @@ public final class WebReturnUriValidator {
     private static boolean isLoopback(String host) {
         String normalized = host.startsWith("[") && host.endsWith("]")
                 ? host.substring(1, host.length() - 1) : host;
-        return "localhost".equalsIgnoreCase(normalized)
-                || "127.0.0.1".equals(normalized)
-                || "::1".equals(normalized);
+        if ("localhost".equalsIgnoreCase(normalized)) {
+            return true;
+        }
+        if (!isIpLiteral(normalized)) {
+            return false;
+        }
+        try {
+            return InetAddress.getByName(normalized).isLoopbackAddress();
+        } catch (UnknownHostException e) {
+            return false;
+        }
+    }
+
+    private static boolean isIpLiteral(String host) {
+        return !host.isBlank() && host.chars().allMatch(character ->
+                Character.digit(character, 16) >= 0 || character == ':' || character == '.');
     }
 }

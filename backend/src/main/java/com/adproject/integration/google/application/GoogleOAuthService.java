@@ -114,10 +114,16 @@ public class GoogleOAuthService {
         if (code == null || code.isBlank()) {
             return GoogleOAuthCallbackOutcome.FAILED;
         }
+        return exchangeForConsumedState(consumed, code);
+    }
+
+    private GoogleOAuthCallbackOutcome exchangeForConsumedState(ConsumedGoogleOAuthState consumed,
+                                                                 String authorizationCode) {
         try {
             Instant now = DatabaseTimePrecision.micros(clock.instant());
             String verifier = cipher.decrypt(consumed.pkceVerifierEncrypted());
-            TokenExchangeResult tokens = client.exchangeAuthorizationCode(code, properties.redirectUri(), verifier);
+            TokenExchangeResult tokens = client.exchangeAuthorizationCode(
+                    authorizationCode, properties.redirectUri(), verifier);
             persistConnection(consumed.recruiterId(), tokens, now);
             return GoogleOAuthCallbackOutcome.CONNECTED;
         } catch (RuntimeException e) {

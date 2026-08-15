@@ -16,6 +16,7 @@ class WebReturnUriValidatorTest {
     @Test void acceptsLoopbackHttpUris() {
         assertThat(WebReturnUriValidator.parse("http://localhost:3000/recruiter/google-oauth")).isNotNull();
         assertThat(WebReturnUriValidator.parse("http://127.0.0.1:3000/recruiter/google-oauth")).isNotNull();
+        assertThat(WebReturnUriValidator.parse("http://127.0.0.2:3000/recruiter/google-oauth")).isNotNull();
         assertThat(WebReturnUriValidator.parse("http://[::1]:3000/recruiter/google-oauth")).isNotNull();
     }
 

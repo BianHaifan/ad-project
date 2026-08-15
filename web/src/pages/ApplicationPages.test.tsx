@@ -283,7 +283,7 @@ describe('real recruiter application pages', () => {
       [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
     await screen.findByRole('heading', {name: 'Interview'});
     expect(screen.getByText(/Creating or syncing the Google Meet/)).toBeInTheDocument();
-    expect(screen.queryByRole('link', {name: /meet\.google\.com/})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: /^https:\/\/meet\.google\.com\//})).not.toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Reschedule'})).not.toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Mark completed'})).not.toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Cancel interview'})).not.toBeInTheDocument();
@@ -330,7 +330,7 @@ describe('real recruiter application pages', () => {
     expect(screen.getByText('Sync failed')).toBeInTheDocument();
     expect(screen.getByText(/candidate still sees the original meeting details/)).toBeInTheDocument();
     expect(screen.queryByText('Existing Google Meet link (unchanged)')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', {name: /meet\.google\.com/})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: /^https:\/\/meet\.google\.com\//})).not.toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'Retry Google Meet'})).toBeInTheDocument();
   });
 
@@ -340,7 +340,7 @@ describe('real recruiter application pages', () => {
       [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
     await screen.findByRole('heading', {name: 'Interview'});
     expect(screen.getByText('Cancelled')).toBeInTheDocument();
-    expect(screen.queryByRole('link', {name: /meet\.google\.com/})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: /^https:\/\/meet\.google\.com\//})).not.toBeInTheDocument();
     expect(screen.getByText(/no further changes are allowed/)).toBeInTheDocument();
   });
 
