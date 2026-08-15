@@ -6,60 +6,91 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_BACKEND: ghcr.io/bianhaifan/ad-backend
-  IMAGE_WEB: ghcr.io/bianhaifan/ad-web
+  IMAGE_BACKEND: adproject-backend:latest
+  IMAGE_WEB: adproject-web:latest
 
 jobs:
-  docker-build:
+  build-images:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build & push backend image
+      - name: Build backend image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: infra/docker/Dockerfile.backend
-          push: true
-          tags: ${{ env.IMAGE_BACKEND }}:latest
+          load: true
+          tags: ${{ env.IMAGE_BACKEND }}
 
-      - name: Build & push web image
+      - name: Build web image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: infra/docker/Dockerfile.web
-          push: true
-          tags: ${{ env.IMAGE_WEB }}:latest
+          load: true
+          tags: ${{ env.IMAGE_WEB }}
+
+      - name: Export images to tar
+        run: |
+          docker save -o /tmp/images.tar ${{ env.IMAGE_BACKEND }} ${{ env.IMAGE_WEB }}
+          ls -lh /tmp/images.tar
+
+      - name: Upload image tar
+        uses: actions/upload-artifact@v4
+        with:
+          name: images
+          path: /tmp/images.tar
+          retention-days: 1
 
   deploy:
     runs-on: ubuntu-latest
-    needs: docker-build
+    needs: build-images
     environment: production
     concurrency: deploy-prod
     steps:
-      - name: pull & run on target server B
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: images
+          path: ./images
+
+      - name: upload compose files to target server B
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: infra/docker/docker-compose.yml,infra/docker/nginx.conf
+          target: /opt/adproject/infra/docker/
+          strip_components: 2
+          overwrite: true
+
+      - name: upload images to target server B
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: images/images.tar
+          target: /opt/adproject/infra/docker/images/
+          strip_components: 1
+          overwrite: true
+
+      - name: deploy on target server B
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ vars.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 10m
+          command_timeout: 20m
           script: |
             set -e
             cd /opt/adproject/infra/docker
-            docker image prune -af >/dev/null 2>&1 || true
-            docker compose --env-file /opt/adproject/infra/docker/.env pull
+            docker load -i /opt/adproject/infra/docker/images/images.tar
             docker compose --env-file /opt/adproject/infra/docker/.env up -d --remove-orphans
             docker image prune -f >/dev/null 2>&1 || true
             code=000

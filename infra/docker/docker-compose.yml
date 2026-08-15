@@ -18,7 +18,7 @@ services:
     networks: [internal]
 
   backend:
-    image: ghcr.io/bianhaifan/ad-backend:latest
+    image: adproject-backend:latest
     restart: unless-stopped
     environment:
       DB_URL: jdbc:mysql://mysql:3306/adproject?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
@@ -31,7 +31,7 @@ services:
     networks: [internal]
 
   web:
-    image: ghcr.io/bianhaifan/ad-web:latest
+    image: adproject-web:latest
     restart: unless-stopped
     ports:
       - "80:80"
