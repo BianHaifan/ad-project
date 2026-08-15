@@ -8,7 +8,7 @@ plugins {
 val debugApiBaseUrl = providers.gradleProperty("AD_API_BASE_URL")
     .orElse("http://10.0.2.2:8081/api/v1/")
 val releaseApiBaseUrl = providers.gradleProperty("AD_API_BASE_URL")
-    .orElse("https://api.invalid/api/v1/")
+    .orElse("https://100.49.80.35/api/v1/")
 
 android {
     namespace = "com.adproject.candidate"
