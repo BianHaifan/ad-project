@@ -10,6 +10,8 @@ infra/terraform/*.tfstate
 infra/terraform/*.tfstate.backup
 infra/terraform/*.tfvars
 *.pem
+*.key
+infra/docker/certs/*.key
 .DS_Store
 .idea/
 *.iml
@@ -19,3 +21,4 @@ android/.gradle/
 android/.kotlin/
 android/app/build/
 android/build/
+web/coverage/

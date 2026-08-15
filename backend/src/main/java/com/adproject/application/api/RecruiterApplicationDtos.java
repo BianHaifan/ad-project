@@ -1,6 +1,5 @@
 package com.adproject.application.api;
 
-import com.adproject.application.domain.ApplicationStatus;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

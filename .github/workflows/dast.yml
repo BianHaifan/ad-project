@@ -1,0 +1,231 @@
+name: DAST
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  zap-baseline:
+    name: ZAP baseline (web, passive)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    env:
+      DB_ROOT_PASSWORD: dast_root_pw
+      DB_PASSWORD: dast_app_pw
+      JWT_SECRET: dast-ci-test-secret-key-not-for-production-use-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: generate temporary TLS certificate for CI
+        working-directory: infra/docker
+        run: |
+          mkdir -p certs
+          openssl req -x509 -newkey rsa:2048 -sha256 -days 30 -nodes \
+            -subj "/CN=localhost" \
+            -keyout certs/ad-b-server.key -out certs/ad-b-server.crt
+      - name: build local backend and web images
+        working-directory: infra/docker
+        run: docker compose -f docker-compose.yml -f docker-compose.dast.yml build backend web
+      - name: start stack
+        working-directory: infra/docker
+        run: docker compose -f docker-compose.yml -f docker-compose.dast.yml up -d
+      - name: wait for backend and web to be ready
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{}' || true)
+            if [ "$code" != "000" ]; then break; fi
+            sleep 5
+          done
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost/ || true)
+            if [ "$code" = "200" ]; then break; fi
+            sleep 5
+          done
+          curl -s -o /dev/null -w 'backend login probe: %{http_code}\n' -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{}'
+          curl -s -o /dev/null -w 'web index: %{http_code}\n' http://localhost/
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          target: http://localhost
+          rules_file_name: .zap/rules.tsv
+          cmd_options: -a
+          allow_issue_writing: false
+      - name: upload ZAP baseline report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-baseline-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          if-no-files-found: ignore
+
+  zap-active:
+    name: ZAP active (API + web)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    env:
+      DB_ROOT_PASSWORD: dast_root_pw
+      DB_PASSWORD: dast_app_pw
+      JWT_SECRET: dast-ci-test-secret-key-not-for-production-use-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: generate temporary TLS certificate for CI
+        working-directory: infra/docker
+        run: |
+          mkdir -p certs
+          openssl req -x509 -newkey rsa:2048 -sha256 -days 30 -nodes \
+            -subj "/CN=localhost" \
+            -keyout certs/ad-b-server.key -out certs/ad-b-server.crt
+      - name: build local backend and web images
+        working-directory: infra/docker
+        run: docker compose -f docker-compose.yml -f docker-compose.dast.yml build backend web
+      - name: start stack
+        working-directory: infra/docker
+        run: docker compose -f docker-compose.yml -f docker-compose.dast.yml up -d
+      - name: wait for backend and web to be ready
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{}' || true)
+            if [ "$code" != "000" ]; then break; fi
+            sleep 5
+          done
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost/ || true)
+            if [ "$code" = "200" ]; then break; fi
+            sleep 5
+          done
+          curl -s -o /dev/null -w 'backend login probe: %{http_code}\n' -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{}'
+          curl -s -o /dev/null -w 'web index: %{http_code}\n' http://localhost/
+      - name: seed test accounts and capture tokens
+        id: tokens
+        run: |
+          set -e
+          curl -s -o /dev/null -w 'register candidate: %{http_code}\n' -X POST http://localhost:8080/api/v1/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"role":"CANDIDATE","fullName":"DAST Candidate","email":"dast-candidate@example.com","password":"DastPass123!","acceptedTermsVersion":"1"}'
+          curl -s -o /dev/null -w 'register recruiter: %{http_code}\n' -X POST http://localhost:8080/api/v1/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"role":"RECRUITER","companyName":"DAST Company","fullName":"DAST Recruiter","email":"dast-recruiter@example.com","password":"DastPass123!","acceptedTermsVersion":"1"}'
+          CANDIDATE_TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"dast-candidate@example.com","password":"DastPass123!"}' | jq -r '.data.accessToken')
+          RECRUITER_TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"dast-recruiter@example.com","password":"DastPass123!"}' | jq -r '.data.accessToken')
+          echo "candidate token length: ${#CANDIDATE_TOKEN}"
+          echo "recruiter token length: ${#RECRUITER_TOKEN}"
+          echo "CANDIDATE_TOKEN=$CANDIDATE_TOKEN" >> "$GITHUB_ENV"
+          echo "RECRUITER_TOKEN=$RECRUITER_TOKEN" >> "$GITHUB_ENV"
+      - name: ZAP API scan (anonymous)
+        id: api-anonymous
+        continue-on-error: true
+        uses: zaproxy/action-api-scan@v0.10.0
+        with:
+          target: /zap/wrk/docs/openapi-v1.yaml
+          format: openapi
+          rules_file_name: .zap/rules.tsv
+          cmd_options: -z "-config api.disablekey=true"
+          artifact_name: zap-api-anonymous
+          allow_issue_writing: false
+      - name: upload ZAP API report (anonymous)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-api-anonymous-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          if-no-files-found: ignore
+      - name: ZAP API scan (candidate)
+        id: api-candidate
+        continue-on-error: true
+        uses: zaproxy/action-api-scan@v0.10.0
+        env:
+          ZAP_AUTH_HEADER: Authorization
+          ZAP_AUTH_HEADER_VALUE: Bearer ${{ env.CANDIDATE_TOKEN }}
+          ZAP_AUTH_HEADER_SITE: http://localhost:8080
+        with:
+          target: /zap/wrk/docs/openapi-v1.yaml
+          format: openapi
+          rules_file_name: .zap/rules.tsv
+          cmd_options: -z "-config api.disablekey=true"
+          artifact_name: zap-api-candidate
+          allow_issue_writing: false
+      - name: upload ZAP API report (candidate)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-api-candidate-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          if-no-files-found: ignore
+      - name: ZAP API scan (recruiter)
+        id: api-recruiter
+        continue-on-error: true
+        uses: zaproxy/action-api-scan@v0.10.0
+        env:
+          ZAP_AUTH_HEADER: Authorization
+          ZAP_AUTH_HEADER_VALUE: Bearer ${{ env.RECRUITER_TOKEN }}
+          ZAP_AUTH_HEADER_SITE: http://localhost:8080
+        with:
+          target: /zap/wrk/docs/openapi-v1.yaml
+          format: openapi
+          rules_file_name: .zap/rules.tsv
+          cmd_options: -z "-config api.disablekey=true"
+          artifact_name: zap-api-recruiter
+          allow_issue_writing: false
+      - name: upload ZAP API report (recruiter)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-api-recruiter-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          if-no-files-found: ignore
+      - name: ZAP full scan (web, AJAX spider for SPA)
+        id: zap-full
+        continue-on-error: true
+        uses: zaproxy/action-full-scan@v0.13.0
+        with:
+          target: http://localhost
+          rules_file_name: .zap/rules.tsv
+          cmd_options: -a -j
+          artifact_name: zap-web-full
+          allow_issue_writing: false
+      - name: upload ZAP full scan report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-web-full-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          if-no-files-found: ignore
+      - name: fail if any ZAP scan failed
+        if: always()
+        run: |
+          statuses=(
+            "${{ steps.api-anonymous.outcome }}"
+            "${{ steps.api-candidate.outcome }}"
+            "${{ steps.api-recruiter.outcome }}"
+            "${{ steps.zap-full.outcome }}"
+          )
+          failed=0
+          for s in "${statuses[@]}"; do
+            if [ "$s" = "failure" ]; then failed=1; fi
+          done
+          if [ "$failed" -eq 1 ]; then
+            echo "One or more ZAP scan steps failed, see reports above."
+            exit 1
+          fi
+          echo "All ZAP scan steps passed."

@@ -35,6 +35,10 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./certs/ad-b-server.crt:/etc/nginx/ssl/ad-b-server.crt:ro
+      - ./certs/ad-b-server.key:/etc/nginx/ssl/ad-b-server.key:ro
     depends_on:
       - backend
     networks: [internal]
