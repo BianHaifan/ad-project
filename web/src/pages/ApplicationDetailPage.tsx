@@ -161,14 +161,13 @@ export function ApplicationDetailPage() {
     <section className="detail-header"><div>
       <button className="text-button" onClick={() => nav('/recruiter/applications')}>‹ Applications / {application.jobTitle}</button>
       <h1>{application.candidate.fullName}</h1>
-      <p>Applied {new Date(application.appliedAt).toLocaleString()} · ID {application.applicationId.toUpperCase()}</p>
+      <p>Applied for {application.jobTitle} on {new Date(application.appliedAt).toLocaleString()}</p>
     </div><div className="actions"><StatusBadge status={application.status}/></div></section>
     <div className="detail-layout"><div className="detail-main">
       <section className="panel candidate-summary"><span className="avatar xl">{initials(application.candidate.fullName)}</span>
-        <div className="grow"><h2>{application.candidate.fullName}</h2><b>{application.candidate.headline || 'No headline provided'}</b>
+        <div className="grow"><h2>{application.candidate.fullName}</h2><b>{clean(application.candidate.headline) || 'No headline provided'}</b>
           <p>{application.candidate.email}{application.candidate.location ? ` · ${application.candidate.location}` : ''}</p></div>
-        <div><small>RESUME SNAPSHOT</small><b>{application.resumeSnapshot.snapshotId}</b><small>CAPTURED</small>
-          <b>{new Date(application.resumeSnapshot.capturedAt).toLocaleString()}</b></div>
+        <div className="resume-meta"><small>RESUME CAPTURED</small><b>{new Date(application.resumeSnapshot.capturedAt).toLocaleString()}</b></div>
       </section>
       {interview && <section className="panel interview-card"><div className="section-title"><div><h2>Interview</h2>
         <small>Scheduled with this candidate</small></div>
@@ -215,44 +214,38 @@ export function ApplicationDetailPage() {
         {updateInterview.isError && <small role="alert">The interview could not be updated. Refresh and try again.</small>}
       </section>}
       <section className="panel resume-snapshot"><div className="section-title"><div><h2>Submitted resume snapshot</h2>
-        <small>Immutable snapshot captured when the Candidate applied</small></div>
+        <small>Resume submitted with this application</small></div>
         <button className="button tiny soft" onClick={() => nav(`/recruiter/applications/${application.applicationId}/review`)}>
           Open full resume</button></div>
-        <h3>Summary</h3><p>{application.resumeSnapshot.summary}</p><h3>Experience</h3>
+        <h3>Summary</h3><p>{clean(application.resumeSnapshot.summary)}</p><h3>Experience</h3>
         {application.resumeSnapshot.experiences.map(experience => <p key={experience.experienceId ?? `${experience.title}-${experience.company}`}>
-          <b>{experience.title} · {experience.company}</b><br/>{experience.description}</p>)}
+          <b>{clean(experience.title)} · {clean(experience.company)}</b><br/>{clean(experience.description)}</p>)}
       </section>
       <section className="panel timeline"><div className="section-title"><h2>Application timeline</h2>
-        <small>Persisted Candidate and Recruiter stage events</small></div><div className="timeline-row">
+        <small>Application activity and recruiter decisions</small></div><div className="timeline-row">
         {application.timeline.map(event => <div className="done" key={event.eventId}><b>● {event.toStatus && <StatusBadge status={event.toStatus}/>}</b>
           <small>{new Date(event.occurredAt).toLocaleString()}</small>{event.reason && <small>{event.reason}</small>}</div>)}
       </div></section>
     </div><aside className="detail-side">
-      <section className="panel fit-card"><div className="section-title"><div><h2>ML fit analysis</h2>
-        <small>Recommendation model is not connected yet</small></div></div>
-        {application.matchScore === null || application.matchAnalysis === null
-          ? <p>Match score and analysis are unavailable.</p>
-          : <><span className="match-badge">{application.matchScore}% match</span>
-            {application.matchAnalysis.evidence.map(evidence => <div className="evidence" key={evidence}><b>{evidence}</b></div>)}</>}
-      </section>
+      {application.matchScore !== null && application.matchAnalysis !== null && <section className="panel fit-card"><div className="section-title"><div><h2>Candidate fit</h2>
+        <small>Signals from the current matching model</small></div></div><span className="match-badge">{application.matchScore}% match</span>
+        {application.matchAnalysis.evidence.map(evidence => <div className="evidence" key={evidence}><b>{clean(evidence)}</b></div>)}
+      </section>}
       <section className="panel decision"><div className="section-title"><h2>Review decision</h2>
         <StatusBadge status={application.status}/></div>
         {application.status === 'IN_REVIEW' && !interview &&
           <button className="button primary" onClick={openSchedule}>Schedule interview</button>}
         {targets.length === 0 ? <p>This application is in a terminal stage. No further Recruiter transition is available.</p> :
-          <form onSubmit={submitTransition} className="form-grid">
+          <form onSubmit={submitTransition} className="decision-form">
             <label>NEXT STAGE<select value={target} onChange={event => setTarget(transitionStatus(event.target.value) ?? '')}>
               <option value="">Select a stage</option>{targets.map(status => <option value={status} key={status}>{statusLabel(status)}</option>)}
             </select></label>
             <label>DECISION REASON<textarea value={reason} maxLength={500} onChange={event => setReason(event.target.value)}
-              placeholder="Required audit reason"/></label>
+              placeholder="Add a reason for this decision"/></label>
             <button className="button primary" disabled={!target || !reason.trim() || update.isPending}>
               {update.isPending ? 'Saving decision…' : 'Confirm stage change'}</button>
             {update.isError && <small role="alert">The stage change could not be saved. Refresh and try again.</small>}
           </form>}
-      </section>
-      <section className="panel"><h2>Not connected in this slice</h2>
-        <p>Recruiter notes, messaging, resume PDF export, owner assignment and ML analysis remain unavailable.</p>
       </section>
     </aside></div>
     {scheduleOpen && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="schedule-title">
@@ -354,6 +347,7 @@ function retainedGoogleMeetLink(interview: Interview): string | null {
 }
 
 const initials = (fullName: string) => fullName.split(' ').map(part => part[0]).join('').slice(0, 2);
+const clean = (value: string | null | undefined) => value?.replaceAll('Â·', '·').replaceAll('Â', '').trim() ?? '';
 const transitionStatus = (value: string): RecruiterTransitionStatus | undefined =>
   value === 'IN_REVIEW' || value === 'REJECTED' ? value : undefined;
 const allowedTargets = (status: ApplicationStatus): RecruiterTransitionStatus[] => {

@@ -28,7 +28,10 @@ describe('real recruiter job pages', () => {
     renderRoute('/recruiter/jobs', [{path: '/recruiter/jobs', element: <JobsPage/>}, {path: '/recruiter/jobs/:jobId', element: <div>Detail route</div>}]);
     expect(screen.getByText('Loading real job postings…')).toBeInTheDocument();
     expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
-    expect(screen.getByText('1 persisted job posting')).toBeInTheDocument();
+    expect(screen.getByText('1 job posting')).toBeInTheDocument();
+    expect(screen.queryByText('DRAFT jobs editable')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'View'})).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Edit'})).toBeInTheDocument();
     expect(list).toHaveBeenCalledWith({q: '', status: undefined, page: 1, pageSize: 20});
   });
 
@@ -37,6 +40,28 @@ describe('real recruiter job pages', () => {
     renderRoute('/recruiter/jobs?status=ACTIVE', [{path: '/recruiter/jobs', element: <JobsPage/>}]);
     expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
     expect(list).toHaveBeenCalledWith({q: '', status: 'ACTIVE', page: 1, pageSize: 20});
+  });
+
+  it('shows status summary cards and toggles the job filter from a card', async () => {
+    const totals = {ACTIVE: 4, DRAFT: 2, PAUSED: 1, CLOSED: 3} as const;
+    const list = vi.spyOn(recruiterRepository, 'listJobs').mockImplementation(async params => ({
+      data: [testJob],
+      meta: {page: 1, pageSize: params?.pageSize ?? 20, total: params?.status ? totals[params.status] : 10, hasNext: false},
+    }));
+    const {router} = renderRoute('/recruiter/jobs', [{path: '/recruiter/jobs', element: <JobsPage/>}]);
+
+    const draftCard = await screen.findByRole('button', {name: /2 Draft Ready to edit/});
+    expect(screen.getByRole('button', {name: /4 Active Published openings/})).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /1 Paused Temporarily hidden/})).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /3 Closed No longer hiring/})).toBeInTheDocument();
+
+    fireEvent.click(draftCard);
+    await waitFor(() => expect(list).toHaveBeenCalledWith({q: '', status: 'DRAFT', page: 1, pageSize: 20}));
+    expect(router.state.location.search).toBe('?status=DRAFT');
+    expect(await screen.findByText('Draft jobs')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {name: /2 Draft Ready to edit/}));
+    await waitFor(() => expect(router.state.location.search).toBe(''));
   });
 
   it('handles empty and network-error list states', async () => {
@@ -118,6 +143,9 @@ describe('real recruiter job pages', () => {
     expect(await screen.findByText('Job overview')).toBeInTheDocument();
     expect(screen.getByText('Publish job')).toBeEnabled();
     expect(screen.getByText('Edit job')).toBeEnabled();
+    expect(screen.queryByText(/Job ID:/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Server-managed fields')).not.toBeInTheDocument();
+    expect(screen.getByText('Job details')).toBeInTheDocument();
     cleanup();
     vi.restoreAllMocks();
     vi.spyOn(recruiterRepository, 'getJob').mockRejectedValue(new AuthApiError(404, 'NOT_FOUND', 'hidden detail'));
@@ -210,7 +238,7 @@ describe('real recruiter job pages', () => {
     expect(confirm).toBeDisabled();
     finish(activeJob);
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getAllByText('ACTIVE').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
     expect(screen.getAllByText(new Date(activeJob.publishedAt!).toLocaleString()).length).toBeGreaterThan(0);
     expect(client.getQueryData(['job', 'job-real-1'])).toEqual(activeJob);
     expect(client.getQueryState(['jobs', {page: 1}])?.isInvalidated).toBe(true);
@@ -274,8 +302,8 @@ describe('real recruiter job pages', () => {
     expect(confirm).toBeDisabled();
     finish(pausedJob);
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getAllByText('PAUSED').length).toBeGreaterThan(0);
-    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getAllByText('Paused').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Version')).not.toBeInTheDocument();
     expect(client.getQueryData(['job', 'job-real-1'])).toEqual(pausedJob);
     expect(client.getQueryState(['jobs', {page: 1}])?.isInvalidated).toBe(true);
   });
@@ -292,7 +320,7 @@ describe('real recruiter job pages', () => {
     fireEvent.change(screen.getByLabelText('Reason'), {target: {value: reason}});
     fireEvent.click(screen.getByRole('button', {name: new RegExp(`Confirm ${button.split(' ')[0].toLowerCase()}`)}));
     await waitFor(() => expect(change).toHaveBeenCalledWith('job-real-1', target, reason, current.version));
-    expect(await screen.findAllByText(target)).not.toHaveLength(0);
+    expect(await screen.findAllByText(target === 'ACTIVE' ? 'Active' : 'Closed')).not.toHaveLength(0);
   });
 
   it.each([

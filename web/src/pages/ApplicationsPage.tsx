@@ -31,6 +31,7 @@ export function ApplicationsPage() {
   if (query.isLoading) return <LoadingState label="Loading applications…"/>;
   if (query.isError || !query.data) return <ErrorState onRetry={() => query.refetch()}/>;
   const {data: applications, meta} = query.data;
+  const showMatch = applications.some(application => application.matchScore !== null);
   const first = meta.total === 0 ? 0 : (meta.page - 1) * meta.pageSize + 1;
   const last = Math.min(meta.total, (meta.page - 1) * meta.pageSize + applications.length);
 
@@ -43,7 +44,7 @@ export function ApplicationsPage() {
       </button>)}</section>
     <section className="table-panel">
       <div className="table-toolbar"><div className="grow"><h2>{selected ?? 'All applications'}</h2>
-        <small>{meta.total} persisted applications</small></div>
+        <small>{meta.total} application{meta.total === 1 ? '' : 's'}</small></div>
         <input value={search} onChange={event => {setSearch(event.target.value); chooseStage(selected);}}
           placeholder="⌕ Search candidate name or email"/>
         <select value={selected ?? 'ALL'} onChange={event => chooseStage(applicationStatus(event.target.value))}>
@@ -53,17 +54,16 @@ export function ApplicationsPage() {
       </div>
       {applications.length === 0 ? <EmptyState title="No applications found"
         description="Applications matching this stage or search will appear here."/> :
-        <div className="data-table app-table"><div className="table-head"><span>Candidate</span><span>Applied role</span>
-          <span>ML match</span><span>Applied</span><span>Stage</span><span>Owner</span><span/></div>
-          {applications.map(application => <button className="table-row" key={application.applicationId}
-            onClick={() => nav(`/recruiter/applications/${application.applicationId}`)}>
+        <div className={`data-table app-table ${showMatch ? 'with-match' : 'no-match'}`}><div className="table-head"><span>Candidate</span><span>Applied role</span>
+          {showMatch && <span>Match</span>}<span>Applied</span><span>Stage</span><span>Owner</span><span>Action</span></div>
+          {applications.map(application => <div className="table-row" key={application.applicationId}>
             <span className="person"><i className="avatar">{initials(application.candidate.fullName)}</i><span>
               <b>{application.candidate.fullName}</b><small>{application.candidate.email}</small></span></span>
-            <span><b>{application.jobTitle}</b><small>{application.jobId}</small></span>
-            <span>{application.matchScore === null ? 'Unavailable' : `${application.matchScore}% match`}</span>
+            <span className="cell-stack"><b className="cell-ellipsis">{application.jobTitle}</b><small>Updated {new Date(application.updatedAt).toLocaleDateString()}</small></span>
+            {showMatch && <span>{application.matchScore === null ? '—' : `${application.matchScore}%`}</span>}
             <span>{new Date(application.appliedAt).toLocaleDateString()}</span><StatusBadge status={application.status}/>
-            <span>{application.owner?.fullName ?? 'Unassigned'}</span><span className="button tiny secondary">View</span>
-          </button>)}</div>}
+            <span className="cell-ellipsis">{application.owner?.fullName ?? 'Unassigned'}</span><span className="row-actions"><button className="button tiny secondary" aria-label={`View application for ${application.candidate.fullName}`} onClick={() => nav(`/recruiter/applications/${application.applicationId}`)}>View</button></span>
+          </div>)}</div>}
       <footer className="pagination"><span>Showing {first}–{last} of {meta.total} applications</span><div className="actions">
         <button className="button tiny secondary" disabled={meta.page <= 1}
           onClick={() => setPage(urlParams, setUrlParams, meta.page - 1)}>Previous</button>

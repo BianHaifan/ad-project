@@ -43,10 +43,12 @@ describe('real recruiter application pages', () => {
     renderRoute('/recruiter/applications', [{path: '/recruiter/applications', element: <ApplicationsPage/>}]);
     expect(screen.getByText('Loading applications…')).toBeInTheDocument();
     expect(await screen.findByText(detail.candidate.fullName)).toBeInTheDocument();
-    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
+    expect(screen.queryByText(detail.jobId)).not.toBeInTheDocument();
     expect(screen.getByText('Unassigned')).toBeInTheDocument();
     expect(screen.queryByText('0% match')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', {name: /Create job/i})).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: `View application for ${detail.candidate.fullName}`})).toBeInTheDocument();
     expect(list).toHaveBeenCalledWith({status: undefined, q: '', page: 1, pageSize: 20, sort: 'appliedAt,desc'});
   });
 
@@ -67,7 +69,9 @@ describe('real recruiter application pages', () => {
     renderRoute(`/recruiter/applications/${detail.applicationId}`,
       [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
     expect(await screen.findByText('Submitted resume snapshot')).toBeInTheDocument();
-    expect(screen.getByText('Match score and analysis are unavailable.')).toBeInTheDocument();
+    expect(screen.queryByText('Match score and analysis are unavailable.')).not.toBeInTheDocument();
+    expect(screen.queryByText(detail.applicationId)).not.toBeInTheDocument();
+    expect(screen.queryByText(detail.resumeSnapshot.snapshotId)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', {name: /Message|Schedule interview|Download PDF|Save note/})).not.toBeInTheDocument();
   });
 

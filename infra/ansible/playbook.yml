@@ -1,0 +1,103 @@
+---
+- name: Bootstrap target server B
+  hosts: b
+  become: true
+  vars:
+    compose_dir: /opt/adproject/infra/docker
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Docker and Compose plugin
+      ansible.builtin.apt:
+        name:
+          - docker.io
+          - docker-compose-v2
+        state: present
+
+    - name: Enable and start docker service
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Add ubuntu user to docker group
+      ansible.builtin.user:
+        name: ubuntu
+        groups: docker
+        append: true
+
+    - name: Create compose directory
+      ansible.builtin.file:
+        path: "{{ compose_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy Dockerfile.backend
+      ansible.builtin.copy:
+        src: ../docker/Dockerfile.backend
+        dest: "{{ compose_dir }}/Dockerfile.backend"
+
+    - name: Copy Dockerfile.web
+      ansible.builtin.copy:
+        src: ../docker/Dockerfile.web
+        dest: "{{ compose_dir }}/Dockerfile.web"
+
+    - name: Copy nginx.conf
+      ansible.builtin.copy:
+        src: ../docker/nginx.conf
+        dest: "{{ compose_dir }}/nginx.conf"
+
+    - name: Copy docker-compose.yml
+      ansible.builtin.copy:
+        src: ../docker/docker-compose.yml
+        dest: "{{ compose_dir }}/docker-compose.yml"
+
+    - name: Check whether .env already exists
+      ansible.builtin.stat:
+        path: "{{ compose_dir }}/.env"
+      register: env_stat
+
+    - name: Generate secrets when .env is missing
+      ansible.builtin.set_fact:
+        db_root_password: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
+        db_password: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
+        jwt_secret: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=64') }}"
+      when: not env_stat.stat.exists
+
+    - name: Write .env (only when missing, keeps existing secrets)
+      ansible.builtin.template:
+        src: templates/docker.env.j2
+        dest: "{{ compose_dir }}/.env"
+        mode: "0600"
+      when: not env_stat.stat.exists
+
+    - name: Ensure .env is owned by ubuntu so the deploy user can read it
+      ansible.builtin.file:
+        path: "{{ compose_dir }}/.env"
+        owner: ubuntu
+        group: ubuntu
+        mode: "0600"
+
+    - name: Create 2G swap to protect the small instance
+      ansible.builtin.shell: |
+        if [ ! -f /swapfile ]; then
+          fallocate -l 2G /swapfile
+          chmod 600 /swapfile
+          mkswap /swapfile
+          swapon /swapfile
+          grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        fi
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Show generated env (for the record)
+      ansible.builtin.command: cat "{{ compose_dir }}/.env"
+      register: env_content
+      changed_when: false
+
+    - name: Print env
+      ansible.builtin.debug:
+        var: env_content.stdout_lines

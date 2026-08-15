@@ -1,0 +1,46 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: adproject-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: adproject
+      MYSQL_USER: adproject
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  backend:
+    image: ghcr.io/bianhaifan/ad-backend:latest
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/adproject?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+      DB_USERNAME: adproject
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks: [internal]
+
+  web:
+    image: ghcr.io/bianhaifan/ad-web:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks: [internal]
+
+networks:
+  internal:
+
+volumes:
+  mysql-data:
