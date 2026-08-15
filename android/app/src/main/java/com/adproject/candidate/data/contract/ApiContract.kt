@@ -41,6 +41,8 @@ enum class ApplicationListFilter { ACTIVE, INTERVIEW, ARCHIVED }
 enum class JobStatus { DRAFT, ACTIVE, PAUSED, CLOSED }
 enum class InterviewStatus { SCHEDULED, COMPLETED, CANCELLED }
 enum class InterviewMode { ONLINE, ONSITE, PHONE }
+enum class MeetingProvider { MANUAL, GOOGLE_MEET }
+enum class MeetingSyncStatus { NOT_APPLICABLE, PENDING, READY, FAILED }
 enum class SenderType { CANDIDATE, RECRUITER, SYSTEM }
 enum class DeliveryStatus { SENDING, SENT, DELIVERED, READ, FAILED }
 enum class EmploymentType { FULL_TIME, INTERNSHIP, PART_TIME }
@@ -216,6 +218,10 @@ data class Interview(
     val version: Int,
     val createdAt: String,
     val updatedAt: String,
+    // Meeting sync fields are candidate-safe only. Older backends that do not
+    // send them are treated as a plain manual interview with no external sync.
+    val meetingProvider: MeetingProvider = MeetingProvider.MANUAL,
+    val meetingSyncStatus: MeetingSyncStatus = MeetingSyncStatus.NOT_APPLICABLE,
 )
 
 data class Message(

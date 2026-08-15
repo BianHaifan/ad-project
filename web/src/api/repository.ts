@@ -3,6 +3,7 @@ import {jobHttpClient} from './jobHttpClient';
 import {applicationHttpClient} from './applicationHttpClient';
 import {dashboardHttpClient} from './dashboardHttpClient';
 import {conversationHttpClient} from './conversationHttpClient';
+import {googleOAuthHttpClient} from './googleOAuthHttpClient';
 import type {RecruiterRepository} from './recruiterRepository';
 
 export type RecruiterBusinessRepository = Omit<RecruiterRepository, 'signIn' | 'register'>;
@@ -22,9 +23,14 @@ export const recruiterRepository: RecruiterBusinessRepository = {
   getApplication: applicationId => applicationHttpClient.getApplication(applicationId),
   updateApplicationStatus: (applicationId, status, reason, expectedVersion) =>
     applicationHttpClient.updateApplicationStatus(applicationId, status, reason, expectedVersion),
+  createInterview: (applicationId, input) => applicationHttpClient.createInterview(applicationId, input),
+  updateInterview: (interviewId, input) => applicationHttpClient.updateInterview(interviewId, input),
   listConversations: () => conversationHttpClient.listConversations(),
   getConversation: conversationId => conversationHttpClient.getConversation(conversationId),
   listMessages: conversationId => conversationHttpClient.listMessages(conversationId),
   sendMessage: (conversationId, body) => conversationHttpClient.sendMessage(conversationId, body),
   markRead: (conversationId, lastReadMessageId) => conversationHttpClient.markRead(conversationId, lastReadMessageId),
+  beginGoogleConnection: () => googleOAuthHttpClient.beginConnection(),
+  getGoogleConnection: () => googleOAuthHttpClient.getConnection(),
+  disconnectGoogle: () => googleOAuthHttpClient.disconnect(),
 };

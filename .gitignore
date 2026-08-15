@@ -1,4 +1,8 @@
 .env
+.env.local
+.env.*.local
+*.pem
+*.key
 backend/target/
 *.log
 infra/terraform/.terraform/

@@ -13,3 +13,10 @@ spring:
 app:
   auth:
     jwt-secret: test-only-secret-at-least-thirty-two-bytes-long
+  google-oauth:
+    client-id: test-client-id
+    client-secret: test-client-secret
+    redirect-uri: http://localhost:8080/api/v1/recruiter/google-oauth/callback
+    # Deterministic all-zero AES key for tests only; production uses an environment variable.
+    token-encryption-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    web-return-uri: http://localhost:3000/recruiter/google-oauth

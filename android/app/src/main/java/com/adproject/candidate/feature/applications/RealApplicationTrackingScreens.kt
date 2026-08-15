@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -116,6 +117,62 @@ private fun RealApplicationCard(application: CandidateApplicationSummary, onClic
 }
 
 @Composable
+private fun InterviewCard(interview: Interview?) {
+    val uriHandler = LocalUriHandler.current
+    AdCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Interview", fontWeight = FontWeight.SemiBold)
+            if (interview == null) {
+                Text("Interview not scheduled", color = AdMuted, fontSize = 12.sp)
+            } else {
+                val meeting = meetingDisplay(interview)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    TagChip(interview.status.label(), accent = interview.status == InterviewStatus.SCHEDULED)
+                    meeting.providerLabel?.let { TagChip(it) }
+                }
+                InterviewRow("When", interview.scheduledAt.displayTime())
+                InterviewRow("Timezone", interview.timezone)
+                InterviewRow("Duration", "${interview.durationMinutes} minutes")
+                InterviewRow("Mode", interview.mode.label())
+                if (interview.status != InterviewStatus.CANCELLED) {
+                    interview.locationOrMeetingUrl?.takeIf { it.isNotBlank() }?.let { location ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(locationLabel(interview.mode), color = AdMuted, fontSize = 11.sp,
+                                modifier = Modifier.width(86.dp))
+                            if (meeting.linkOpenable) {
+                                Text(
+                                    text = location,
+                                    color = AdTealDark,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.weight(1f)
+                                        .clickable { runCatching { uriHandler.openUri(location) } },
+                                )
+                            } else {
+                                Text(location, color = AdText, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+                meeting.statusHint?.let { Text(it, color = AdMuted, fontSize = 11.sp) }
+                when (interview.status) {
+                    InterviewStatus.CANCELLED -> Text("This interview was cancelled.", color = AdMuted, fontSize = 11.sp)
+                    InterviewStatus.COMPLETED -> Text("This interview is completed.", color = AdMuted, fontSize = 11.sp)
+                    InterviewStatus.SCHEDULED -> Unit
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InterviewRow(label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = AdMuted, fontSize = 11.sp, modifier = Modifier.width(86.dp))
+        Text(value, color = AdText, fontSize = 12.sp, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
 private fun ApplicationMessage(message: String, onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center) {
@@ -197,10 +254,9 @@ private fun ApplicationDetailContent(state: ApplicationDetailUiState, onRequestW
                 Text("Applied ${application.appliedAt.displayTime()}", color = AdMuted, fontSize = 11.sp)
                 Text("Updated ${application.updatedAt.displayTime()} · version ${application.version}", color = AdMuted, fontSize = 11.sp)
                 application.matchScore?.let { Text("$it% match", color = AdTealDark) }
-                Text(application.interview?.let { "Interview ${it.scheduledAt.displayTime()}" }
-                    ?: "Interview not scheduled", color = AdMuted, fontSize = 11.sp)
             }
         }
+        InterviewCard(application.interview)
         AdCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Status timeline", fontWeight = FontWeight.SemiBold)
@@ -246,6 +302,24 @@ private fun ApplicationStatus.label() = when (this) {
     ApplicationStatus.INTERVIEW -> "Interview"
     ApplicationStatus.REJECTED -> "Rejected"
     ApplicationStatus.WITHDRAWN -> "Withdrawn"
+}
+
+private fun InterviewStatus.label() = when (this) {
+    InterviewStatus.SCHEDULED -> "Scheduled"
+    InterviewStatus.COMPLETED -> "Completed"
+    InterviewStatus.CANCELLED -> "Cancelled"
+}
+
+private fun InterviewMode.label() = when (this) {
+    InterviewMode.ONLINE -> "Online"
+    InterviewMode.ONSITE -> "On-site"
+    InterviewMode.PHONE -> "Phone"
+}
+
+private fun locationLabel(mode: InterviewMode) = when (mode) {
+    InterviewMode.ONLINE -> "Meeting link"
+    InterviewMode.ONSITE -> "Location"
+    InterviewMode.PHONE -> "Phone / contact"
 }
 
 private fun String.displayTime(): String = runCatching {
