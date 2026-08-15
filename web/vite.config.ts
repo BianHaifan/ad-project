@@ -16,6 +16,17 @@ export default defineConfig(({mode}) => {
     },
     test: {
       environment: 'jsdom',
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'html'],
+        exclude: [
+          'src/**/__tests__/**',
+          'src/**/*.test.*',
+          'src/**/*.spec.*',
+          'src/mocks/**',
+          'src/**/index.ts',
+        ],
+      },
     },
   };
 });

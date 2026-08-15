@@ -49,6 +49,12 @@
         src: ../docker/nginx.conf
         dest: "{{ compose_dir }}/nginx.conf"
 
+    - name: Copy TLS certificate
+      ansible.builtin.copy:
+        src: ../docker/certs/ad-b-server.crt
+        dest: "{{ compose_dir }}/certs/ad-b-server.crt"
+        mode: "0644"
+
     - name: Copy docker-compose.yml
       ansible.builtin.copy:
         src: ../docker/docker-compose.yml

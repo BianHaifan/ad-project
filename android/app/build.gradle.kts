@@ -2,12 +2,16 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlinx.kover")
 }
 
 val debugApiBaseUrl = providers.gradleProperty("AD_API_BASE_URL")
     .orElse("http://10.0.2.2:8081/api/v1/")
 val releaseApiBaseUrl = providers.gradleProperty("AD_API_BASE_URL")
-    .orElse("https://api.invalid/api/v1/")
+    .orElse("https://100.49.80.35/api/v1/")
+
+fun apiHostOf(url: String): String =
+    url.substringAfter("://").substringBefore('/').substringBefore(':')
 
 android {
     namespace = "com.adproject.candidate"
@@ -27,11 +31,32 @@ android {
     buildTypes {
         debug {
             buildConfigField("String", "API_BASE_URL", "\"${debugApiBaseUrl.get()}\"")
+            buildConfigField("String", "API_HOST", "\"${apiHostOf(debugApiBaseUrl.get())}\"")
         }
         release {
             isMinifyEnabled = false
             buildConfigField("String", "API_BASE_URL", "\"${releaseApiBaseUrl.get()}\"")
+            buildConfigField("String", "API_HOST", "\"${apiHostOf(releaseApiBaseUrl.get())}\"")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            val keystorePath = providers.gradleProperty("RELEASE_KEYSTORE_PATH").orNull
+                ?: System.getenv("RELEASE_KEYSTORE_PATH")
+            val storePass = providers.gradleProperty("RELEASE_KEYSTORE_PASSWORD").orNull
+                ?: System.getenv("RELEASE_KEYSTORE_PASSWORD")
+            val keyPass = providers.gradleProperty("RELEASE_KEY_ALIAS_PASSWORD").orNull
+                ?: System.getenv("RELEASE_KEY_ALIAS_PASSWORD")
+            val alias = providers.gradleProperty("RELEASE_KEY_ALIAS").orNull
+                ?: System.getenv("RELEASE_KEY_ALIAS")
+            if (
+                !keystorePath.isNullOrBlank() && file(keystorePath).exists() &&
+                !storePass.isNullOrBlank() && !keyPass.isNullOrBlank() && !alias.isNullOrBlank()
+            ) {
+                signingConfig = signingConfigs.create("release") {
+                    storeFile = file(keystorePath)
+                    storePassword = storePass
+                    keyAlias = alias
+                    keyPassword = keyPass
+                }
+            }
         }
     }
 
@@ -46,6 +71,24 @@ android {
         buildConfig = true
     }
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+}
+
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    "com.adproject.candidate.AdCandidateApp",
+                    "com.adproject.candidate.MainActivity",
+                    "com.adproject.candidate.core.designsystem.*",
+                )
+            }
+        }
+    }
+}
+
+dependencyLocking {
+    lockAllConfigurations()
 }
 
 dependencies {

@@ -22,6 +22,21 @@ jobs:
       - name: run maven tests
         working-directory: backend
         run: mvn -B test
+      - name: run maven pmd static analysis
+        working-directory: backend
+        run: mvn -B pmd:check
+      - name: upload backend coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-jacoco-report
+          path: backend/target/site/jacoco
+      - name: upload backend pmd report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-pmd-report
+          path: backend/target/pmd.xml
       - name: upload backend test report
         uses: actions/upload-artifact@v4
         if: always()
@@ -42,6 +57,7 @@ jobs:
           npm run lint
           npm run typecheck
           npm run test -- --reporter=junit --outputFile=junit.xml
+          npm run test:coverage
           npm run build
       - name: upload web test report
         uses: actions/upload-artifact@v4
@@ -49,6 +65,12 @@ jobs:
         with:
           name: web-junit-report
           path: web/junit.xml
+      - name: upload web coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-coverage-report
+          path: web/coverage
 
   android:                     
     runs-on: ubuntu-latest
@@ -61,7 +83,13 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug lint test --no-daemon
+          ./gradlew assembleDebug lint test koverHtmlReportDebug --no-daemon
+      - name: upload android coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-kover-report
+          path: android/app/build/reports/kover/htmlDebug
       - name: upload android test reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -73,6 +101,61 @@ jobs:
             android/app/build/reports/tests/testReleaseUnitTest
             android/app/build/test-results/testReleaseUnitTest/*.xml
             android/app/build/reports/lint-results-*.html
+
+  sca:                      
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: android-actions/setup-android@v3
+      - name: generate android dependency lockfile
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew dependencies --write-locks --no-daemon
+      - name: scan backend (Maven)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: backend
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+          format: table
+          output: trivy-backend.txt
+      - name: scan web (npm)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: web
+          skip-dirs: node_modules
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+          format: table
+          output: trivy-web.txt
+          skip-setup-trivy: true
+      - name: scan android (Gradle)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: android
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+          format: table
+          output: trivy-android.txt
+          skip-setup-trivy: true
+      - name: upload trivy reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-sca-reports
+          path: |
+            trivy-backend.txt
+            trivy-web.txt
+            trivy-android.txt
 
   docker-build:              
     runs-on: ubuntu-latest

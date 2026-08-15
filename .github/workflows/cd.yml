@@ -58,9 +58,10 @@ jobs:
           script: |
             set -e
             cd /opt/adproject/infra/docker
+            docker image prune -af >/dev/null 2>&1 || true
             docker compose --env-file /opt/adproject/infra/docker/.env pull
             docker compose --env-file /opt/adproject/infra/docker/.env up -d --remove-orphans
-            docker image prune -f
+            docker image prune -f >/dev/null 2>&1 || true
             code=000
             for i in $(seq 1 45); do
               code=$(curl -sS -o /dev/null -w "%{http_code}" \

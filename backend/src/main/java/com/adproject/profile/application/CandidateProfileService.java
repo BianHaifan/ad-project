@@ -2,7 +2,10 @@ package com.adproject.profile.application;
 
 import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
-import com.adproject.profile.api.ProfileDtos.*;
+import com.adproject.profile.api.ProfileDtos.CandidateProfile;
+import com.adproject.profile.api.ProfileDtos.CandidateStats;
+import com.adproject.profile.api.ProfileDtos.ProfileResponse;
+import com.adproject.profile.api.ProfileDtos.UpdateProfileRequest;
 import com.adproject.profile.infrastructure.*;
 import com.adproject.user.domain.UserRole;
 import com.adproject.user.infrastructure.*;
@@ -24,8 +27,8 @@ public class CandidateProfileService {
         if(version!=request.getExpectedVersion()) throw new ApiException(HttpStatus.CONFLICT,"VERSION_CONFLICT","The profile has changed");
         var now=clock.instant();
         if(request.isFullNamePresent()) user.updateFullName(request.getFullName(),now);
-        String headline=request.isHeadlinePresent()?request.getHeadline():(existing==null?"":existing.getHeadline());
-        String location=request.isLocationPresent()?request.getLocation():(existing==null?"":existing.getLocation());
+        String headline=request.isHeadlinePresent()?request.getHeadline():existing==null?"":existing.getHeadline();
+        String location=request.isLocationPresent()?request.getLocation():existing==null?"":existing.getLocation();
         if(existing==null) existing=profiles.save(new CandidateProfileEntity(user.getId(),headline,location,2,now,now)); else existing.update(headline,location,now);
         profiles.flush(); return response(user,existing);
     }
