@@ -6,8 +6,14 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {AuthApiError} from '../api/authClient';
 import {recruiterRepository} from '../api/repository';
 import {applications} from '../mocks/data';
+import type {GoogleConnection} from '../models/recruiter';
 import {ApplicationDetailPage} from './ApplicationDetailPage';
 import {ApplicationsPage} from './ApplicationsPage';
+
+vi.mock('../lib/interviewTime', async importOriginal => {
+  const actual = await importOriginal<typeof import('../lib/interviewTime')>();
+  return {...actual, resolvedTimeZone: () => 'Asia/Singapore'};
+});
 
 const detail = {...applications[0], status: 'APPLIED' as const, version: 1, matchScore: null,
   matchAnalysis: null, interview: null, notes: [], owner: null};
@@ -22,6 +28,11 @@ function renderRoute(path: string, routes: {path: string; element: React.ReactNo
   const router = createMemoryRouter(routes, {initialEntries: [path]});
   render(<QueryClientProvider client={client}><RouterProvider router={router}/></QueryClientProvider>);
   return {router, client};
+}
+
+// Asserts `before` appears earlier in the document than `after` (source order, not visual layout).
+function assertPrecedes(before: HTMLElement, after: HTMLElement) {
+  expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 }
 
 describe('real recruiter application pages', () => {
@@ -94,6 +105,295 @@ describe('real recruiter application pages', () => {
     expect(await screen.findByText(/terminal stage/)).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Confirm stage change'})).not.toBeInTheDocument();
   });
+
+  it('schedules an on-site interview from the in-review decision panel', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'IN_REVIEW'});
+    const create = vi.spyOn(recruiterRepository, 'createInterview').mockResolvedValue(interview);
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByText('Review decision');
+    fireEvent.click(screen.getByRole('button', {name: 'Schedule interview'}));
+    expect(await screen.findByRole('heading', {name: 'Schedule interview'})).toBeInTheDocument();
+    expect(screen.getByText('Your browser timezone: Asia/Singapore')).toBeInTheDocument();
+    // Mode is the first interactive field, ahead of date/time, timezone and duration.
+    assertPrecedes(screen.getByLabelText('Mode'), screen.getByLabelText('Date and time'));
+    assertPrecedes(screen.getByLabelText('Mode'), screen.getByText('Your browser timezone: Asia/Singapore'));
+    assertPrecedes(screen.getByLabelText('Mode'), screen.getByLabelText('Duration minutes'));
+    fireEvent.change(screen.getByLabelText('Date and time'), {target: {value: '2026-08-20T09:00'}});
+    fireEvent.change(screen.getByLabelText('Duration minutes'), {target: {value: '45'}});
+    fireEvent.change(screen.getByLabelText('Mode'), {target: {value: 'ONSITE'}});
+    fireEvent.change(screen.getByLabelText('Interview location'), {target: {value: '12 Marina Blvd, Singapore'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Confirm schedule'}));
+    await waitFor(() => expect(create).toHaveBeenCalledWith(detail.applicationId, {
+      scheduledAt: '2026-08-20T01:00:00Z', timezone: 'Asia/Singapore', durationMinutes: 45, mode: 'ONSITE',
+      locationOrMeetingUrl: '12 Marina Blvd, Singapore', note: undefined, expectedApplicationVersion: detail.version,
+    }));
+  });
+
+  it('renders the interview card with reschedule, complete and cancel actions when scheduled', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    expect(await screen.findByRole('heading', {name: 'Interview'})).toBeInTheDocument();
+    expect(screen.getByText('Scheduled')).toBeInTheDocument();
+    expect(screen.getByText('Online')).toBeInTheDocument();
+    expect(screen.getByText('Asia/Singapore')).toBeInTheDocument();
+    expect(screen.getByText('45 minutes')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'https://meet.example.com/abc'})).toBeInTheDocument();
+    expect(screen.getByText('Bring portfolio')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Reschedule'})).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Mark completed'})).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Cancel interview'})).toBeInTheDocument();
+  });
+
+  it('does not offer scheduling when the application already has an interview', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    expect(await screen.findByRole('heading', {name: 'Interview'})).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Schedule interview'})).not.toBeInTheDocument();
+  });
+
+  it('backfills the saved instant into its timezone and submits the converted UTC on reschedule', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview});
+    const update = vi.spyOn(recruiterRepository, 'updateInterview')
+      .mockResolvedValue({...interview, scheduledAt: '2026-08-21T01:00:00Z', version: 2});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByRole('heading', {name: 'Interview'});
+    fireEvent.click(screen.getByRole('button', {name: 'Reschedule'}));
+    await screen.findByRole('heading', {name: 'Reschedule interview'});
+    expect(screen.getByLabelText('Date and time')).toHaveValue('2026-08-20T17:00');
+    expect(screen.getByLabelText('Timezone')).toHaveValue('Asia/Singapore');
+    fireEvent.change(screen.getByLabelText('Date and time'), {target: {value: '2026-08-21T09:00'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Save changes'}));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(interview.interviewId, {
+      scheduledAt: '2026-08-21T01:00:00Z', timezone: 'Asia/Singapore', durationMinutes: 45, mode: 'ONLINE',
+      locationOrMeetingUrl: 'https://meet.example.com/abc', note: 'Bring portfolio', expectedVersion: interview.version,
+    }));
+  });
+
+  it('renders an on-site location as plain text rather than a link', async () => {
+    const onSite = {...interview, mode: 'ONSITE' as const, locationOrMeetingUrl: '12 Marina Blvd, Singapore'};
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview: onSite});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByRole('heading', {name: 'Interview'});
+    expect(screen.getByText('12 Marina Blvd, Singapore')).toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: '12 Marina Blvd, Singapore'})).not.toBeInTheDocument();
+    expect(screen.getByText('Location')).toBeInTheDocument();
+  });
+
+  it('renders a phone contact as plain text without a URL prefix', async () => {
+    const phone = {...interview, mode: 'PHONE' as const, locationOrMeetingUrl: '+65 1234 5678'};
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview: phone});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByRole('heading', {name: 'Interview'});
+    expect(screen.getByText('+65 1234 5678')).toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: '+65 1234 5678'})).not.toBeInTheDocument();
+    expect(screen.getByText('Phone / contact')).toBeInTheDocument();
+  });
+
+  it('shows mode-specific fields and never offers a manual online link', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'IN_REVIEW'});
+    vi.spyOn(recruiterRepository, 'getGoogleConnection').mockResolvedValue(disconnected);
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByText('Review decision');
+    fireEvent.click(screen.getByRole('button', {name: 'Schedule interview'}));
+    await screen.findByRole('heading', {name: 'Schedule interview'});
+    // Online is the default and shows the Google Meet explanation, never a link input or provider selector.
+    expect(screen.getByText(/meeting link and Calendar invitation will be created automatically/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Location or meeting link')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Meeting provider')).not.toBeInTheDocument();
+    // On-site shows an interview location field.
+    fireEvent.change(screen.getByLabelText('Mode'), {target: {value: 'ONSITE'}});
+    expect(screen.getByLabelText('Interview location')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('e.g. 12 Marina Blvd, Singapore')).toBeInTheDocument();
+    // Phone shows a calling-details field.
+    fireEvent.change(screen.getByLabelText('Mode'), {target: {value: 'PHONE'}});
+    expect(screen.getByLabelText('Phone number or calling instructions')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('e.g. +65 1234 5678')).toBeInTheDocument();
+  });
+
+  it('falls back to the browser timezone when the saved timezone is invalid', async () => {
+    const invalid = {...interview, timezone: 'Not/AZone'};
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview: invalid});
+    const update = vi.spyOn(recruiterRepository, 'updateInterview')
+      .mockResolvedValue({...interview, scheduledAt: '2026-08-21T01:00:00Z', version: 2});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByRole('heading', {name: 'Interview'});
+    expect(screen.getByText(/Saved timezone is not recognized/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Reschedule'}));
+    await screen.findByRole('heading', {name: 'Reschedule interview'});
+    expect(screen.getByLabelText('Timezone')).toHaveValue('Asia/Singapore');
+    expect(screen.getByLabelText('Date and time')).toHaveValue('2026-08-20T17:00');
+    expect(screen.getByText(/Using your browser timezone/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Date and time'), {target: {value: '2026-08-21T09:00'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Save changes'}));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(interview.interviewId, {
+      scheduledAt: '2026-08-21T01:00:00Z', timezone: 'Asia/Singapore', durationMinutes: 45, mode: 'ONLINE',
+      locationOrMeetingUrl: 'https://meet.example.com/abc', note: 'Bring portfolio', expectedVersion: interview.version,
+    }));
+  });
+
+  it('schedules a Google Meet without a link input when connected', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'IN_REVIEW'});
+    vi.spyOn(recruiterRepository, 'getGoogleConnection').mockResolvedValue(connected);
+    const create = vi.spyOn(recruiterRepository, 'createInterview').mockResolvedValue(googleMeetReady);
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByText('Review decision');
+    fireEvent.click(screen.getByRole('button', {name: 'Schedule interview'}));
+    await screen.findByRole('heading', {name: 'Schedule interview'});
+    expect(screen.getByText(/meeting link and Calendar invitation will be created automatically/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Location or meeting link')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Meeting provider')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Date and time'), {target: {value: '2026-08-20T09:00'}});
+    fireEvent.change(screen.getByLabelText('Duration minutes'), {target: {value: '45'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Confirm schedule'}));
+    await waitFor(() => expect(create).toHaveBeenCalledWith(detail.applicationId, {
+      scheduledAt: '2026-08-20T01:00:00Z', timezone: 'Asia/Singapore', durationMinutes: 45, mode: 'ONLINE',
+      note: undefined, expectedApplicationVersion: detail.version, meetingProvider: 'GOOGLE_MEET',
+    }));
+  });
+
+  it.each<[string, GoogleConnection, string]>([
+    ['DISCONNECTED', disconnected, 'Go to Integrations'],
+    ['REVOKED', revoked, 'Reconnect Google'],
+  ])('blocks online scheduling with a connect entry when %s', async (_label, conn, linkName) => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'IN_REVIEW'});
+    vi.spyOn(recruiterRepository, 'getGoogleConnection').mockResolvedValue(conn);
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByText('Review decision');
+    fireEvent.click(screen.getByRole('button', {name: 'Schedule interview'}));
+    await screen.findByRole('heading', {name: 'Schedule interview'});
+    expect(screen.getByRole('link', {name: linkName})).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Date and time'), {target: {value: '2026-08-20T09:00'}});
+    fireEvent.change(screen.getByLabelText('Duration minutes'), {target: {value: '45'}});
+    expect(screen.getByRole('button', {name: 'Confirm schedule'})).toBeDisabled();
+  });
+
+  it('shows a syncing Google Meet with no link and no conflicting actions', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview: googleMeetPending});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByRole('heading', {name: 'Interview'});
+    expect(screen.getByText(/Creating or syncing the Google Meet/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: /^https:\/\/meet\.google\.com\//})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Reschedule'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Mark completed'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Cancel interview'})).not.toBeInTheDocument();
+  });
+
+  it('shows the ready Google Meet link when synced and scheduled', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview: googleMeetReady});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByRole('heading', {name: 'Interview'});
+    expect(screen.getByRole('link', {name: 'https://meet.google.com/abc-def'})).toBeInTheDocument();
+    expect(screen.getByText('Synced')).toBeInTheDocument();
+  });
+
+  it('offers a safe retry for a failed Google Meet without creating a second interview', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview: googleMeetFailed});
+    const update = vi.spyOn(recruiterRepository, 'updateInterview').mockResolvedValue(googleMeetReady);
+    const create = vi.spyOn(recruiterRepository, 'createInterview');
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByRole('heading', {name: 'Interview'});
+    expect(screen.getByText('Sync failed')).toBeInTheDocument();
+    expect(screen.getByText(/candidate still sees the original meeting details/)).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'https://meet.google.com/abc-def'})).toBeInTheDocument();
+    expect(screen.getByText('Existing Google Meet link (unchanged)')).toBeInTheDocument();
+    expect(screen.queryByText('Synced')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Reschedule'})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Retry Google Meet'}));
+    await screen.findByRole('heading', {name: 'Retry Google Meet sync'});
+    expect(screen.getByText(/no new interview is created/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Retry sync'}));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(googleMeetFailed.interviewId, {
+      scheduledAt: '2026-08-20T09:00:00Z', timezone: 'Asia/Singapore', durationMinutes: 45,
+      note: 'Bring portfolio', expectedVersion: 1,
+    }));
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('shows no Meet link for an initial provisioning failure with no link', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview: googleMeetFailedNoLink});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByRole('heading', {name: 'Interview'});
+    expect(screen.getByText('Sync failed')).toBeInTheDocument();
+    expect(screen.getByText(/candidate still sees the original meeting details/)).toBeInTheDocument();
+    expect(screen.queryByText('Existing Google Meet link (unchanged)')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: /^https:\/\/meet\.google\.com\//})).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Retry Google Meet'})).toBeInTheDocument();
+  });
+
+  it('does not render a Meet link for a cancelled Google Meet', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview: googleMeetCancelled});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByRole('heading', {name: 'Interview'});
+    expect(screen.getByText('Cancelled')).toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: /^https:\/\/meet\.google\.com\//})).not.toBeInTheDocument();
+    expect(screen.getByText(/no further changes are allowed/)).toBeInTheDocument();
+  });
+
+  it.each<[string, RegExp]>([
+    ['GOOGLE_MEET_NOT_CONNECTED', /Connect Google Calendar in Integrations/],
+    ['GOOGLE_MEET_RECONNECT_REQUIRED', /authorization has expired/],
+    ['GOOGLE_MEET_PROVISIONING_UNAVAILABLE', /Google Meet is unavailable/],
+  ])('maps the %s error to a safe, actionable message', async (code, pattern) => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'IN_REVIEW'});
+    vi.spyOn(recruiterRepository, 'getGoogleConnection').mockResolvedValue(connected);
+    vi.spyOn(recruiterRepository, 'createInterview')
+      .mockRejectedValue(new AuthApiError(409, code, 'private detail'));
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByText('Review decision');
+    fireEvent.click(screen.getByRole('button', {name: 'Schedule interview'}));
+    await screen.findByRole('heading', {name: 'Schedule interview'});
+    fireEvent.change(screen.getByLabelText('Date and time'), {target: {value: '2026-08-20T09:00'}});
+    fireEvent.change(screen.getByLabelText('Duration minutes'), {target: {value: '45'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Confirm schedule'}));
+    expect(await screen.findByText(pattern)).toBeInTheDocument();
+    expect(screen.queryByText('private detail')).not.toBeInTheDocument();
+  });
+
+  it('maps the GOOGLE_MEET_SYNC_IN_PROGRESS error to a safe message on reschedule', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW', interview: googleMeetReady});
+    vi.spyOn(recruiterRepository, 'updateInterview')
+      .mockRejectedValue(new AuthApiError(409, 'GOOGLE_MEET_SYNC_IN_PROGRESS', 'private detail'));
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByRole('heading', {name: 'Interview'});
+    fireEvent.click(screen.getByRole('button', {name: 'Reschedule'}));
+    await screen.findByRole('heading', {name: 'Reschedule interview'});
+    fireEvent.click(screen.getByRole('button', {name: 'Save changes'}));
+    expect(await screen.findByText(/sync is already in progress/)).toBeInTheDocument();
+    expect(screen.queryByText('private detail')).not.toBeInTheDocument();
+  });
 });
 
 const updated = {...detail, status: 'IN_REVIEW' as const, version: 2, updatedAt: '2026-08-12T02:00:00Z'};
+const interview = {interviewId: 'interview-1', applicationId: detail.applicationId, scheduledAt: '2026-08-20T09:00:00Z',
+  timezone: 'Asia/Singapore', durationMinutes: 45, mode: 'ONLINE' as const,
+  locationOrMeetingUrl: 'https://meet.example.com/abc', note: 'Bring portfolio', status: 'SCHEDULED' as const,
+  version: 1, meetingProvider: 'MANUAL' as const, meetingSyncStatus: 'NOT_APPLICABLE' as const,
+  createdAt: '2026-08-14T00:00:00Z', updatedAt: '2026-08-14T00:00:00Z'};
+
+const connected: GoogleConnection = {connected: true, status: 'CONNECTED', connectedAt: '2026-08-15T01:00:00Z'};
+const disconnected: GoogleConnection = {connected: false, status: 'DISCONNECTED', connectedAt: null};
+const revoked: GoogleConnection = {connected: false, status: 'REVOKED', connectedAt: '2026-08-14T01:00:00Z'};
+const googleMeetReady = {...interview, meetingProvider: 'GOOGLE_MEET' as const, meetingSyncStatus: 'READY' as const,
+  locationOrMeetingUrl: 'https://meet.google.com/abc-def'};
+const googleMeetPending = {...interview, meetingProvider: 'GOOGLE_MEET' as const, meetingSyncStatus: 'PENDING' as const,
+  locationOrMeetingUrl: null};
+const googleMeetFailed = {...googleMeetReady, meetingSyncStatus: 'FAILED' as const};
+const googleMeetFailedNoLink = {...googleMeetFailed, locationOrMeetingUrl: null};
+const googleMeetCancelled = {...googleMeetReady, status: 'CANCELLED' as const, locationOrMeetingUrl: null};

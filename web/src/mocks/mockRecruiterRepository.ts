@@ -10,7 +10,9 @@ const failIfDemoError = async () => {
 type MockOnlyRepository = Omit<RecruiterRepository,
   'listJobs' | 'getJob' | 'createJob' | 'updateJob' | 'publishJob' | 'changeJobStatus' |
   'listApplications' | 'getApplication' | 'updateApplicationStatus' | 'getDashboard' |
-  'listConversations' | 'getConversation' | 'listMessages' | 'sendMessage' | 'markRead'>;
+  'createInterview' | 'updateInterview' |
+  'listConversations' | 'getConversation' | 'listMessages' | 'sendMessage' | 'markRead' |
+  'beginGoogleConnection' | 'getGoogleConnection' | 'disconnectGoogle'>;
 
 export const mockRecruiterRepository: MockOnlyRepository = {
   async signIn(email, password) {

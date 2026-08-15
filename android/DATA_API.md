@@ -25,3 +25,24 @@
 - `feature/**`：只展示传入的数据和处理局部表单状态，不再引用全局 `MockData`。
 
 接入真实后端时，实现新的 `CandidateApi`（例如 `RetrofitCandidateApi`），然后向 `AdCandidateApp(api = ...)` 注入即可。页面参数和导航流程无需再次改造。
+
+## 面试会议同步字段映射（求职端安全展示）
+
+面试详情中的 `Interview` DTO 仅消费后端返回的两个候选安全字段，用于“Google Meet 同步状态”的展示，不包含任何凭据或内部错误：
+
+| 字段 | 类型（Kotlin enum） | 后端缺省值 | 含义 |
+|---|---|---|---|
+| `meetingProvider` | `MeetingProvider { MANUAL, GOOGLE_MEET }` | `MANUAL` | 会议方式；旧后端不返回时按手动面试处理 |
+| `meetingSyncStatus` | `MeetingSyncStatus { NOT_APPLICABLE, PENDING, READY, FAILED }` | `NOT_APPLICABLE` | Google Meet 同步的终态/中间态，仅用于提示文案与链接可点性 |
+
+Moshi 使用 `KotlinJsonAdapterFactory`（反射），对缺失字段套用 Kotlin 默认值，因此旧后端不发送这两个字段时自动回退为 `MANUAL + NOT_APPLICABLE`，页面无 Google 文案。
+
+展示决策集中在 `feature/applications/InterviewMeetingDisplay.kt` 的纯函数 `meetingDisplay(interview)`：
+
+- `MANUAL + NOT_APPLICABLE`：不显示任何 Google 文案。
+- `GOOGLE_MEET + READY`：显示短标签 “Google Meet”；仅当 `status == SCHEDULED`、链接非空且为 `ONLINE` 的 http(s) 链接时可打开。
+- `PENDING`：中性提示“面试更新进行中，你当前的邀请仍然有效”，保留旧链接，无链接时也不伪造 “Join” 按钮。
+- `FAILED`：不暴露内部错误码；有旧链接时提示“会议更新未完成，你的当前邀请未变”，无链接时提示“会议邀请暂不可用，请稍后再查看”。
+- `CANCELLED` / `COMPLETED`：保持终态展示，不提供链接与任何新的 Google 操作；不提供招聘方专属操作（重新连接 Google / 重试同步 / 创建 Meet）。
+
+面试上下文 `InterviewContext` 来自会话 `context` 字段，后端当前始终返回 `null`，故本次未在该模型上新增会议同步字段。

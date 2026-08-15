@@ -9,7 +9,7 @@ import java.util.List;
 
 public final class RecruiterApplicationDtos {
     private RecruiterApplicationDtos() {}
-    public enum TransitionTarget { IN_REVIEW, INTERVIEW, REJECTED }
+    public enum TransitionTarget { IN_REVIEW, REJECTED }
 
     public record CandidateSummary(String candidateId, String fullName, String email, String headline,
                                    String avatarUrl, String location) {}
@@ -20,7 +20,7 @@ public final class RecruiterApplicationDtos {
     public record Detail(String applicationId, String jobId, String status, Instant appliedAt, Instant updatedAt,
                          int version, CandidateSummary candidate, String jobTitle, Integer matchScore, User owner,
                          ApplicationDtos.ResumeSnapshot resumeSnapshot, List<AuditEvent> timeline,
-                         Object matchAnalysis, Object interview, List<Object> notes) {}
+                         Object matchAnalysis, InterviewDtos.Interview interview, List<Object> notes) {}
     public record AuditEvent(String eventId, String actorId, String companyId, String fromStatus, String toStatus,
                              Instant occurredAt, String reason, String requestId) {}
     public record Counts(long applied, long inReview, long interview, long rejected) {}

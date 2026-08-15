@@ -6,6 +6,7 @@ import com.adproject.application.domain.ApplicationStatus;
 import com.adproject.application.infrastructure.*;
 import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
+import com.adproject.common.time.DatabaseTimePrecision;
 import com.adproject.company.infrastructure.CompanyRepository;
 import com.adproject.job.infrastructure.JobRepository;
 import com.adproject.user.domain.UserRole;
@@ -29,6 +30,7 @@ public class CandidateApplicationQueryService {
     private final ApplicationRepository applications;
     private final ApplicationStatusEventRepository events;
     private final ResumeSnapshotRepository snapshots;
+    private final InterviewRepository interviews;
     private final JobRepository jobs;
     private final CompanyRepository companies;
     private final CandidateApplicationResponseMapper mapper;
@@ -36,12 +38,14 @@ public class CandidateApplicationQueryService {
 
     public CandidateApplicationQueryService(ApplicationRepository applications,
                                             ApplicationStatusEventRepository events,
-                                            ResumeSnapshotRepository snapshots, JobRepository jobs,
+                                            ResumeSnapshotRepository snapshots, InterviewRepository interviews,
+                                            JobRepository jobs,
                                             CompanyRepository companies,
                                             CandidateApplicationResponseMapper mapper, Clock clock) {
         this.applications = applications;
         this.events = events;
         this.snapshots = snapshots;
+        this.interviews = interviews;
         this.jobs = jobs;
         this.companies = companies;
         this.mapper = mapper;
@@ -93,7 +97,7 @@ public class CandidateApplicationQueryService {
                     "The application cannot be withdrawn from its current status");
         }
         ApplicationStatus before = application.getStatus();
-        Instant now = clock.instant();
+        Instant now = DatabaseTimePrecision.micros(clock.instant());
         var job = jobs.findById(application.getJobId()).orElseThrow(this::notFound);
         application.withdraw(now);
         events.save(new ApplicationStatusEventEntity(UUID.randomUUID().toString(), application.getId(),
@@ -106,16 +110,18 @@ public class CandidateApplicationQueryService {
     private ApplicationDtos.CandidateApplicationSummary summary(ApplicationEntity application) {
         var job = jobs.findById(application.getJobId()).orElseThrow(this::notFound);
         var company = companies.findById(job.getCompanyId()).orElseThrow(this::notFound);
+        var interview = interviews.findByApplicationId(application.getId()).orElse(null);
         return mapper.summary(application, job, company,
-                events.findByApplicationIdOrderByOccurredAtAscIdAsc(application.getId()));
+                events.findByApplicationIdOrderByOccurredAtAscIdAsc(application.getId()), interview);
     }
 
     private ApplicationDtos.CandidateApplicationDetail detail(ApplicationEntity application) {
         var job = jobs.findById(application.getJobId()).orElseThrow(this::notFound);
         var company = companies.findById(job.getCompanyId()).orElseThrow(this::notFound);
         var snapshot = snapshots.findById(application.getResumeSnapshotId()).orElseThrow(this::notFound);
+        var interview = interviews.findByApplicationId(application.getId()).orElse(null);
         return mapper.detail(application, snapshot, job, company,
-                events.findByApplicationIdOrderByOccurredAtAscIdAsc(application.getId()));
+                events.findByApplicationIdOrderByOccurredAtAscIdAsc(application.getId()), interview);
     }
 
     private static void requireCandidate(AuthenticatedUser principal) {

@@ -1,8 +1,11 @@
 package com.adproject.application.application;
 
 import com.adproject.application.api.ApplicationDtos;
+import com.adproject.application.api.InterviewDtos;
+import com.adproject.application.domain.InterviewStatus;
 import com.adproject.application.infrastructure.ApplicationEntity;
 import com.adproject.application.infrastructure.ApplicationStatusEventEntity;
+import com.adproject.application.infrastructure.InterviewEntity;
 import com.adproject.application.infrastructure.ResumeSnapshotEntity;
 import com.adproject.company.infrastructure.CompanyEntity;
 import com.adproject.job.infrastructure.JobEntity;
@@ -23,22 +26,39 @@ public class CandidateApplicationResponseMapper {
 
     public ApplicationDtos.CandidateApplicationSummary summary(ApplicationEntity application, JobEntity job,
                                                                  CompanyEntity company,
-                                                                 List<ApplicationStatusEventEntity> events) {
+                                                                 List<ApplicationStatusEventEntity> events,
+                                                                 InterviewEntity interview) {
         return new ApplicationDtos.CandidateApplicationSummary(
                 application.getId(), application.getJobId(), application.getStatus().name(),
                 application.getAppliedAt(), application.getUpdatedAt(), application.getVersion(), job.getTitle(),
-                company(company), null, null, timeline(events));
+                company(company), null, scheduledAt(interview), timeline(events));
     }
 
     public ApplicationDtos.CandidateApplicationDetail detail(ApplicationEntity application,
                                                               ResumeSnapshotEntity snapshot, JobEntity job,
                                                               CompanyEntity company,
-                                                              List<ApplicationStatusEventEntity> events) {
+                                                              List<ApplicationStatusEventEntity> events,
+                                                              InterviewEntity interview) {
         var snapshotDto = resumeSnapshot(snapshot);
         return new ApplicationDtos.CandidateApplicationDetail(
                 application.getId(), application.getJobId(), application.getStatus().name(),
                 application.getAppliedAt(), application.getUpdatedAt(), application.getVersion(), job.getTitle(),
-                company(company), null, null, timeline(events), snapshotDto, null, nextSteps(application, company));
+                company(company), null, scheduledAt(interview), timeline(events), snapshotDto,
+                interview == null ? null : interviewDto(interview), nextSteps(application, company));
+    }
+
+    private java.time.Instant scheduledAt(InterviewEntity interview) {
+        return interview != null && interview.getStatus() == InterviewStatus.SCHEDULED
+                ? interview.getScheduledAt() : null;
+    }
+
+    private InterviewDtos.Interview interviewDto(InterviewEntity interview) {
+        return new InterviewDtos.Interview(interview.getId(), interview.getApplicationId(),
+                interview.getScheduledAt(), interview.getTimezone(), interview.getDurationMinutes(),
+                interview.getMode().name(), interview.getLocationOrMeetingUrl(), null,
+                interview.getStatus().name(), interview.getVersion(), interview.getCreatedAt(),
+                interview.getUpdatedAt(), interview.getMeetingProvider().name(),
+                interview.getMeetingSyncStatus().name());
     }
 
     public ApplicationDtos.ResumeSnapshot resumeSnapshot(ResumeSnapshotEntity snapshot) {

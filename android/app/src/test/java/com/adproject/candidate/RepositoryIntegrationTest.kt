@@ -23,6 +23,10 @@ import com.adproject.candidate.data.contract.WithdrawApplicationRequest
 import com.adproject.candidate.data.contract.UpdateProfileRequest
 import com.adproject.candidate.data.contract.SaveResumeRequest
 import com.adproject.candidate.data.contract.EmploymentType
+import com.adproject.candidate.data.contract.InterviewMode
+import com.adproject.candidate.data.contract.InterviewStatus
+import com.adproject.candidate.data.contract.MeetingProvider
+import com.adproject.candidate.data.contract.MeetingSyncStatus
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.async
@@ -263,6 +267,40 @@ class RepositoryIntegrationTest {
         assertFalse(conflict.message.contains("internal"))
     }
 
+    @Test fun interviewDetailParsesFullInterview() = runTest {
+        val repository = RealCandidateApplicationRepository(
+            retrofit().create(CandidateApplicationHttpApi::class.java), moshi,
+        )
+        server.enqueue(jsonResponse(applicationBodyWithInterview()))
+        val detail = repository.application("application-1") as ApiResult.Success
+        val interview = detail.value.interview!!
+        assertEquals("interview-1", interview.interviewId)
+        assertEquals("2026-08-20T09:00:00Z", interview.scheduledAt)
+        assertEquals("Asia/Singapore", interview.timezone)
+        assertEquals(45, interview.durationMinutes)
+        assertEquals(InterviewMode.ONLINE, interview.mode)
+        assertEquals(InterviewStatus.SCHEDULED, interview.status)
+        assertEquals("https://meet.example.com/abc", interview.locationOrMeetingUrl)
+        assertNull(interview.note)
+        // Older backends omit the meeting sync fields; the candidate client falls
+        // back to a plain manual interview with no external sync.
+        assertEquals(MeetingProvider.MANUAL, interview.meetingProvider)
+        assertEquals(MeetingSyncStatus.NOT_APPLICABLE, interview.meetingSyncStatus)
+        assertEquals("/api/v1/candidate/applications/application-1", server.takeRequest().path)
+    }
+
+    @Test fun interviewDetailParsesGoogleMeetSyncState() = runTest {
+        val repository = RealCandidateApplicationRepository(
+            retrofit().create(CandidateApplicationHttpApi::class.java), moshi,
+        )
+        server.enqueue(jsonResponse(applicationBodyWithGoogleMeetInterview()))
+        val interview = (repository.application("application-1") as ApiResult.Success).value.interview!!
+        assertEquals(MeetingProvider.GOOGLE_MEET, interview.meetingProvider)
+        assertEquals(MeetingSyncStatus.READY, interview.meetingSyncStatus)
+        assertEquals("https://meet.google.com/abc-defg-hij", interview.locationOrMeetingUrl)
+        assertEquals(InterviewStatus.SCHEDULED, interview.status)
+    }
+
     private fun retrofit(client: OkHttpClient = OkHttpClient()): Retrofit = Retrofit.Builder()
         .baseUrl(server.url("/api/v1/"))
         .client(client)
@@ -305,6 +343,21 @@ class RepositoryIntegrationTest {
         "experiences":[],"version":1,"createdAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z"},
         "interview":null,"nextSteps":[{"type":"RECRUITER_REVIEW","title":"Recruiter review","description":"Review"}]}}
     """.trimIndent()
+
+    private fun applicationBodyWithInterview() = applicationBody().replace("\"interview\":null", """
+        "interview":{"interviewId":"interview-1","applicationId":"application-1","scheduledAt":"2026-08-20T09:00:00Z",
+        "timezone":"Asia/Singapore","durationMinutes":45,"mode":"ONLINE",
+        "locationOrMeetingUrl":"https://meet.example.com/abc","note":null,"status":"SCHEDULED","version":1,
+        "createdAt":"2026-08-14T00:00:00Z","updatedAt":"2026-08-14T00:00:00Z"}
+    """.trimIndent())
+
+    private fun applicationBodyWithGoogleMeetInterview() = applicationBody().replace("\"interview\":null", """
+        "interview":{"interviewId":"interview-1","applicationId":"application-1","scheduledAt":"2026-08-20T09:00:00Z",
+        "timezone":"Asia/Singapore","durationMinutes":45,"mode":"ONLINE",
+        "locationOrMeetingUrl":"https://meet.google.com/abc-defg-hij","note":null,"status":"SCHEDULED","version":1,
+        "createdAt":"2026-08-14T00:00:00Z","updatedAt":"2026-08-14T00:00:00Z",
+        "meetingProvider":"GOOGLE_MEET","meetingSyncStatus":"READY"}
+    """.trimIndent())
 
     private fun applicationListBody() = """
         {"data":[{"applicationId":"application-1","jobId":"job-1","status":"WITHDRAWN",
