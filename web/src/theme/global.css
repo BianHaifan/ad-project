@@ -4,3 +4,39 @@
 .messages-panel{height:calc(100vh - 210px);min-height:600px;display:grid;grid-template-columns:300px 1fr;border:1px solid var(--line);background:#fff;border-radius:16px;overflow:hidden}.conversation-list{border-right:1px solid var(--line);padding:14px 0}.conversation-list>.section-title,.conversation-list>input{margin:0 14px 10px;width:calc(100% - 28px)}.conversation-list h2{font-size:22px}.circle-button{border:0;background:#eef5f7;width:36px;height:36px;border-radius:10px;color:#6e7885;font-weight:800}.conversation-list>button{width:100%;min-height:74px;border:0;border-bottom:1px solid #e9edf0;background:#fff;padding:12px;display:flex;gap:10px;align-items:center;text-align:left}.conversation-list>button.selected{background:#e8f9f7}.conversation-list .grow{display:flex;flex-direction:column;gap:4px}.truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.conversation-list small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;color:#7b8491}.unread{width:20px;height:20px;background:var(--teal);color:#fff;border-radius:50%;display:grid;place-items:center;font-size:10px}.chat-view{display:grid;grid-template-rows:56px 1fr 64px;min-width:0}.chat-view>header{border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:8px 14px}.chat-view>header span:nth-child(2){display:flex;flex-direction:column}.chat-view>header small{color:#7b8491}.messages{padding:22px;display:flex;flex-direction:column;gap:18px;background:#fbfcfd;overflow:auto}.message{max-width:58%;border:1px solid #d7dee3;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:4px;font-size:12px}.message.recruiter{align-self:flex-end;background:#079a9c;color:#fff;border-color:#079a9c}.message.system{align-self:center;background:#dff7f5;border:0;color:#008b8d;border-radius:999px;max-width:70%;text-align:center;padding:8px 44px}.message small{font-size:9px;opacity:.7}.message-composer{display:flex;align-items:center;gap:10px;border-top:1px solid var(--line);padding:8px 12px}.message-composer input{flex:1}.not-found{min-height:100vh;display:grid;place-content:center;gap:14px;text-align:center}.not-found .button{margin:auto}
 @media(max-width:1180px){.app-shell{padding:16px 20px}.metric-grid{gap:10px}.account span:not(.avatar){display:none}.table-head,.table-row{font-size:10px}.jobs-table .table-head,.jobs-table .table-row{grid-template-columns:1.6fr 1.2fr .65fr .65fr .8fr .8fr 1.2fr}.detail-layout{grid-template-columns:1.45fr 1fr}.job-layout{grid-template-columns:1.6fr 1fr}.auth-brand{padding:44px}.auth-card{width:460px}}@media(min-width:1500px){.app-shell{max-width:1600px;margin:auto}}
 .modal textarea{min-height:84px;padding:10px 14px;border:1px solid #d1d9de;background:#fafbfc;border-radius:10px;color:#27313b;resize:vertical}
+
+/* Recruiter workflow polish: keep dense data readable at the supported desktop width. */
+.jobs-table .table-head,.jobs-table .table-row{grid-template-columns:1.75fr 1.35fr .65fr .8fr .9fr 1.05fr}
+.app-table.no-match .table-head,.app-table.no-match .table-row{grid-template-columns:1.65fr 1.55fr .82fr .85fr 1fr .6fr}
+.app-table.with-match .table-head,.app-table.with-match .table-row{grid-template-columns:1.55fr 1.4fr .62fr .72fr .8fr .9fr .55fr}
+.table-row{min-width:0}
+.table-row>span{min-width:0}
+.cell-stack{display:flex;min-width:0;flex-direction:column;gap:4px}
+.cell-ellipsis{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-actions{gap:6px}
+.resume-snapshot{min-height:0}
+.resume-snapshot h3{font-size:13px;margin-top:18px}
+.resume-snapshot p{font-size:12px;line-height:1.55;color:#65717d;margin-top:6px}
+.resume-meta{max-width:210px}
+.decision-form{display:flex;flex-direction:column;gap:12px}
+.decision-form textarea{min-height:88px;padding:10px;resize:vertical}
+.decision-form label{font-size:12px;color:#65717d;display:flex;flex-direction:column;gap:6px}
+.overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 24px;margin-top:20px}
+.detail-description{font-size:13px!important;line-height:1.6!important;margin-top:14px!important}
+.job-actions-panel .actions{margin-top:16px;flex-wrap:wrap}
+.job-actions-panel>p{margin-top:14px}
+.metadata-list{display:flex;flex-direction:column;gap:0;margin:12px 0 0}
+.metadata-list>div{display:grid;grid-template-columns:120px 1fr;gap:14px;padding:11px 0;border-bottom:1px solid #edf0f2}
+.metadata-list>div:last-child{border-bottom:0}
+.metadata-list dt{color:#75808c;font-size:12px}
+.metadata-list dd{margin:0;color:#27313b;font-size:12px;font-weight:600;text-align:right}
+.job-stage-cards .stage-active.selected{background:#e6f7f6;border-color:#00999b}
+.job-stage-cards .stage-draft.selected{background:#fff7ea;border-color:#d9821b}
+.job-stage-cards .stage-paused.selected{background:#eaf1ff;border-color:#2864ff}
+.job-stage-cards .stage-closed.selected{background:#feecec;border-color:#d43e3e}
+
+@media(max-width:1180px){
+  .jobs-table .table-head,.jobs-table .table-row{grid-template-columns:1.55fr 1.2fr .62fr .72fr .8fr 1fr}
+  .app-table.no-match .table-head,.app-table.no-match .table-row{grid-template-columns:1.45fr 1.35fr .72fr .78fr .85fr .55fr}
+  .app-table.with-match .table-head,.app-table.with-match .table-row{grid-template-columns:1.4fr 1.25fr .55fr .68fr .72fr .78fr .5fr}
+}
