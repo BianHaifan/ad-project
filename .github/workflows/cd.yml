@@ -66,6 +66,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: infra/docker/docker-compose.yml,infra/docker/nginx.conf
           target: /opt/adproject/infra/docker/
+          strip_components: 2
           overwrite: true
 
       - name: upload images to target server B
@@ -76,6 +77,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: images/images.tar
           target: /opt/adproject/infra/docker/images/
+          strip_components: 1
           overwrite: true
 
       - name: deploy on target server B
