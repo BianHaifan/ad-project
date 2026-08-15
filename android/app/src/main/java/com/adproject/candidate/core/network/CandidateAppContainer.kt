@@ -26,7 +26,6 @@ import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 import okhttp3.CertificatePinner
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
@@ -35,29 +34,29 @@ class CandidateAppContainer(context: Context) {
     val moshi: Moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
     private val converter = MoshiConverterFactory.create(moshi)
 
-    private val apiHost = BuildConfig.API_BASE_URL.toHttpUrl().host
-
     private val pinner = CertificatePinner.Builder()
-        .add(apiHost, SERVER_PUBLIC_KEY_PIN)
+        .add(SERVER_HOST, SERVER_PUBLIC_KEY_PIN)
         .build()
 
     private val sslContext = buildPinnedSslContext(context)
     private val trustManager = sslContext.first
     private val sslSocketFactory = sslContext.second
 
-    private fun OkHttpClient.Builder.applyCertificatePinning(): OkHttpClient.Builder =
-        sslSocketFactory(sslSocketFactory, trustManager)
-            .certificatePinner(pinner)
-
     private val publicRetrofit = Retrofit.Builder()
         .baseUrl(BuildConfig.API_BASE_URL)
         .addConverterFactory(converter)
-        .client(OkHttpClient.Builder().applyCertificatePinning().build())
+        .client(
+            OkHttpClient.Builder()
+                .sslSocketFactory(sslSocketFactory, trustManager)
+                .certificatePinner(pinner)
+                .build(),
+        )
         .build()
     private val publicAuthApi = publicRetrofit.create(AuthHttpApi::class.java)
     val sessionManager = SessionManager(KeystoreTokenStore(context.applicationContext, moshi), publicAuthApi)
     private val authenticatedClient = OkHttpClient.Builder()
-        .applyCertificatePinning()
+        .sslSocketFactory(sslSocketFactory, trustManager)
+        .certificatePinner(pinner)
         .addInterceptor(AccessTokenInterceptor(sessionManager))
         .authenticator(RefreshAuthenticator(sessionManager))
         .build()
@@ -103,6 +102,7 @@ class CandidateAppContainer(context: Context) {
     }
 
     private companion object {
+        const val SERVER_HOST = "100.49.80.35"
         const val SERVER_PUBLIC_KEY_PIN =
             "sha256/+kyvNPg1eXyxlmr6gVIr3L909mGgL8Ny4BOP40R5nRk="
     }
