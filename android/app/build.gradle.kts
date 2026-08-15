@@ -10,6 +10,9 @@ val debugApiBaseUrl = providers.gradleProperty("AD_API_BASE_URL")
 val releaseApiBaseUrl = providers.gradleProperty("AD_API_BASE_URL")
     .orElse("https://100.49.80.35/api/v1/")
 
+fun apiHostOf(url: String): String =
+    url.substringAfter("://").substringBefore('/').substringBefore(':')
+
 android {
     namespace = "com.adproject.candidate"
     compileSdk = 35
@@ -28,10 +31,12 @@ android {
     buildTypes {
         debug {
             buildConfigField("String", "API_BASE_URL", "\"${debugApiBaseUrl.get()}\"")
+            buildConfigField("String", "API_HOST", "\"${apiHostOf(debugApiBaseUrl.get())}\"")
         }
         release {
             isMinifyEnabled = false
             buildConfigField("String", "API_BASE_URL", "\"${releaseApiBaseUrl.get()}\"")
+            buildConfigField("String", "API_HOST", "\"${apiHostOf(releaseApiBaseUrl.get())}\"")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             val keystorePath = providers.gradleProperty("RELEASE_KEYSTORE_PATH").orNull
                 ?: System.getenv("RELEASE_KEYSTORE_PATH")

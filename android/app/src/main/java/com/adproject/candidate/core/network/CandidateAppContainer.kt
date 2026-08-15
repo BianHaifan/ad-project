@@ -35,7 +35,7 @@ class CandidateAppContainer(context: Context) {
     private val converter = MoshiConverterFactory.create(moshi)
 
     private val pinner = CertificatePinner.Builder()
-        .add(SERVER_HOST, SERVER_PUBLIC_KEY_PIN)
+        .add(BuildConfig.API_HOST, SERVER_PUBLIC_KEY_PIN)
         .build()
 
     private val sslContext = buildPinnedSslContext(context)
@@ -102,7 +102,6 @@ class CandidateAppContainer(context: Context) {
     }
 
     private companion object {
-        const val SERVER_HOST = "100.49.80.35"
         const val SERVER_PUBLIC_KEY_PIN =
             "sha256/+kyvNPg1eXyxlmr6gVIr3L909mGgL8Ny4BOP40R5nRk="
     }
