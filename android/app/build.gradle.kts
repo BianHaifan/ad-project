@@ -46,7 +46,10 @@ android {
                 ?: System.getenv("RELEASE_KEY_ALIAS_PASSWORD")
             val alias = providers.gradleProperty("RELEASE_KEY_ALIAS").orNull
                 ?: System.getenv("RELEASE_KEY_ALIAS")
-            if (keystorePath != null && storePass != null && keyPass != null && alias != null) {
+            if (
+                !keystorePath.isNullOrBlank() && file(keystorePath).exists() &&
+                !storePass.isNullOrBlank() && !keyPass.isNullOrBlank() && !alias.isNullOrBlank()
+            ) {
                 signingConfig = signingConfigs.create("release") {
                     storeFile = file(keystorePath)
                     storePassword = storePass
