@@ -35,3 +35,10 @@ app:
     redirect-uri: ${GOOGLE_OAUTH_REDIRECT_URI:}
     token-encryption-key: ${GOOGLE_TOKEN_ENCRYPTION_KEY:}
     web-return-uri: ${GOOGLE_OAUTH_WEB_RETURN_URI:}
+  recommendation:
+    enabled: ${ML_ENABLED:true}
+    base-url: ${ML_BASE_URL:http://127.0.0.1:8000}
+    internal-token: ${ML_INTERNAL_TOKEN:local-ml-token}
+    connect-timeout: ${ML_CONNECT_TIMEOUT:2s}
+    read-timeout: ${ML_READ_TIMEOUT:5s}
+    max-jobs: ${ML_MAX_JOBS:500}

@@ -11,6 +11,8 @@ spring:
     locations: classpath:db/migration
 
 app:
+  recommendation:
+    enabled: false
   auth:
     jwt-secret: test-only-secret-at-least-thirty-two-bytes-long
   google-oauth:

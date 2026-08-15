@@ -16,7 +16,8 @@ import com.adproject.candidate.data.contract.Experience
 @Composable
 fun RealProfileScreen(state: ProfileUiState, onRetry: () -> Unit, onEdit: () -> Unit,
                       onSave: (String, String, String) -> Unit, onResume: () -> Unit,
-                      onApplications: () -> Unit, onLogout: () -> Unit,
+                      onApplications: () -> Unit, onPreferences: () -> Unit,
+                      onLogout: () -> Unit,
                       onTab: (MainTab) -> Unit) {
     when {
         state.loading -> Box(Modifier.fillMaxSize()) { CircularProgressIndicator() }
@@ -47,6 +48,7 @@ fun RealProfileScreen(state: ProfileUiState, onRetry: () -> Unit, onEdit: () -> 
                 if (state.saved) Text("Profile saved")
                 PrimaryButton("Online resume", onResume, Modifier.fillMaxWidth())
                 SecondaryButton("My applications", onApplications, Modifier.fillMaxWidth())
+                SecondaryButton("Job preferences", onPreferences, Modifier.fillMaxWidth())
                 SecondaryButton("Sign out", onLogout, Modifier.fillMaxWidth())
             } }
         }
@@ -55,7 +57,7 @@ fun RealProfileScreen(state: ProfileUiState, onRetry: () -> Unit, onEdit: () -> 
 
 @Composable
 fun RealResumeScreen(state: ResumeUiState, onBack: () -> Unit, onRetry: () -> Unit,
-                     onSave: (String, String, String, String, String, List<Experience>) -> Unit) {
+                     onSave: (String, String, String, String, String, String, List<Experience>) -> Unit) {
     if (state.loading) { CircularProgressIndicator(); return }
     if (state.data == null && !state.notCreated) {
         Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -71,6 +73,7 @@ fun RealResumeScreen(state: ResumeUiState, onBack: () -> Unit, onRetry: () -> Un
     var location by remember(data) { mutableStateOf(data?.location.orEmpty()) }
     var headline by remember(data) { mutableStateOf(data?.headline.orEmpty()) }
     var summary by remember(data) { mutableStateOf(data?.summary.orEmpty()) }
+    var skills by remember(data) { mutableStateOf(data?.skills?.joinToString(", ").orEmpty()) }
     val experiences = remember(data) { mutableStateListOf<Experience>().apply { addAll(data?.experiences.orEmpty()) } }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(if (data == null) "Create resume" else "Edit resume", style = MaterialTheme.typography.headlineSmall)
@@ -89,6 +92,9 @@ fun RealResumeScreen(state: ResumeUiState, onBack: () -> Unit, onRetry: () -> Un
         OutlinedTextField(summary, { summary = it }, label = { Text("Summary") }, minLines = 3,
             isError = "summary" in state.fieldErrors,
             supportingText = { state.fieldErrors["summary"]?.let { Text(it) } })
+        OutlinedTextField(skills, { skills = it }, label = { Text("Skills, comma separated") },
+            isError = "skills" in state.fieldErrors,
+            supportingText = { state.fieldErrors["skills"]?.let { Text(it) } })
         Text("Experience", style = MaterialTheme.typography.titleMedium)
         experiences.forEachIndexed { index, experience ->
             Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -111,7 +117,9 @@ fun RealResumeScreen(state: ResumeUiState, onBack: () -> Unit, onRetry: () -> Un
         }
         TextButton(onClick = { experiences.add(Experience(null, "", "", "", "2026-01", null)) }) { Text("+ Add experience") }
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        PrimaryButton(if (state.submitting) "Saving…" else "Save changes", { onSave(name, age, location, headline, summary, experiences.toList()) }, Modifier.fillMaxWidth(), enabled = !state.submitting)
+        PrimaryButton(if (state.submitting) "Saving…" else "Save changes",
+            { onSave(name, age, location, headline, summary, skills, experiences.toList()) },
+            Modifier.fillMaxWidth(), enabled = !state.submitting)
         SecondaryButton("Back", onBack, Modifier.fillMaxWidth())
     }
 }

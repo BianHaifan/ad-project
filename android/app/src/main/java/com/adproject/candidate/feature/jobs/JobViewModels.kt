@@ -7,6 +7,8 @@ import com.adproject.candidate.data.api.ApiResult
 import com.adproject.candidate.data.api.CandidateJobRepository
 import com.adproject.candidate.data.contract.CandidateJob
 import com.adproject.candidate.data.contract.EmploymentType
+import com.adproject.candidate.data.contract.MatchAnalysis
+import com.adproject.candidate.data.contract.RecommendedJob
 import com.adproject.candidate.data.model.Job
 import com.adproject.candidate.data.model.JobDetailData
 import com.adproject.candidate.data.model.JobFeedData
@@ -23,7 +25,8 @@ data class JobFeedUiState(
     val data: JobFeedData? = null,
     val message: String? = null,
     val query: String = "",
-    val employmentType: EmploymentType? = EmploymentType.FULL_TIME,
+    val employmentType: EmploymentType? = null,
+    val recommended: Boolean = true,
 )
 
 class JobFeedViewModel(private val repository: CandidateJobRepository) : ViewModel() {
@@ -34,10 +37,17 @@ class JobFeedViewModel(private val repository: CandidateJobRepository) : ViewMod
 
     fun updateQuery(value: String) = mutableState.update { it.copy(query = value) }
     fun selectEmploymentType(value: EmploymentType?) {
-        mutableState.update { it.copy(employmentType = value) }
+        mutableState.update { it.copy(employmentType = value, recommended = false) }
         load()
     }
-    fun search() = load()
+    fun search() {
+        mutableState.update { it.copy(recommended = false) }
+        load()
+    }
+    fun showRecommended() {
+        mutableState.update { it.copy(recommended = true, employmentType = null, query = "") }
+        load()
+    }
     fun retry() = load()
     fun refresh() = load(refreshing = true)
 
@@ -45,13 +55,29 @@ class JobFeedViewModel(private val repository: CandidateJobRepository) : ViewMod
         viewModelScope.launch {
             mutableState.update { it.copy(loading = it.data == null && !refreshing, refreshing = refreshing, message = null) }
             val snapshot = mutableState.value
-            when (val result = repository.jobs(snapshot.query, snapshot.employmentType)) {
-                is ApiResult.Success -> mutableState.update {
-                    it.copy(loading = false, refreshing = false,
-                        data = JobFeedData("Search job titles", result.value.jobs.map(::toUiJob)), message = null)
+            if (snapshot.recommended) {
+                when (val result = repository.recommendations()) {
+                    is ApiResult.Success -> mutableState.update {
+                        it.copy(loading = false, refreshing = false,
+                            data = JobFeedData("Search job titles", result.value.data.map(::toUiJob),
+                                result.value.meta.source, result.value.meta.modelVersion), message = null)
+                    }
+                    is ApiResult.Failure -> mutableState.update {
+                        it.copy(loading = false, refreshing = false,
+                            message = if (result.code == "RESUME_REQUIRED")
+                                "Create your resume to receive personalized recommendations."
+                            else result.message)
+                    }
                 }
-                is ApiResult.Failure -> mutableState.update {
-                    it.copy(loading = false, refreshing = false, message = result.message)
+            } else {
+                when (val result = repository.jobs(snapshot.query, snapshot.employmentType)) {
+                    is ApiResult.Success -> mutableState.update {
+                        it.copy(loading = false, refreshing = false,
+                            data = JobFeedData("Search job titles", result.value.jobs.map(::toUiJob)), message = null)
+                    }
+                    is ApiResult.Failure -> mutableState.update {
+                        it.copy(loading = false, refreshing = false, message = result.message)
+                    }
                 }
             }
         }
@@ -89,7 +115,7 @@ class JobDetailViewModel(
                 is ApiResult.Success -> {
                     val detail = result.value
                     mutableState.value = JobDetailUiState(data = toUiDetail(detail.job,
-                        detail.matchAnalysis != null, detail.applicationState), loading = false)
+                        detail.matchAnalysis, detail.applicationState), loading = false)
                 }
                 is ApiResult.Failure -> mutableState.value = JobDetailUiState(
                     loading = false, message = result.message, notFound = result.statusCode == 404,
@@ -119,19 +145,31 @@ private fun toUiJob(job: CandidateJob) = Job(
     recruiter = job.recruiter?.let { RecruiterContact(it.recruiterId, it.fullName, it.title) },
 )
 
-private fun toUiDetail(job: CandidateJob, matchAnalysisAvailable: Boolean,
+private fun toUiJob(job: RecommendedJob) = Job(
+    jobId = job.jobId,
+    title = job.title,
+    company = job.companyName,
+    companyInitial = job.companyName.take(1).uppercase(),
+    companyMeta = "${job.location} • Recommended #${job.rank}",
+    salary = "${job.salaryCurrency} ${job.salaryMin}-${job.salaryMax} / ${job.salaryPeriod.lowercase()}",
+    skills = job.skills,
+    match = job.matchScore,
+    recruiter = null,
+)
+
+private fun toUiDetail(job: CandidateJob, analysis: MatchAnalysis?,
                        applicationState: com.adproject.candidate.data.contract.CandidateJobApplicationState) = JobDetailData(
     job = toUiJob(job),
     location = job.location,
     employmentType = job.employmentType.name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase),
     workplace = job.workplaceType.name.lowercase().replaceFirstChar(Char::uppercase),
-    strongMatches = "",
-    gap = "",
+    strongMatches = analysis?.strongMatches?.joinToString(" • ").orEmpty(),
+    gap = analysis?.gaps?.joinToString(" • ").orEmpty(),
     description = job.description,
     requirements = job.requirements.joinToString("  ·  "),
     skills = job.skills,
     deadline = job.deadline,
     publishedAt = job.publishedAt,
-    matchAnalysisAvailable = matchAnalysisAvailable,
+    matchAnalysisAvailable = analysis != null,
     applicationState = applicationState,
 )

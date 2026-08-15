@@ -193,6 +193,7 @@ class CandidateApplicationIntegrationTest {
         String resumeId = UUID.randomUUID().toString();
         if (withResume) resumes.save(new ResumeEntity(resumeId, candidateId, "Candidate", 27, "Singapore",
                 "Engineer", "Summary", "[{\"experienceId\":\"1\",\"title\":\"First\",\"company\":\"A\",\"description\":\"One\",\"startDate\":\"2024-01\",\"endDate\":null},{\"experienceId\":\"2\",\"title\":\"Second\",\"company\":\"B\",\"description\":\"Two\",\"startDate\":\"2025-01\",\"endDate\":null}]",
+                "[]",
                 1, now, now));
         return new Fixture(jwt.createAccessToken(candidate), candidateId, jobId, resumeId, email);
     }

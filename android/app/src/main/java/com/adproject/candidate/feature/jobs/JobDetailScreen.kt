@@ -67,7 +67,8 @@ private fun JobDetailContent(data: JobDetailData, onBack: () -> Unit, onApply: (
     Column(Modifier.fillMaxSize().background(AdBackground)) {
         AdTopBar("Job details", onBack) { Text("Save unavailable", color = AdMuted, fontSize = 10.sp) }
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 18.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SecondaryButton("Match unavailable", {}, Modifier.weight(1f), enabled = false)
+            SecondaryButton(data.job.match?.let { "AI Match $it%" } ?: "Match unavailable", {},
+                Modifier.weight(1f), enabled = false)
             val canApply = data.applicationState == CandidateJobApplicationState.NOT_APPLIED
             PrimaryButton(
                 if (canApply) "Apply" else data.applicationState.displayLabel(),
@@ -100,9 +101,12 @@ private fun JobDetailContent(data: JobDetailData, onBack: () -> Unit, onApply: (
                         data.job.match?.let { TagChip("$it% match", accent = true) }
                     }
                     Text("ML model compares your resume skills and experience with this job.", color = AdMuted, fontSize = 12.sp, lineHeight = 17.sp)
-                    Text("✓ Strong: ${data.strongMatches}", color = AdTealDark, fontSize = 12.sp)
-                    Text("△ Gap: ${data.gap}", color = Color(0xFFFF8500), fontSize = 12.sp)
-                    TagChip("Ask AI Agent to explain →", accent = true)
+                    if (data.strongMatches.isNotBlank()) {
+                        Text("Strong: ${data.strongMatches}", color = AdTealDark, fontSize = 12.sp)
+                    }
+                    if (data.gap.isNotBlank()) {
+                        Text("Gap: ${data.gap}", color = Color(0xFFFF8500), fontSize = 12.sp)
+                    }
                 }
             } else AdCard(Modifier.fillMaxWidth()) {
                 Text("Match analysis is not available yet.", Modifier.padding(16.dp), color = AdMuted, fontSize = 12.sp)

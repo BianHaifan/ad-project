@@ -17,6 +17,8 @@ import com.adproject.candidate.data.api.CandidateApplicationHttpApi
 import com.adproject.candidate.data.api.RealCandidateApplicationRepository
 import com.adproject.candidate.data.api.CandidateConversationHttpApi
 import com.adproject.candidate.data.api.RealCandidateConversationRepository
+import com.adproject.candidate.data.api.CandidateRecommendationHttpApi
+import com.adproject.candidate.data.api.RealCandidateRecommendationRepository
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import java.security.KeyStore
@@ -82,6 +84,9 @@ class CandidateAppContainer(context: Context) {
     )
     val candidateConversationRepository = RealCandidateConversationRepository(
         authenticatedRetrofit.create(CandidateConversationHttpApi::class.java), moshi,
+    )
+    val candidateRecommendationRepository = RealCandidateRecommendationRepository(
+        authenticatedRetrofit.create(CandidateRecommendationHttpApi::class.java), moshi,
     )
 
     private fun buildPinnedSslContext(context: Context): Pair<X509TrustManager, SSLSocketFactory> {

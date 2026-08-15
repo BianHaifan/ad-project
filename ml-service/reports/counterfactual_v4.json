@@ -1,0 +1,99 @@
+{
+  "model_version": "match-hgb-retrieval-v4",
+  "feature_version": "pair-features-v1+prelabel-features-v3",
+  "backend_candidate_results": [
+    {
+      "entity_id": "job-backend",
+      "score": 100,
+      "rank": 1,
+      "strong_matches": [
+        "Skills matched: 4 of 4",
+        "Desired role aligns with the job title",
+        "Preferred location matched"
+      ],
+      "gaps": [],
+      "evidence": [
+        "java",
+        "rest api",
+        "spring boot",
+        "sql"
+      ]
+    },
+    {
+      "entity_id": "job-frontend",
+      "score": 30,
+      "rank": 2,
+      "strong_matches": [
+        "Preferred location matched",
+        "Preferred workplace type matched",
+        "Preferred employment type matched"
+      ],
+      "gaps": [
+        "No listed required skills matched",
+        "Missing listed skills: css, react, typescript"
+      ],
+      "evidence": []
+    },
+    {
+      "entity_id": "job-data",
+      "score": 28,
+      "rank": 3,
+      "strong_matches": [
+        "Preferred location matched",
+        "Preferred workplace type matched",
+        "Preferred employment type matched"
+      ],
+      "gaps": [
+        "No listed required skills matched",
+        "Missing listed skills: pandas, python, scikit-learn"
+      ],
+      "evidence": []
+    }
+  ],
+  "frontend_candidate_results": [
+    {
+      "entity_id": "job-frontend",
+      "score": 100,
+      "rank": 1,
+      "strong_matches": [
+        "Skills matched: 3 of 3",
+        "Desired role aligns with the job title",
+        "Preferred location matched"
+      ],
+      "gaps": [],
+      "evidence": [
+        "css",
+        "react",
+        "typescript"
+      ]
+    },
+    {
+      "entity_id": "job-backend",
+      "score": 30,
+      "rank": 2,
+      "strong_matches": [
+        "Preferred location matched",
+        "Preferred workplace type matched",
+        "Preferred employment type matched"
+      ],
+      "gaps": [
+        "No listed required skills matched",
+        "Missing listed skills: java, rest api, spring boot"
+      ],
+      "evidence": []
+    }
+  ],
+  "skill_monotonicity": {
+    "empty_skills": 79,
+    "matching_skills": 100
+  },
+  "checks": {
+    "backend_ranks_first": true,
+    "frontend_ranks_first_for_frontend_candidate": true,
+    "zero_skill_title_mismatch_capped": true,
+    "matching_skills_do_not_reduce_score": true,
+    "zero_match_not_presented_as_strong": true,
+    "zero_match_has_no_skill_evidence": true
+  },
+  "passed": true
+}

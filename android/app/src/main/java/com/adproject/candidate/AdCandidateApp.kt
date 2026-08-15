@@ -45,6 +45,8 @@ import com.adproject.candidate.feature.profile.RealProfileScreen
 import com.adproject.candidate.feature.profile.RealResumeScreen
 import com.adproject.candidate.feature.profile.CandidateProfileViewModel
 import com.adproject.candidate.feature.profile.CandidateResumeViewModel
+import com.adproject.candidate.feature.profile.JobPreferenceViewModel
+import com.adproject.candidate.feature.profile.JobPreferencesScreen
 import com.adproject.candidate.data.api.CandidateRepository
 import com.adproject.candidate.data.api.FakeCandidateRepository
 
@@ -62,6 +64,7 @@ private object Route {
     const val Apply = "apply/{jobId}"
     const val Submitted = "submitted/{jobId}"
     const val ResumeEdit = "resume-edit"
+    const val JobPreferences = "job-preferences"
 
     fun jobDetail(id: String) = "job-detail/$id"
     fun chatDetail(id: String) = "chat-detail/$id"
@@ -188,6 +191,7 @@ fun AdCandidateApp(
                     state = state,
                     onQuery = jobsViewModel::updateQuery,
                     onSearch = jobsViewModel::search,
+                    onRecommended = jobsViewModel::showRecommended,
                     onEmploymentType = jobsViewModel::selectEmploymentType,
                     onRefresh = jobsViewModel::refresh,
                     onRetry = jobsViewModel::retry,
@@ -243,6 +247,7 @@ fun AdCandidateApp(
                     onSave = profileViewModel::save,
                     onResume = { navController.navigate(Route.ResumeEdit) },
                     onApplications = { navController.navigate(Route.Applications) },
+                    onPreferences = { navController.navigate(Route.JobPreferences) },
                     onLogout = authViewModel::logout,
                     onTab = ::openTab,
                 )
@@ -348,6 +353,18 @@ fun AdCandidateApp(
                     onBack = { navigateBack(Route.Profile) },
                     onRetry = resumeViewModel::load,
                     onSave = resumeViewModel::save,
+                )
+            }
+            composable(Route.JobPreferences) {
+                val preferenceViewModel: JobPreferenceViewModel = viewModel(
+                    factory = JobPreferenceViewModel.factory(container.candidateRecommendationRepository),
+                )
+                val state by preferenceViewModel.state.collectAsStateWithLifecycle()
+                JobPreferencesScreen(
+                    state = state,
+                    onRetry = preferenceViewModel::load,
+                    onBack = { navigateBack(Route.Profile) },
+                    onSave = preferenceViewModel::save,
                 )
             }
         }

@@ -55,7 +55,8 @@ public final class ApplicationDtos {
 
     public record ResumeSnapshot(String snapshotId, Instant capturedAt, String resumeId, String fullName,
                                  int age, String location, String headline, String summary,
-                                 List<Experience> experiences, int version, Instant createdAt, Instant updatedAt) {}
+                                 List<String> skills, List<Experience> experiences, int version,
+                                 Instant createdAt, Instant updatedAt) {}
 
     public record TimelineStep(String status, boolean completed, Instant occurredAt) {}
     public record NextStep(String type, String title, String description) {}

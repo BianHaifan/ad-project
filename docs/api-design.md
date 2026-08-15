@@ -126,7 +126,8 @@ MVP 只支持一份结构化在线简历。多简历、文件上传和默认简�
 
 | 方法 | 路径 | 说明 | 权限 |
 |---|---|---|---|
-| GET | `/candidate/job-recommendations` | 获取自训练模型生成的 Top-N 职位推荐 | Candidate |
+| GET/PUT | `/candidate/job-preferences` | 读取或保存结构化求职偏好；写入使用 `expectedVersion` | Candidate |
+| GET | `/candidate/recommendations/jobs` | 获取模型生成的 Top-N 职位推荐；模型不可用时返回规则降级结果 | Candidate |
 | POST | `/candidate/recommendation-events` | 记录允许采集的曝光/点击/忽略反馈 | Candidate |
 | GET | `/jobs/{jobId}/match` | 获取推荐解释或职位详情匹配依据 | Candidate |
 | POST | `/agent/runs` | 提交自然语言操作指令并创建 Agent Run | Authenticated |
@@ -134,7 +135,7 @@ MVP 只支持一份结构化在线简历。多简历、文件上传和默认简�
 | POST | `/agent/runs/{id}/confirm` | 确认 Agent 提出的具体写操作 | Run Owner |
 | POST | `/agent/runs/{id}/cancel` | 取消尚未执行的操作 | Run Owner |
 
-推荐响应必须包含 `modelVersion`、`generatedAt` 和每个职位的 `score/rank/reasons`。推荐不可用时 Spring Boot 返回明确的 fallback 标识及规则排序结果。
+推荐响应必须包含 `modelVersion`、`generatedAt` 和每个职位的 `matchScore/rank/matchAnalysis`。推荐不可用时 Spring Boot 返回明确的 fallback 标识及规则排序结果。
 
 Agent 创建请求示例：
 

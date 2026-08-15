@@ -1,0 +1,24 @@
+{
+  "audit_type": "FROZEN_QUERY_TEACHER_AGREEMENT_NOT_HUMAN_BLIND_TEST",
+  "evaluated_pairs": 6000,
+  "frozen_query_groups": 20,
+  "label_distribution": {
+    "0": 452,
+    "1": 3709,
+    "2": 1388,
+    "3": 451
+  },
+  "metrics": {
+    "eligible_query_count": 20.0,
+    "map_at_10": 0.991667,
+    "map_at_10_eligible": 0.991667,
+    "ndcg_at_10": 0.984582,
+    "precision_at_5": 0.97,
+    "query_count": 20.0,
+    "recall_at_10": 0.237906,
+    "relevant_query_coverage": 1.0
+  },
+  "model_version": "match-hgb-retrieval-v4",
+  "teacher_model_version": "prelabeler-distilled-v2",
+  "training_overlap_query_groups": 0
+}

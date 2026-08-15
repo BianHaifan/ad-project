@@ -22,3 +22,20 @@ android/.kotlin/
 android/app/build/
 android/build/
 web/coverage/
+
+# Local ML datasets and generated artifacts. Keep scripts, fixtures, and reports tracked.
+datasets/*.csv
+datasets/*.parquet
+ml-service/data/raw/
+ml-service/data/processed/
+ml-service/data/annotations/*.csv
+ml-service/artifacts/*
+!ml-service/artifacts/active/
+ml-service/artifacts/active/*
+!ml-service/artifacts/active/model.joblib
+!ml-service/artifacts/active/manifest.json
+ml-service/.pytest_cache/
+ml-service/.ruff_cache/
+ml-service/**/__pycache__/
+ml-service/**/*.pyc
+ml-service/src/*.egg-info/

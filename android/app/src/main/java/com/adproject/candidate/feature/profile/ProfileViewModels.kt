@@ -82,16 +82,20 @@ class CandidateResumeViewModel(private val repository: CandidateResumeRepository
             }
         }
     }
-    fun save(fullName: String, ageText: String, location: String, headline: String, summary: String, experiences: List<Experience>) {
+    fun save(fullName: String, ageText: String, location: String, headline: String, summary: String,
+             skillsText: String, experiences: List<Experience>) {
         val current = mutable.value
         if (current.submitting) return
         val age = ageText.toIntOrNull()
+        val skills = skillsText.split(',').map(String::trim).filter(String::isNotEmpty).distinct()
         val errors = buildMap {
             if (fullName.isBlank()) put("fullName", "Full name is required")
             if (age == null || age !in 16..100) put("age", "Age must be 16–100")
             if (location.isBlank()) put("location", "Location is required")
             if (headline.isBlank()) put("headline", "Headline is required")
             if (summary.isBlank()) put("summary", "Summary is required")
+            if (skills.size > 100) put("skills", "Use at most 100 skills")
+            if (skills.any { it.length > 200 }) put("skills", "Each skill must be at most 200 characters")
             val month = Regex("^\\d{4}-(0[1-9]|1[0-2])$")
             experiences.forEachIndexed { index, experience ->
                 if (experience.title.isBlank()) put("experiences[$index].title", "Title is required")
@@ -107,7 +111,8 @@ class CandidateResumeViewModel(private val repository: CandidateResumeRepository
         mutable.update { it.copy(submitting = true, fieldErrors = emptyMap(), message = null) }
         viewModelScope.launch {
             val resume = current.data
-            val request = SaveResumeRequest(fullName, age!!, location, headline, summary, experiences, resume?.version ?: 0)
+            val request = SaveResumeRequest(fullName, age!!, location, headline, summary,
+                experiences, resume?.version ?: 0, skills)
             when (val result = repository.save(request)) {
                 is ApiResult.Success -> mutable.value = ResumeUiState(loading = false, data = result.value, saved = true)
                 is ApiResult.Failure -> mutable.update { it.copy(submitting = false, message = result.message, fieldErrors = result.fieldErrors) }

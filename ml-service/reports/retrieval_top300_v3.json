@@ -1,0 +1,12 @@
+{
+  "candidate_count": 2483,
+  "job_count": 25298,
+  "maximum_retrieval_score": 0.41006345,
+  "minimum_retrieval_score": 0.03574116,
+  "output_sha256": "2cf44857f86036f18a7c5be36d63fa70ee54ca60b545fa1b5b26233099569f9b",
+  "retrieval_version": "TFIDF_TOP_K_V1",
+  "retrieved_pairs": 744900,
+  "top_k": 300,
+  "vocabulary_size": 60000,
+  "zero_similarity_pairs": 0
+}

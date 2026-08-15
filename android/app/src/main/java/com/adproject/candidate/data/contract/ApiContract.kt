@@ -10,6 +10,8 @@ object CandidateApiPaths {
     const val CONVERSATIONS = "/candidate/conversations"
     const val PROFILE = "/candidate/profile"
     const val RESUME = "/candidate/resume"
+    const val JOB_PREFERENCES = "/candidate/job-preferences"
+    const val JOB_RECOMMENDATIONS = "/candidate/recommendations/jobs"
     const val LEARNING = "/features/learning"
 
     fun job(jobId: String) = "/jobs/$jobId"
@@ -113,12 +115,12 @@ data class CandidateJobDetail(
 )
 
 data class MatchAnalysis(
-    val score: Int,
-    val evidence: List<String>,
+    val score: Int? = null,
+    val evidence: List<String> = emptyList(),
     val strongMatches: List<String> = emptyList(),
     val gaps: List<String> = emptyList(),
-    val modelVersion: String,
-    val generatedAt: String,
+    val modelVersion: String? = null,
+    val generatedAt: String? = null,
 )
 
 data class Experience(
@@ -141,6 +143,7 @@ open class Resume(
     open val version: Int,
     open val createdAt: String,
     open val updatedAt: String,
+    open val skills: List<String> = emptyList(),
 )
 
 data class ResumeSnapshot(
@@ -156,7 +159,8 @@ data class ResumeSnapshot(
     override val version: Int,
     override val createdAt: String,
     override val updatedAt: String,
-) : Resume(resumeId, fullName, age, location, headline, summary, experiences, version, createdAt, updatedAt)
+    override val skills: List<String> = emptyList(),
+) : Resume(resumeId, fullName, age, location, headline, summary, experiences, version, createdAt, updatedAt, skills)
 
 data class TimelineStep(val status: ApplicationStatus, val completed: Boolean, val occurredAt: String?)
 data class ApplicationNextStep(val type: String, val title: String, val description: String)
@@ -325,5 +329,63 @@ data class UpdateProfileRequest(val fullName: String? = null, val headline: Stri
                                 val location: String? = null, val expectedVersion: Int)
 data class SaveResumeRequest(
     val fullName: String, val age: Int, val location: String, val headline: String, val summary: String,
-    val experiences: List<Experience>, val expectedVersion: Int,
+    val experiences: List<Experience>, val expectedVersion: Int, val skills: List<String> = emptyList(),
+)
+
+data class JobPreference(
+    val desiredTitles: List<String>,
+    val preferredLocations: List<String>,
+    val workplaceTypes: List<WorkplaceType>,
+    val employmentTypes: List<EmploymentType>,
+    val minimumSalary: Long?,
+    val salaryCurrency: String,
+    val salaryPeriod: String,
+    val version: Int,
+    val createdAt: String?,
+    val updatedAt: String?,
+)
+
+data class SaveJobPreferenceRequest(
+    val desiredTitles: List<String>,
+    val preferredLocations: List<String>,
+    val workplaceTypes: List<WorkplaceType>,
+    val employmentTypes: List<EmploymentType>,
+    val minimumSalary: Long?,
+    val salaryCurrency: String = "SGD",
+    val salaryPeriod: String = "MONTH",
+    val expectedVersion: Int,
+)
+
+data class RecommendedJob(
+    val jobId: String,
+    val title: String,
+    val companyId: String,
+    val companyName: String,
+    val location: String,
+    val employmentType: EmploymentType,
+    val workplaceType: WorkplaceType,
+    val salaryMin: Int,
+    val salaryMax: Int,
+    val salaryCurrency: String,
+    val salaryPeriod: String,
+    val description: String,
+    val skills: List<String>,
+    val matchScore: Int,
+    val rank: Int,
+    val matchAnalysis: MatchAnalysis,
+)
+
+data class RecommendationMeta(
+    val source: String,
+    val modelVersion: String,
+    val featureVersion: String,
+    val modelStatus: String,
+    val inferenceMs: Int,
+    val generatedAt: String,
+    val limit: Int,
+)
+
+data class RecommendationEnvelope(
+    val data: List<RecommendedJob>,
+    val meta: RecommendationMeta,
 )

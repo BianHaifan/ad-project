@@ -1,0 +1,23 @@
+{
+  "confidence_distribution": {
+    "HIGH": 706915,
+    "REVIEW": 31985
+  },
+  "excluded_pairs": 6000,
+  "excluded_query_groups": 20,
+  "label_distribution": {
+    "0": 42838,
+    "1": 483503,
+    "2": 155397,
+    "3": 57162
+  },
+  "output_sha256": "82481bb26b14acf7afb9a93f7cef514ae78e731f166c36514f8b7c26816d8060",
+  "pseudo_labeled_pairs": 738900,
+  "relevant_query_coverage": 0.993504,
+  "relevant_query_groups": 2447,
+  "source_pairs": 744900,
+  "source_query_groups": 2483,
+  "teacher_model_version": "prelabeler-distilled-v2",
+  "training_query_groups": 2463,
+  "training_target": "expected"
+}

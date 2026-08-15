@@ -1,0 +1,21 @@
+.demo-notice {
+  margin: -2px 0 10px;
+  padding: 9px 12px;
+  border: 1px solid #f0d6a4;
+  border-radius: 10px;
+  background: #fff8e8;
+  color: #875d13;
+  font-size: 11px;
+}
+
+.demo-label {
+  display: inline-flex;
+  vertical-align: middle;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: #fff1dd;
+  color: #a45b00;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}

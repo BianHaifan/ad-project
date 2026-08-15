@@ -1,0 +1,21 @@
+name: ad-project-ml
+channels:
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - fastapi==0.141.1
+      - httpx==0.28.1
+      - joblib==1.5.3
+      - numpy==2.3.5
+      - pandas==2.3.3
+      - pydantic==2.13.4
+      - pytest==9.1.1
+      - ruff==0.16.2
+      - scikit-learn==1.9.0
+      - scipy==1.16.3
+      - uvicorn[standard]==0.52.1
+      - -e .
+variables:
+  PYTHONNOUSERSITE: "1"
