@@ -18,6 +18,13 @@ jobs:
       JWT_SECRET: dast-ci-test-secret-key-not-for-production-use-only
     steps:
       - uses: actions/checkout@v4
+      - name: generate temporary TLS certificate for CI
+        working-directory: infra/docker
+        run: |
+          mkdir -p certs
+          openssl req -x509 -newkey rsa:2048 -sha256 -days 30 -nodes \
+            -subj "/CN=localhost" \
+            -keyout certs/ad-b-server.key -out certs/ad-b-server.crt
       - name: build local backend and web images
         working-directory: infra/docker
         run: docker compose -f docker-compose.yml -f docker-compose.dast.yml build backend web
@@ -66,6 +73,13 @@ jobs:
       JWT_SECRET: dast-ci-test-secret-key-not-for-production-use-only
     steps:
       - uses: actions/checkout@v4
+      - name: generate temporary TLS certificate for CI
+        working-directory: infra/docker
+        run: |
+          mkdir -p certs
+          openssl req -x509 -newkey rsa:2048 -sha256 -days 30 -nodes \
+            -subj "/CN=localhost" \
+            -keyout certs/ad-b-server.key -out certs/ad-b-server.crt
       - name: build local backend and web images
         working-directory: infra/docker
         run: docker compose -f docker-compose.yml -f docker-compose.dast.yml build backend web
