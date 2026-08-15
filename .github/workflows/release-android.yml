@@ -12,6 +12,18 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve latest tag
+        id: latest-tag
+        run: |
+          git fetch --tags origin --quiet
+          TAG=$(git tag --sort=-version:refname | head -n1)
+          if [ -z "$TAG" ]; then
+            echo "No tags found, falling back to ref name ${GITHUB_REF_NAME}"
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "Latest tag: $TAG"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '21' }
       - uses: android-actions/setup-android@v3
@@ -38,4 +50,5 @@ jobs:
       - name: publish to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.latest-tag.outputs.tag }}
           files: android/app/build/outputs/apk/release/*.apk
