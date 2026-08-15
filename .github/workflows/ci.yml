@@ -25,6 +25,12 @@ jobs:
       - name: run maven pmd static analysis
         working-directory: backend
         run: mvn -B pmd:check
+      - name: upload backend coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-jacoco-report
+          path: backend/target/site/jacoco
       - name: upload backend pmd report
         uses: actions/upload-artifact@v4
         if: always()
@@ -51,6 +57,7 @@ jobs:
           npm run lint
           npm run typecheck
           npm run test -- --reporter=junit --outputFile=junit.xml
+          npm run test:coverage
           npm run build
       - name: upload web test report
         uses: actions/upload-artifact@v4
@@ -58,6 +65,12 @@ jobs:
         with:
           name: web-junit-report
           path: web/junit.xml
+      - name: upload web coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-coverage-report
+          path: web/coverage
 
   android:                     
     runs-on: ubuntu-latest
@@ -70,7 +83,13 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug lint test --no-daemon
+          ./gradlew assembleDebug lint test koverHtmlReportDebug --no-daemon
+      - name: upload android coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-kover-report
+          path: android/app/build/reports/kover/htmlDebug
       - name: upload android test reports
         uses: actions/upload-artifact@v4
         if: always()

@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlinx.kover")
 }
 
 val debugApiBaseUrl = providers.gradleProperty("AD_API_BASE_URL")
@@ -62,6 +63,20 @@ android {
         buildConfig = true
     }
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+}
+
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    "com.adproject.candidate.AdCandidateApp",
+                    "com.adproject.candidate.MainActivity",
+                    "com.adproject.candidate.core.designsystem.*",
+                )
+            }
+        }
+    }
 }
 
 dependencyLocking {
