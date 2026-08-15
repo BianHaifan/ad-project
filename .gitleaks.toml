@@ -1,0 +1,12 @@
+title = "Ad Project Gitleaks Configuration"
+useDefault = true
+
+# The two values below are deterministic AES-256 fixtures in the test profile,
+# including the value retained in this PR's earlier commit.  This exception is
+# intentionally constrained to that exact file and complete configuration line.
+[[allowlists]]
+description = "Deterministic test-only token encryption fixture"
+condition = "AND"
+paths = ['''^backend/src/test/resources/application-test\.yml$''']
+regexTarget = "line"
+regexes = ['''^\s*token-encryption-key:\s*(MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=)\s*$''']
