@@ -4,7 +4,7 @@
 
 - 数据库：MySQL，字符集 `utf8mb4`。
 - 表名和字段名使用 `snake_case`。
-- 业务时间使用 UTC；至少包含 `created_at`、`updated_at`。
+- 业务时间使用 UTC，持久化精度统一为微秒（`DATETIME(6)`）；至少包含 `created_at`、`updated_at`。
 - 业务删除默认使用状态字段或 `deleted_at`，避免直接物理删除关键记录。
 - 密码只保存安全哈希，不保存明文或可逆密文。
 - 枚举值在代码与 OpenAPI 中统一定义，数据库可用字符串字段保存。

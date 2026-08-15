@@ -1459,7 +1459,7 @@ paths:
       - Interviews
       summary: Schedule interview and transition application
       operationId: createRecruiterInterview
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter; own-company application; cross-company resources return 404
@@ -1498,7 +1498,7 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
       description: 'Permission: Recruiter; own-company application; cross-company resources return 404. Status:
-        DRAFT. Clients: Recruiter. Audit: record actorId, companyId, before/after values, occurredAt, reason, and
+        IMPLEMENTED. Clients: Recruiter. Audit: record actorId, companyId, before/after values, occurredAt, reason, and
         requestId. Concurrency: Require expectedApplicationVersion; compare atomically; on success increment version;
         mismatch returns 409 VERSION_CONFLICT.'
       x-audit: true
@@ -1511,7 +1511,7 @@ paths:
       - Interviews
       summary: Update interview
       operationId: updateRecruiterInterview
-      x-status: DRAFT
+      x-status: IMPLEMENTED
       x-clients:
       - Recruiter
       x-permission: Recruiter; own-company interview; cross-company resources return 404
@@ -1549,10 +1549,17 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: 'Permission: Recruiter; own-company interview; cross-company resources return 404. Status: DRAFT.
+      description: 'Permission: Recruiter; own-company interview; cross-company resources return 404. Status: IMPLEMENTED.
         Clients: Recruiter. Audit: record actorId, companyId, before/after values, occurredAt, reason, and requestId.
         Concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch returns
-        409 VERSION_CONFLICT.'
+        409 VERSION_CONFLICT. For a GOOGLE_MEET interview, reschedule and cancel synchronize the external Google
+        Calendar event in two phases (a short reservation transaction, the external call outside any transaction,
+        then a short write-back). While a sync is in flight (meetingSyncStatus PENDING) every PATCH — reschedule,
+        cancel, and completion alike — is rejected with 409 GOOGLE_MEET_SYNC_IN_PROGRESS before the optimistic
+        version is compared, so a stale expectedVersion never masquerades as a version conflict. A remote failure
+        leaves the interview SCHEDULED with its original time/link and meetingSyncStatus FAILED (retryable via the
+        same PATCH); an unexpected external error is likewise converted to a safe FAILED rather than leaving the
+        interview stuck in PENDING. Completion of a non-PENDING GOOGLE_MEET interview is local-only.'
       x-audit: true
       x-concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch returns
         409 VERSION_CONFLICT.
@@ -1822,6 +1829,141 @@ paths:
       x-concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch returns
         409 VERSION_CONFLICT.
       x-audit: true
+  /recruiter/google-oauth/authorize:
+    post:
+      tags:
+      - GoogleOAuth
+      summary: Begin Google account connection
+      operationId: beginRecruiterGoogleOAuth
+      x-status: IMPLEMENTED
+      x-clients:
+      - Recruiter
+      x-permission: Recruiter only
+      description: 'Builds a Google OAuth authorization URL for the recruiter. The URL uses a
+        fixed Google host, a fixed server-side redirect URI, and a minimal Calendar scope.
+        It never accepts a client-supplied URL, scope, or redirect. Fails closed with
+        GOOGLE_OAUTH_NOT_CONFIGURED (503) when the server has no credentials.'
+      responses:
+        '200':
+          description: Authorization URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/GoogleAuthorizeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Google OAuth is not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /recruiter/google-oauth/status:
+    get:
+      tags:
+      - GoogleOAuth
+      summary: Read Google connection status
+      operationId: getRecruiterGoogleOAuthStatus
+      x-status: IMPLEMENTED
+      x-clients:
+      - Recruiter
+      x-permission: Recruiter only; own connection
+      description: 'Returns only whether the recruiter is connected, a status label, and the
+        connection time. Never returns tokens or any secret.'
+      responses:
+        '200':
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/GoogleConnection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /recruiter/google-oauth:
+    delete:
+      tags:
+      - GoogleOAuth
+      summary: Disconnect Google account
+      operationId: disconnectRecruiterGoogleOAuth
+      x-status: IMPLEMENTED
+      x-clients:
+      - Recruiter
+      x-permission: Recruiter only; own connection
+      description: Permanently deletes the stored connection and any un-consumed OAuth states.
+      responses:
+        '204':
+          description: Disconnected
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /recruiter/google-oauth/callback:
+    get:
+      tags:
+      - GoogleOAuth
+      summary: OAuth callback from Google
+      operationId: recruiterGoogleOAuthCallback
+      x-status: IMPLEMENTED
+      x-clients:
+      - Recruiter
+      x-permission: Unauthenticated browser redirect; authenticated by single-use state
+      description: 'Browser callback for the Google authorization flow. Validates the
+        single-use, short-lived, recruiter-bound state, exchanges the code for tokens,
+        and stores them encrypted at rest. On success or failure it responds with
+        HTTP 303 See Other to the single server-configured web return URI (never a
+        client-supplied URL), carrying only one safe result parameter:
+        googleOAuth=connected, googleOAuth=denied, or googleOAuth=failed. It never
+        returns a token, connection object, or the OAuth code, state, or internal
+        error detail, and uses Cache-Control: no-store. When OAuth is not configured
+        it returns 503 with no redirect.'
+      parameters:
+      - name: code
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: state
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: error
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '303':
+          description: Redirect to the server-configured web return URI
+          headers:
+            Location:
+              description: 'The fixed web return URI with a single googleOAuth query parameter whose value is one of connected, denied, or failed.'
+              schema:
+                type: string
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+        '503':
+          description: Google OAuth is not configured; no redirect is issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -2966,6 +3108,69 @@ components:
       - ONSITE
       - PHONE
       description: Canonical interview mode.
+    MeetingProvider:
+      type: string
+      enum:
+      - MANUAL
+      - GOOGLE_MEET
+      description: 'How the interview meeting is provisioned. MANUAL stores the recruiter-supplied
+        locationOrMeetingUrl and is the only provider allowed for on-site and phone interviews;
+        GOOGLE_MEET creates a Google Calendar event with a Meet link on the connected Google account,
+        and the verified HTTPS Meet link is returned in locationOrMeetingUrl. GOOGLE_MEET is required
+        for mode=ONLINE (MANUAL is rejected for ONLINE) and rejected for ONSITE and PHONE; ONLINE
+        forbids a client-supplied link, and is rejected with GOOGLE_MEET_NOT_CONNECTED (not connected),
+        GOOGLE_MEET_RECONNECT_REQUIRED (connection revoked or invalid), or
+        GOOGLE_MEET_PROVISIONING_UNAVAILABLE (provisioning failed or not configured).
+        Reschedule and cancel of a GOOGLE_MEET interview synchronize the external event; the
+        server-managed link is never accepted from the client, and completion is local-only.'
+    MeetingSyncStatus:
+      type: string
+      enum:
+      - NOT_APPLICABLE
+      - PENDING
+      - READY
+      - FAILED
+      description: 'Synchronization state for the external meeting. NOT_APPLICABLE for manual
+        interviews; PENDING/READY/FAILED track provisioning, rescheduling, and cancellation of
+        a Google Meet. PENDING means an external change is in flight and every PATCH update —
+        reschedule, cancel, and completion — is rejected with GOOGLE_MEET_SYNC_IN_PROGRESS.
+        READY means the external meeting is in sync; on a CANCELLED Google Meet, READY means the
+        external cancellation completed and there is no longer a link. FAILED means the last sync
+        failed with a safe GOOGLE_MEET_* code in meetingSyncError, while the candidate-visible
+        time/link/status are unchanged and the same PATCH is retryable.'
+    GoogleAuthorizeResponse:
+      type: object
+      required:
+      - authorizationUrl
+      properties:
+        authorizationUrl:
+          type: string
+          format: uri
+          description: Fixed Google authorization URL the recruiter is redirected to.
+    GoogleConnectionStatus:
+      type: string
+      enum:
+      - CONNECTED
+      - REVOKED
+      - DISCONNECTED
+      description: Recruiter Google account connection state. REVOKED means the stored Google
+        credentials are no longer usable and the recruiter must reconnect.
+    GoogleConnection:
+      type: object
+      required:
+      - connected
+      - status
+      - connectedAt
+      properties:
+        connected:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/GoogleConnectionStatus'
+        connectedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the account was first connected; null while disconnected.
     Interview:
       type: object
       required:
@@ -2979,6 +3184,8 @@ components:
       - version
       - createdAt
       - updatedAt
+      - meetingProvider
+      - meetingSyncStatus
       properties:
         interviewId:
           type: string
@@ -3019,6 +3226,10 @@ components:
           format: date-time
           pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
           description: ISO-8601 UTC date-time; the value MUST end with Z.
+        meetingProvider:
+          $ref: '#/components/schemas/MeetingProvider'
+        meetingSyncStatus:
+          $ref: '#/components/schemas/MeetingSyncStatus'
     ReadStateRequest:
       type: object
       additionalProperties: false
@@ -3359,7 +3570,6 @@ components:
       - timezone
       - durationMinutes
       - mode
-      - locationOrMeetingUrl
       - expectedApplicationVersion
       properties:
         scheduledAt:
@@ -3376,8 +3586,15 @@ components:
           $ref: '#/components/schemas/InterviewMode'
         locationOrMeetingUrl:
           type: string
+          description: Required for ONSITE and PHONE interviews (the physical location or the phone
+            number / calling instructions); must be omitted for ONLINE interviews, where the server
+            generates the verified Meet link.
         note:
           type: string
+        meetingProvider:
+          $ref: '#/components/schemas/MeetingProvider'
+          description: GOOGLE_MEET is required for ONLINE interviews and rejected for ONSITE and PHONE;
+            defaults to MANUAL when omitted for ONSITE and PHONE interviews.
         expectedApplicationVersion:
           type: integer
           minimum: 1
@@ -3401,6 +3618,11 @@ components:
           $ref: '#/components/schemas/InterviewMode'
         locationOrMeetingUrl:
           type: string
+          description: 'Server-managed for GOOGLE_MEET interviews; must not be supplied on a
+            GOOGLE_MEET update (the existing Meet link is preserved, or cleared on cancel). For
+            MANUAL interviews this is the recruiter-supplied on-site location or phone/calling
+            details (historical online links remain readable, but new online interviews never
+            accept a link).'
         note:
           type: string
         status:

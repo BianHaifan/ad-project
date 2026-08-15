@@ -91,23 +91,22 @@ class RecruiterApplicationIntegrationTest {
     @Test void transitionsFollowFrozenMachineVersionAuditAndReachCandidateTimeline() throws Exception {
         Fixture fixture = fixture("Transition Candidate"); String id = submit(fixture, job(fixture, "Transition Job"));
         transition(fixture, id, "IN_REVIEW", 1, 201, null);
-        transition(fixture, id, "INTERVIEW", 2, 201, null);
-        transition(fixture, id, "REJECTED", 3, 201, null);
-        transition(fixture, id, "IN_REVIEW", 4, 409, "INVALID_APPLICATION_TRANSITION");
+        transition(fixture, id, "REJECTED", 2, 201, null);
+        transition(fixture, id, "IN_REVIEW", 3, 409, "INVALID_APPLICATION_TRANSITION");
         transition(fixture, id, "REJECTED", 1, 409, "VERSION_CONFLICT");
         mvc.perform(get("/api/v1/candidate/applications/{id}", id).header("Authorization", candidate(fixture)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("REJECTED"))
-                .andExpect(jsonPath("$.data.version").value(4))
-                .andExpect(jsonPath("$.data.timeline.length()").value(4));
+                .andExpect(jsonPath("$.data.version").value(3))
+                .andExpect(jsonPath("$.data.timeline.length()").value(3));
         assertThat(jdbc.queryForObject("select count(*) from application_status_events where application_id=? " +
-                "and actor_id=? and request_id is not null", Integer.class, id, fixture.recruiterId())).isEqualTo(3);
+                "and actor_id=? and request_id is not null", Integer.class, id, fixture.recruiterId())).isEqualTo(2);
         mvc.perform(post("/api/v1/recruiter/applications/{id}/transitions", id)
                         .header("Authorization", candidate(fixture)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"toStatus\":\"IN_REVIEW\",\"reason\":\"No\",\"expectedVersion\":4}"))
+                        .content("{\"toStatus\":\"IN_REVIEW\",\"reason\":\"No\",\"expectedVersion\":3}"))
                 .andExpect(status().isForbidden());
         mvc.perform(post("/api/v1/recruiter/applications/{id}/transitions", id)
                         .header("Authorization", recruiter(fixture)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"toStatus\":\"WITHDRAWN\",\"reason\":\"No\",\"expectedVersion\":4}"))
+                        .content("{\"toStatus\":\"WITHDRAWN\",\"reason\":\"No\",\"expectedVersion\":3}"))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.requestId").isNotEmpty());
     }
 

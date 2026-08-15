@@ -2,6 +2,7 @@ package com.adproject.profile.application;
 
 import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
+import com.adproject.common.time.DatabaseTimePrecision;
 import com.adproject.profile.api.ProfileDtos.*;
 import com.adproject.profile.infrastructure.*;
 import com.adproject.user.domain.UserRole;
@@ -22,7 +23,7 @@ public class CandidateProfileService {
         UserEntity user=users.findById(principal.userId()).orElseThrow(); var existing=profiles.findByUserIdForUpdate(user.getId()).orElse(null);
         int version=existing==null?1:existing.getVersion();
         if(version!=request.getExpectedVersion()) throw new ApiException(HttpStatus.CONFLICT,"VERSION_CONFLICT","The profile has changed");
-        var now=clock.instant();
+        var now=DatabaseTimePrecision.micros(clock.instant());
         if(request.isFullNamePresent()) user.updateFullName(request.getFullName(),now);
         String headline=request.isHeadlinePresent()?request.getHeadline():(existing==null?"":existing.getHeadline());
         String location=request.isLocationPresent()?request.getLocation():(existing==null?"":existing.getLocation());

@@ -179,6 +179,14 @@ CANCELLED -> 终态
 
 改期只修改 `scheduledAt`，状态仍保持 `SCHEDULED`。
 
+面试模式与会议提供方式（`meetingProvider`）绑定，由后端强制校验：
+
+- `ONLINE`：仅使用 Google Meet（`meetingProvider=GOOGLE_MEET`）。服务端在已连接的 Google 账号上自动创建会议链接与日历邀请，客户端不得提供链接；未连接/授权失效时返回 `GOOGLE_MEET_NOT_CONNECTED` / `GOOGLE_MEET_RECONNECT_REQUIRED`，无法创建。
+- `ONSITE`：`meetingProvider=MANUAL`，必须填写面试地点（`locationOrMeetingUrl`）。
+- `PHONE`：`meetingProvider=MANUAL`，必须填写电话号码或拨号说明（`locationOrMeetingUrl`）。
+
+服务端拒绝 `ONLINE + MANUAL`、`ONLINE` 自定义链接，以及 `ONSITE/PHONE + GOOGLE_MEET` 的组合。
+
 ### 3.4 Message
 
 ```text
@@ -433,19 +441,21 @@ MVP owner 只能设置为当前 Recruiter 的 `userId` 或 `null`，跨用户分
 | POST | `/recruiter/applications/{applicationId}/interviews` | `CreateInterviewRequest` | `201 Interview` |
 | PATCH | `/recruiter/interviews/{interviewId}` | `UpdateInterviewRequest` | `200 Interview` |
 
-创建面试请求：
+创建面试请求（`ONSITE` 示例）：
 
 ```json
 {
   "scheduledAt": "2026-08-11T06:00:00Z",
   "timezone": "Asia/Singapore",
   "durationMinutes": 30,
-  "mode": "ONLINE",
-  "locationOrMeetingUrl": "https://meet.example.com/interview",
+  "mode": "ONSITE",
+  "locationOrMeetingUrl": "12 Marina Blvd, Singapore",
   "note": "Technical interview",
   "expectedApplicationVersion": 2
 }
 ```
+
+`ONLINE` 面试必须 `meetingProvider: "GOOGLE_MEET"`，且不得提供 `locationOrMeetingUrl`（链接由服务端生成）；`ONSITE`/`PHONE` 面试则必须提供 `locationOrMeetingUrl`（地点或拨号说明）。
 
 创建面试必须原子完成面试创建、Application 进入 `INTERVIEW`、Application 版本递增和审计事件写入。
 

@@ -1,10 +1,12 @@
 package com.adproject.application.application;
 
+import com.adproject.application.api.InterviewDtos;
 import com.adproject.application.api.RecruiterApplicationDtos;
 import com.adproject.application.domain.ApplicationStatus;
 import com.adproject.application.infrastructure.*;
 import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
+import com.adproject.common.time.DatabaseTimePrecision;
 import com.adproject.company.infrastructure.CompanyMemberRepository;
 import com.adproject.job.infrastructure.JobEntity;
 import com.adproject.job.infrastructure.JobRepository;
@@ -31,6 +33,7 @@ public class RecruiterApplicationService {
     private final ApplicationRepository applications;
     private final ApplicationStatusEventRepository events;
     private final ResumeSnapshotRepository snapshots;
+    private final InterviewRepository interviews;
     private final JobRepository jobs;
     private final UserRepository users;
     private final CandidateProfileRepository profiles;
@@ -40,11 +43,13 @@ public class RecruiterApplicationService {
 
     public RecruiterApplicationService(ApplicationRepository applications,
                                        ApplicationStatusEventRepository events,
-                                       ResumeSnapshotRepository snapshots, JobRepository jobs,
+                                       ResumeSnapshotRepository snapshots, InterviewRepository interviews,
+                                       JobRepository jobs,
                                        UserRepository users, CandidateProfileRepository profiles,
                                        CompanyMemberRepository members,
                                        CandidateApplicationResponseMapper mapper, Clock clock) {
-        this.applications = applications; this.events = events; this.snapshots = snapshots; this.jobs = jobs;
+        this.applications = applications; this.events = events; this.snapshots = snapshots; this.interviews = interviews;
+        this.jobs = jobs;
         this.users = users; this.profiles = profiles; this.members = members; this.mapper = mapper; this.clock = clock;
     }
 
@@ -113,7 +118,7 @@ public class RecruiterApplicationService {
                     "The requested application transition is not allowed");
         }
         ApplicationStatus before = application.getStatus();
-        Instant now = clock.instant();
+        Instant now = DatabaseTimePrecision.micros(clock.instant());
         application.transitionTo(target, now);
         ApplicationStatusEventEntity event = events.save(new ApplicationStatusEventEntity(
                 UUID.randomUUID().toString(), application.getId(), principal.userId(), companyId,
@@ -160,9 +165,20 @@ public class RecruiterApplicationService {
         var snapshot = snapshots.findById(application.getResumeSnapshotId()).orElseThrow(this::notFound);
         var timeline = events.findByApplicationIdOrderByOccurredAtAscIdAsc(application.getId()).stream()
                 .map(this::audit).toList();
+        InterviewDtos.Interview interview = interviews.findByApplicationId(application.getId())
+                .map(this::interviewDto).orElse(null);
         return new RecruiterApplicationDtos.Detail(summary.applicationId(), summary.jobId(), summary.status(),
                 summary.appliedAt(), summary.updatedAt(), summary.version(), summary.candidate(), summary.jobTitle(),
-                null, null, mapper.resumeSnapshot(snapshot), timeline, null, null, List.of());
+                null, null, mapper.resumeSnapshot(snapshot), timeline, null, interview, List.of());
+    }
+
+    private InterviewDtos.Interview interviewDto(InterviewEntity interview) {
+        return new InterviewDtos.Interview(interview.getId(), interview.getApplicationId(),
+                interview.getScheduledAt(), interview.getTimezone(), interview.getDurationMinutes(),
+                interview.getMode().name(), interview.getLocationOrMeetingUrl(), interview.getNote(),
+                interview.getStatus().name(), interview.getVersion(), interview.getCreatedAt(),
+                interview.getUpdatedAt(), interview.getMeetingProvider().name(),
+                interview.getMeetingSyncStatus().name());
     }
 
     private RecruiterApplicationDtos.AuditEvent audit(ApplicationStatusEventEntity event) {
@@ -186,7 +202,7 @@ public class RecruiterApplicationService {
 
     private boolean allowed(ApplicationStatus from, ApplicationStatus to) {
         return (from == ApplicationStatus.APPLIED && (to == ApplicationStatus.IN_REVIEW || to == ApplicationStatus.REJECTED))
-                || (from == ApplicationStatus.IN_REVIEW && (to == ApplicationStatus.INTERVIEW || to == ApplicationStatus.REJECTED))
+                || (from == ApplicationStatus.IN_REVIEW && to == ApplicationStatus.REJECTED)
                 || (from == ApplicationStatus.INTERVIEW && to == ApplicationStatus.REJECTED);
     }
 

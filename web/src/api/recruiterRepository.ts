@@ -1,10 +1,11 @@
 import type {
-  ApplicationStatus, ConversationDetail, ConversationListResult, Dashboard, JobDraft, EmploymentType,
-  JobStatus, Message, MessageListResult, PageMeta, RecruiterApplicationDetail, RecruiterApplicationListResult,
-  RecruiterJobSummary, RecruiterProfile,
+  ApplicationStatus, ConversationDetail, ConversationListResult, CreateInterviewRequest, Dashboard,
+  EmploymentType, GoogleAuthorizeResponse, GoogleConnection, Interview, JobDraft, JobStatus, Message,
+  MessageListResult, PageMeta, RecruiterApplicationDetail, RecruiterApplicationListResult, RecruiterJobSummary,
+  RecruiterProfile, UpdateInterviewRequest,
 } from '../models/recruiter';
 
-export type RecruiterTransitionStatus = Extract<ApplicationStatus, 'IN_REVIEW' | 'INTERVIEW' | 'REJECTED'>;
+export type RecruiterTransitionStatus = Extract<ApplicationStatus, 'IN_REVIEW' | 'REJECTED'>;
 export type RecruiterJobStatusTarget = Extract<JobStatus, 'ACTIVE' | 'PAUSED' | 'CLOSED'>;
 export type ApplicationSort = 'appliedAt,desc' | 'appliedAt,asc' | 'updatedAt,desc' | 'updatedAt,asc';
 export interface ListApplicationsParams {
@@ -42,9 +43,14 @@ export interface RecruiterRepository {
   getApplication(applicationId: string): Promise<RecruiterApplicationDetail>;
   updateApplicationStatus(applicationId: string, status: RecruiterTransitionStatus, reason: string,
                           expectedVersion: number): Promise<RecruiterApplicationDetail>;
+  createInterview(applicationId: string, input: CreateInterviewRequest): Promise<Interview>;
+  updateInterview(interviewId: string, input: UpdateInterviewRequest): Promise<Interview>;
   listConversations(): Promise<ConversationListResult>;
   getConversation(conversationId: string): Promise<ConversationDetail>;
   listMessages(conversationId: string): Promise<MessageListResult>;
   sendMessage(conversationId: string, body: string): Promise<Message>;
   markRead(conversationId: string, lastReadMessageId: string): Promise<void>;
+  beginGoogleConnection(): Promise<GoogleAuthorizeResponse>;
+  getGoogleConnection(): Promise<GoogleConnection>;
+  disconnectGoogle(): Promise<void>;
 }

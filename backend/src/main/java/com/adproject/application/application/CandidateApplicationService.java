@@ -6,6 +6,7 @@ import com.adproject.application.domain.ApplicationStatus;
 import com.adproject.application.infrastructure.*;
 import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
+import com.adproject.common.time.DatabaseTimePrecision;
 import com.adproject.company.infrastructure.CompanyEntity;
 import com.adproject.company.infrastructure.CompanyRepository;
 import com.adproject.conversation.application.ConversationProvisioningService;
@@ -100,7 +101,7 @@ public class CandidateApplicationService {
         }
 
         CompanyEntity company = companies.findById(job.getCompanyId()).orElseThrow(CandidateApplicationService::jobNotFound);
-        Instant now = clock.instant();
+        Instant now = DatabaseTimePrecision.micros(clock.instant());
         String snapshotId = UUID.randomUUID().toString();
         ResumeSnapshotEntity snapshot = snapshots.save(new ResumeSnapshotEntity(
                 snapshotId, resume.getId(), candidate.getId(), resume.getFullName(), resume.getAge(),

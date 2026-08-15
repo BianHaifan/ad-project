@@ -88,7 +88,7 @@ const makeApplication = (
     interview: status === 'INTERVIEW' ? {interviewId: `interview_${applicationId}`, applicationId,
       scheduledAt: '2026-08-11T06:00:00Z', timezone: 'Asia/Singapore', durationMinutes: 30, mode: 'ONLINE',
       locationOrMeetingUrl: 'https://meet.example.com/interview', note: null, status: 'SCHEDULED', version: 1,
-      createdAt: now, updatedAt: now} : null,
+      meetingProvider: 'MANUAL', meetingSyncStatus: 'NOT_APPLICABLE', createdAt: now, updatedAt: now} : null,
     notes: applicationId === 'app_001' ? [{noteId: 'note_001', author: owner,
       body: 'Strong backend projects; ask about production latency.', createdAt: now, updatedAt: now}] : [],
   };

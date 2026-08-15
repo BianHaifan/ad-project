@@ -30,6 +30,9 @@ export const apiPaths = {
   conversation: (conversationId: string) => `/recruiter/conversations/${conversationId}`,
   messages: (conversationId: string) => `/recruiter/conversations/${conversationId}/messages`,
   readState: (conversationId: string) => `/recruiter/conversations/${conversationId}/read-state`,
+  googleOAuthAuthorize: '/recruiter/google-oauth/authorize',
+  googleOAuthStatus: '/recruiter/google-oauth/status',
+  googleOAuth: '/recruiter/google-oauth',
 } as const;
 
 export function readData<T>(response: DataEnvelope<T>): T { return response.data }

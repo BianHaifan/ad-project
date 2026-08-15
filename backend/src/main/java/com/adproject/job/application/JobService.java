@@ -2,6 +2,7 @@ package com.adproject.job.application;
 
 import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
+import com.adproject.common.time.DatabaseTimePrecision;
 import com.adproject.company.domain.CompanyVerificationStatus;
 import com.adproject.company.infrastructure.CompanyEntity;
 import com.adproject.company.infrastructure.CompanyMemberRepository;
@@ -79,13 +80,13 @@ public class JobService {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR",
                     "Request validation failed", Map.of("salary.max", "must be greater than or equal to salary.min"));
         }
-        Instant now = clock.instant();
+        Instant now = DatabaseTimePrecision.micros(clock.instant());
         JobEntity entity = new JobEntity(
                 UUID.randomUUID().toString(), scope.company().getId(), currentUser.userId(), currentUser.userId(),
                 request.title().trim(), request.employmentType(), request.workplaceType(), request.location().trim(),
                 request.salary().min(), request.salary().max(), request.salary().currency(), request.salary().period(),
                 request.description(), writeList(request.requirements()), writeList(request.skills()),
-                request.deadline() == null ? null : Instant.parse(request.deadline()), request.visibility(),
+                request.deadline() == null ? null : DatabaseTimePrecision.micros(Instant.parse(request.deadline())), request.visibility(),
                 JobStatus.DRAFT, 0, 1, now, now);
         return new JobResponse(toDetail(jobRepository.saveAndFlush(entity), scope.company()));
     }
@@ -182,10 +183,10 @@ public class JobService {
                 request.getRequirements() == null ? job.getRequirementsJson() : writeList(request.getRequirements()),
                 request.getSkills() == null ? job.getSkillsJson() : writeList(request.getSkills()),
                 request.isDeadlinePresent()
-                        ? request.getDeadline() == null ? null : Instant.parse(request.getDeadline())
+                        ? request.getDeadline() == null ? null : DatabaseTimePrecision.micros(Instant.parse(request.getDeadline()))
                         : job.getDeadline(),
                 request.getVisibility() == null ? job.getVisibility() : request.getVisibility(),
-                clock.instant());
+                DatabaseTimePrecision.micros(clock.instant()));
         jobRepository.flush();
         return new JobResponse(toDetail(job, scope.company()));
     }
@@ -224,7 +225,7 @@ public class JobService {
             throw new ApiException(HttpStatus.CONFLICT, "INVALID_JOB_TRANSITION",
                     "Only a draft job can be published");
         }
-        Instant now = clock.instant();
+        Instant now = DatabaseTimePrecision.micros(clock.instant());
         job.publish(now);
         auditRepository.save(new JobAuditEventEntity(UUID.randomUUID().toString(), job.getId(),
                 currentUser.userId(), scope.company().getId(), "JOB_PUBLISHED", JobStatus.DRAFT,
@@ -255,7 +256,7 @@ public class JobService {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN",
                     "Only recruiters from an approved company can resume jobs");
         }
-        Instant now = clock.instant();
+        Instant now = DatabaseTimePrecision.micros(clock.instant());
         String reason = request.reason().trim();
         job.changeStatus(toStatus, now);
         auditRepository.save(new JobAuditEventEntity(UUID.randomUUID().toString(), job.getId(),

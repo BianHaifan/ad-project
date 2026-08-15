@@ -2,8 +2,10 @@ import type {AuthClient} from './authClient';
 import {authClient, AuthApiError} from './authClient';
 import {apiPaths} from './contract';
 import type {
-  ApplicationStatus, AuditEvent, RecruiterApplicationCounts, RecruiterApplicationDetail,
+  ApplicationStatus, AuditEvent, CreateInterviewRequest, Interview, InterviewMode, InterviewStatus,
+  MeetingProvider, MeetingSyncStatus, RecruiterApplicationCounts, RecruiterApplicationDetail,
   RecruiterApplicationListMeta, RecruiterApplicationListResult, RecruiterApplicationSummary,
+  UpdateInterviewRequest,
 } from '../models/recruiter';
 import type {ListApplicationsParams, RecruiterTransitionStatus} from './recruiterRepository';
 
@@ -36,6 +38,20 @@ export class ApplicationHttpClient {
         !isRecord(payload.data.event)) throw unexpectedResponse();
     parseAuditEvent(payload.data.event);
     return parseDetail(payload.data.application);
+  }
+
+  async createInterview(applicationId: string, input: CreateInterviewRequest): Promise<Interview> {
+    const payload = await this.client.requestWithAuth<unknown>(apiPaths.interviews(encodeURIComponent(applicationId)), {
+      method: 'POST', body: JSON.stringify(input),
+    });
+    return parseInterviewEnvelope(payload);
+  }
+
+  async updateInterview(interviewId: string, input: UpdateInterviewRequest): Promise<Interview> {
+    const payload = await this.client.requestWithAuth<unknown>(apiPaths.interview(encodeURIComponent(interviewId)), {
+      method: 'PATCH', body: JSON.stringify(input),
+    });
+    return parseInterviewEnvelope(payload);
   }
 }
 
@@ -90,6 +106,39 @@ function isMeta(value: unknown): value is RecruiterApplicationListMeta {
 function isCounts(value: unknown): value is RecruiterApplicationCounts {
   return isRecord(value) && typeof value.applied === 'number' && typeof value.inReview === 'number' &&
     typeof value.interview === 'number' && typeof value.rejected === 'number';
+}
+
+function parseInterviewEnvelope(payload: unknown): Interview {
+  if (!isRecord(payload) || !isRecord(payload.data)) throw unexpectedResponse();
+  return parseInterview(payload.data);
+}
+
+function parseInterview(value: unknown): Interview {
+  if (!isRecord(value) || typeof value.interviewId !== 'string' || typeof value.applicationId !== 'string' ||
+      typeof value.scheduledAt !== 'string' || typeof value.timezone !== 'string' ||
+      typeof value.durationMinutes !== 'number' || !isInterviewMode(value.mode) ||
+      !(value.locationOrMeetingUrl === null || typeof value.locationOrMeetingUrl === 'string') ||
+      !(value.note === null || typeof value.note === 'string') || !isInterviewStatus(value.status) ||
+      typeof value.version !== 'number' || typeof value.createdAt !== 'string' ||
+      typeof value.updatedAt !== 'string' || !isMeetingProvider(value.meetingProvider) ||
+      !isMeetingSyncStatus(value.meetingSyncStatus)) throw unexpectedResponse();
+  return value as unknown as Interview;
+}
+
+function isInterviewMode(value: unknown): value is InterviewMode {
+  return value === 'ONLINE' || value === 'ONSITE' || value === 'PHONE';
+}
+
+function isInterviewStatus(value: unknown): value is InterviewStatus {
+  return value === 'SCHEDULED' || value === 'COMPLETED' || value === 'CANCELLED';
+}
+
+function isMeetingProvider(value: unknown): value is MeetingProvider {
+  return value === 'MANUAL' || value === 'GOOGLE_MEET';
+}
+
+function isMeetingSyncStatus(value: unknown): value is MeetingSyncStatus {
+  return value === 'NOT_APPLICABLE' || value === 'PENDING' || value === 'READY' || value === 'FAILED';
 }
 
 function isStatus(value: unknown): value is ApplicationStatus {

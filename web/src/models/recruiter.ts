@@ -4,6 +4,9 @@ export type ApplicationStatus = 'APPLIED' | 'IN_REVIEW' | 'INTERVIEW' | 'REJECTE
 export type JobStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED';
 export type InterviewStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
 export type InterviewMode = 'ONLINE' | 'ONSITE' | 'PHONE';
+export type MeetingProvider = 'MANUAL' | 'GOOGLE_MEET';
+export type MeetingSyncStatus = 'NOT_APPLICABLE' | 'PENDING' | 'READY' | 'FAILED';
+export type GoogleConnectionStatus = 'CONNECTED' | 'DISCONNECTED' | 'REVOKED';
 export type SenderType = 'CANDIDATE' | 'RECRUITER' | 'SYSTEM';
 export type EmploymentType = 'FULL_TIME' | 'INTERNSHIP' | 'PART_TIME';
 export type WorkplaceType = 'ONSITE' | 'HYBRID' | 'REMOTE';
@@ -163,6 +166,8 @@ export interface Interview {
   version: number;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
+  meetingProvider: MeetingProvider;
+  meetingSyncStatus: MeetingSyncStatus;
 }
 
 export interface RecruiterApplicationSummary {
@@ -310,15 +315,33 @@ export interface UpdateCompanyRequest {
   expectedVersion: number;
 }
 
-export interface ApplicationTransitionRequest { toStatus: 'IN_REVIEW' | 'INTERVIEW' | 'REJECTED'; reason: string; expectedVersion: number }
+export interface ApplicationTransitionRequest { toStatus: 'IN_REVIEW' | 'REJECTED'; reason: string; expectedVersion: number }
 export interface CreateNoteRequest { body: string }
 export interface CreateInterviewRequest {
   scheduledAt: ISODateTime;
   timezone: string;
   durationMinutes: number;
   mode: InterviewMode;
-  locationOrMeetingUrl: string;
+  locationOrMeetingUrl?: string;
   note?: string;
+  meetingProvider?: MeetingProvider;
   expectedApplicationVersion: number;
 }
+export interface UpdateInterviewRequest {
+  scheduledAt?: ISODateTime;
+  timezone?: string;
+  durationMinutes?: number;
+  mode?: InterviewMode;
+  locationOrMeetingUrl?: string;
+  note?: string;
+  status?: InterviewStatus;
+  expectedVersion: number;
+}
 export interface SendMessageRequest { body: string; clientMessageId: string }
+
+export interface GoogleAuthorizeResponse { authorizationUrl: string }
+export interface GoogleConnection {
+  connected: boolean;
+  status: GoogleConnectionStatus;
+  connectedAt: ISODateTime | null;
+}
