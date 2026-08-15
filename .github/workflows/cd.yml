@@ -51,6 +51,8 @@ jobs:
     environment: production
     concurrency: deploy-prod
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: images
@@ -64,6 +66,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: infra/docker/docker-compose.yml,infra/docker/nginx.conf
           target: /opt/adproject/infra/docker/
+          overwrite: true
 
       - name: upload images to target server B
         uses: appleboy/scp-action@v0.1.7
@@ -73,6 +76,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: images/images.tar
           target: /opt/adproject/infra/docker/images/
+          overwrite: true
 
       - name: deploy on target server B
         uses: appleboy/ssh-action@v1.0.3
