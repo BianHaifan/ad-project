@@ -47,15 +47,43 @@ export interface Company {
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }
+export interface RecruiterCompanySummary {
+  companyId: string;
+  name: string;
+  logoUrl: string | null;
+  verificationStatus: CompanyVerificationStatus | null;
+}
 
 export interface RecruiterProfile {
   userId: string;
   role: 'RECRUITER';
   fullName: string;
+  avatarUrl?: string | null;
+  title?: string;
+  bio?: string | null;
   email: string;
   company: Company;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
+}
+
+export interface RecruiterProfileDetail {
+  userId: string;
+  fullName: string;
+  avatarUrl: string | null;
+  title: string;
+  bio: string | null;
+  company: RecruiterCompanySummary;
+  email: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface UpdateRecruiterProfileInput {
+  fullName?: string;
+  title?: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
 }
 
 export interface RecruiterContact {
@@ -191,6 +219,13 @@ export interface RecruiterApplicationDetail extends RecruiterApplicationSummary 
   notes: RecruiterNote[];
 }
 
+export interface MessageAttachment {
+  attachmentId: string;
+  fileName: string;
+  sizeBytes: number;
+  contentType: string;
+}
+
 export interface Message {
   messageId: string;
   conversationId: string;
@@ -199,6 +234,7 @@ export interface Message {
   sentAt: ISODateTime;
   clientMessageId: string | null;
   deliveryStatus: 'SENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
+  attachment: MessageAttachment | null;
 }
 
 export interface ConversationParticipant {

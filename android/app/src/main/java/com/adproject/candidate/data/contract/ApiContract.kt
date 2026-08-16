@@ -13,6 +13,8 @@ object CandidateApiPaths {
     const val JOB_PREFERENCES = "/candidate/job-preferences"
     const val JOB_RECOMMENDATIONS = "/candidate/recommendations/jobs"
     const val LEARNING = "/features/learning"
+    const val RECRUITERS = "/candidate/recruiters"
+    const val COMPANIES = "/candidate/companies"
 
     fun job(jobId: String) = "/jobs/$jobId"
     fun submitApplication(jobId: String) = "/jobs/$jobId/applications"
@@ -21,6 +23,8 @@ object CandidateApiPaths {
     fun conversation(conversationId: String) = "$CONVERSATIONS/$conversationId"
     fun messages(conversationId: String) = "${conversation(conversationId)}/messages"
     fun readState(conversationId: String) = "${conversation(conversationId)}/read-state"
+    fun recruiterPublicProfile(recruiterId: String) = "$RECRUITERS/$recruiterId"
+    fun companyPublicProfile(companyId: String) = "$COMPANIES/$companyId"
 }
 
 data class DataEnvelope<T>(val data: T)
@@ -81,6 +85,31 @@ data class RecruiterContact(
     val fullName: String,
     val title: String,
     val avatarUrl: String?,
+)
+
+data class PublicCompanySummary(
+    val companyId: String,
+    val name: String,
+    val logoUrl: String?,
+    val verificationStatus: String?,
+)
+
+data class RecruiterPublicProfile(
+    val recruiterId: String,
+    val fullName: String,
+    val avatarUrl: String?,
+    val title: String,
+    val bio: String?,
+    val company: PublicCompanySummary,
+)
+
+data class CompanyPublicProfile(
+    val companyId: String,
+    val name: String,
+    val logoUrl: String?,
+    val description: String?,
+    val location: String?,
+    val verificationStatus: String?,
 )
 
 data class Salary(val min: Int, val max: Int, val currency: String = "SGD", val period: String)
@@ -236,6 +265,14 @@ data class Message(
     val sentAt: String,
     val clientMessageId: String?,
     val deliveryStatus: DeliveryStatus,
+    val attachment: MessageAttachment? = null,
+)
+
+data class MessageAttachment(
+    val attachmentId: String,
+    val fileName: String,
+    val sizeBytes: Long,
+    val contentType: String,
 )
 
 data class ConversationParticipant(

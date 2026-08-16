@@ -140,6 +140,46 @@ export class AuthClient {
     return this.readJson<T>(response);
   }
 
+  async requestWithAuthForm<T>(path: string, formData: FormData, headers: Record<string, string> = {}): Promise<T> {
+    let session = this.requireSession();
+    let response = await this.sendForm(path, formData, session.accessToken, headers);
+    if (response.status === 401) {
+      try {
+        session = await this.refreshSession();
+      } catch {
+        this.sessions.clear();
+        throw new AuthApiError(401, 'SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
+      }
+      response = await this.sendForm(path, formData, session.accessToken, headers);
+      if (response.status === 401) {
+        this.sessions.clear();
+        throw new AuthApiError(401, 'SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
+      }
+    }
+    if (!response.ok) await this.throwApiError(response);
+    return this.readJson<T>(response);
+  }
+
+  async requestWithAuthDownload(path: string): Promise<Blob> {
+    let session = this.requireSession();
+    let response = await this.send(path, this.withAuthorization({}, session.accessToken));
+    if (response.status === 401) {
+      try {
+        session = await this.refreshSession();
+      } catch {
+        this.sessions.clear();
+        throw new AuthApiError(401, 'SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
+      }
+      response = await this.send(path, this.withAuthorization({}, session.accessToken));
+      if (response.status === 401) {
+        this.sessions.clear();
+        throw new AuthApiError(401, 'SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
+      }
+    }
+    if (!response.ok) await this.throwApiError(response);
+    return response.blob();
+  }
+
   private async refreshSession(): Promise<AuthSession> {
     if (this.refreshInFlight) return this.refreshInFlight;
     this.refreshInFlight = this.performRefresh();
@@ -226,6 +266,19 @@ export class AuthClient {
     if (init.body !== undefined) headers.set('Content-Type', 'application/json');
     try {
       return await this.fetcher(`${this.baseUrl}${path}`, {...init, headers});
+    } catch {
+      throw new AuthApiError(0, 'NETWORK_ERROR', 'Unable to reach the server. Check your connection and try again.');
+    }
+  }
+
+  private async sendForm(path: string, formData: FormData, accessToken: string,
+                         extraHeaders: Record<string, string>): Promise<Response> {
+    const headers = new Headers(extraHeaders);
+    headers.set('Accept', 'application/json');
+    headers.set('Authorization', `Bearer ${accessToken}`);
+    // Content-Type is intentionally left unset so the browser sets the multipart boundary.
+    try {
+      return await this.fetcher(`${this.baseUrl}${path}`, {method: 'POST', body: formData, headers});
     } catch {
       throw new AuthApiError(0, 'NETWORK_ERROR', 'Unable to reach the server. Check your connection and try again.');
     }

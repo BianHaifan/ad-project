@@ -1,6 +1,7 @@
 package com.adproject.candidate.feature.jobs
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,7 +44,8 @@ import com.adproject.candidate.data.contract.CandidateJobApplicationState
 
 @Composable
 fun JobDetailScreen(state: JobDetailUiState, onBack: () -> Unit, onRetry: () -> Unit,
-                    onApply: (String) -> Unit) {
+                    onApply: (String) -> Unit, onViewCompany: (String) -> Unit,
+                    onViewRecruiter: (String) -> Unit) {
     when {
         state.loading -> Box(Modifier.fillMaxSize().background(AdBackground), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = AdTeal)
@@ -58,12 +60,13 @@ fun JobDetailScreen(state: JobDetailUiState, onBack: () -> Unit, onRetry: () -> 
                 if (!state.notFound) PrimaryButton("Try again", onRetry)
             }
         }
-        else -> JobDetailContent(state.data, onBack, onApply)
+        else -> JobDetailContent(state.data, onBack, onApply, onViewCompany, onViewRecruiter)
     }
 }
 
 @Composable
-private fun JobDetailContent(data: JobDetailData, onBack: () -> Unit, onApply: (String) -> Unit) {
+private fun JobDetailContent(data: JobDetailData, onBack: () -> Unit, onApply: (String) -> Unit,
+                             onViewCompany: (String) -> Unit, onViewRecruiter: (String) -> Unit) {
     Column(Modifier.fillMaxSize().background(AdBackground)) {
         AdTopBar("Job details", onBack) { Text("Save unavailable", color = AdMuted, fontSize = 10.sp) }
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 18.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -78,7 +81,7 @@ private fun JobDetailContent(data: JobDetailData, onBack: () -> Unit, onApply: (
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             AdCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.clickable { onViewCompany(data.job.companyId) }, verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(AdTealSoft), contentAlignment = Alignment.Center) {
                             Text(data.job.companyInitial, color = AdTeal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         }
@@ -121,14 +124,14 @@ private fun JobDetailContent(data: JobDetailData, onBack: () -> Unit, onApply: (
                 }
             }
             data.job.recruiter?.let { recruiter -> AdCard(Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.clickable { onViewRecruiter(recruiter.recruiterId) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(AdTealSoft), contentAlignment = Alignment.Center) { Text(recruiter.fullName.take(1), color = AdTeal) }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
                         Text(recruiter.fullName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Text("${recruiter.title} · ${data.job.company}", color = AdMuted, fontSize = 10.sp)
                     }
-                    Text("Messaging not connected", color = AdMuted, fontSize = 10.sp)
+                    Text("View profile →", color = AdTeal, fontSize = 10.sp)
                 }
             } }
             Spacer(Modifier.height(10.dp))

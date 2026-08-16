@@ -143,6 +143,7 @@ private fun toUiJob(job: CandidateJob) = Job(
     skills = job.skills,
     match = job.matchScore,
     recruiter = job.recruiter?.let { RecruiterContact(it.recruiterId, it.fullName, it.title) },
+    companyId = job.company.companyId,
 )
 
 private fun toUiJob(job: RecommendedJob) = Job(

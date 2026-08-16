@@ -47,6 +47,10 @@ import com.adproject.candidate.feature.profile.CandidateProfileViewModel
 import com.adproject.candidate.feature.profile.CandidateResumeViewModel
 import com.adproject.candidate.feature.profile.JobPreferenceViewModel
 import com.adproject.candidate.feature.profile.JobPreferencesScreen
+import com.adproject.candidate.feature.profile.RecruiterPublicProfileScreen
+import com.adproject.candidate.feature.profile.CompanyPublicProfileScreen
+import com.adproject.candidate.feature.profile.RecruiterPublicProfileViewModel
+import com.adproject.candidate.feature.profile.CompanyPublicProfileViewModel
 import com.adproject.candidate.data.api.CandidateRepository
 import com.adproject.candidate.data.api.FakeCandidateRepository
 
@@ -65,12 +69,16 @@ private object Route {
     const val Submitted = "submitted/{jobId}"
     const val ResumeEdit = "resume-edit"
     const val JobPreferences = "job-preferences"
+    const val RecruiterProfile = "recruiter/{recruiterId}"
+    const val CompanyProfile = "company/{companyId}"
 
     fun jobDetail(id: String) = "job-detail/$id"
     fun chatDetail(id: String) = "chat-detail/$id"
     fun apply(id: String) = "apply/$id"
     fun submitted(id: String) = "submitted/$id"
     fun applicationDetail(id: String) = "application-detail/$id"
+    fun recruiterProfile(id: String) = "recruiter/$id"
+    fun companyProfile(id: String) = "company/$id"
 }
 
 /**
@@ -234,7 +242,12 @@ fun AdCandidateApp(
                     onRetry = chatViewModel::retry,
                     onDraft = chatViewModel::updateDraft,
                     onSend = chatViewModel::send,
+                    onSelectAttachment = chatViewModel::selectAttachment,
+                    onRemoveAttachment = chatViewModel::removeAttachment,
+                    onDownloadAttachment = chatViewModel::download,
+                    onConsumeDownload = chatViewModel::consumeDownload,
                     onViewJob = { navController.navigate(Route.jobDetail(it)) },
+                    onViewRecruiter = { navController.navigate(Route.recruiterProfile(it)) },
                 )
             }
             composable(Route.Profile) {
@@ -306,6 +319,34 @@ fun AdCandidateApp(
                     onBack = { navigateBack(Route.Jobs) },
                     onRetry = detailViewModel::retry,
                     onApply = { navController.navigate(Route.apply(it)) },
+                    onViewCompany = { navController.navigate(Route.companyProfile(it)) },
+                    onViewRecruiter = { navController.navigate(Route.recruiterProfile(it)) },
+                )
+            }
+            composable(Route.RecruiterProfile) { entry ->
+                val recruiterId = entry.arguments?.getString("recruiterId").orEmpty()
+                val recruiterViewModel: RecruiterPublicProfileViewModel = viewModel(
+                    key = "recruiter-$recruiterId",
+                    factory = RecruiterPublicProfileViewModel.factory(recruiterId, container.candidatePublicProfileRepository),
+                )
+                val state by recruiterViewModel.state.collectAsStateWithLifecycle()
+                RecruiterPublicProfileScreen(
+                    state = state,
+                    onBack = { navigateBack(Route.Jobs) },
+                    onRetry = recruiterViewModel::retry,
+                )
+            }
+            composable(Route.CompanyProfile) { entry ->
+                val companyId = entry.arguments?.getString("companyId").orEmpty()
+                val companyViewModel: CompanyPublicProfileViewModel = viewModel(
+                    key = "company-$companyId",
+                    factory = CompanyPublicProfileViewModel.factory(companyId, container.candidatePublicProfileRepository),
+                )
+                val state by companyViewModel.state.collectAsStateWithLifecycle()
+                CompanyPublicProfileScreen(
+                    state = state,
+                    onBack = { navigateBack(Route.Jobs) },
+                    onRetry = companyViewModel::retry,
                 )
             }
             composable(Route.Apply) { entry ->

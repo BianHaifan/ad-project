@@ -24,8 +24,14 @@ import com.adproject.candidate.data.contract.WithdrawApplicationRequest
 import com.adproject.candidate.data.contract.JobPreference
 import com.adproject.candidate.data.contract.RecommendationEnvelope
 import com.adproject.candidate.data.contract.SaveJobPreferenceRequest
+import com.adproject.candidate.data.contract.CompanyPublicProfile
+import com.adproject.candidate.data.contract.RecruiterPublicProfile
 import com.squareup.moshi.Moshi
 import java.io.IOException
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 sealed interface ApiResult<out T> {
     data class Success<T>(val value: T) : ApiResult<T>
@@ -307,11 +313,23 @@ class RealCandidateApplicationRepository(
 data class ConversationListResult(val conversations: List<ConversationSummary>, val meta: PageMeta)
 data class MessageListResult(val messages: List<Message>, val meta: CursorMeta)
 
+data class AttachmentUpload(
+    val clientMessageId: String,
+    val body: String?,
+    val fileName: String,
+    val contentType: String,
+    val bytes: ByteArray,
+)
+
+data class DownloadedAttachment(val bytes: ByteArray, val contentType: String)
+
 interface CandidateConversationRepository {
     suspend fun conversations(): ApiResult<ConversationListResult>
     suspend fun conversation(conversationId: String): ApiResult<ConversationDetail>
     suspend fun messages(conversationId: String, before: String? = null): ApiResult<MessageListResult>
     suspend fun sendMessage(conversationId: String, idempotencyKey: String, request: SendMessageRequest): ApiResult<Message>
+    suspend fun sendMessageWithAttachment(conversationId: String, idempotencyKey: String, request: AttachmentUpload): ApiResult<Message>
+    suspend fun downloadAttachment(conversationId: String, messageId: String): ApiResult<DownloadedAttachment>
     suspend fun markRead(conversationId: String, request: ReadStateRequest): ApiResult<Unit>
 }
 
@@ -373,6 +391,43 @@ class RealCandidateConversationRepository(
         ApiResult.Failure("Unable to send your message right now.")
     }
 
+    override suspend fun sendMessageWithAttachment(conversationId: String, idempotencyKey: String,
+                                                  request: AttachmentUpload): ApiResult<Message> = try {
+        val mediaType = request.contentType.toMediaTypeOrNull() ?: "application/octet-stream".toMediaType()
+        val filePart = MultipartBody.Part.createFormData("file", request.fileName, request.bytes.toRequestBody(mediaType))
+        val clientIdBody = request.clientMessageId.toRequestBody("text/plain".toMediaType())
+        val bodyPart = request.body?.toRequestBody("text/plain".toMediaType())
+        val response = api.sendMessageWithAttachment(conversationId, idempotencyKey, clientIdBody, bodyPart, filePart)
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else {
+            val failure = errors.failure(response.code(), response.errorBody()?.string())
+            when (failure.code) {
+                "IDEMPOTENCY_KEY_REUSED" -> failure.copy(message = "This message could not be retried safely. Please send a new message.")
+                "CONVERSATION_CLOSED" -> failure.copy(message = "This conversation is read-only.")
+                "FILE_TOO_LARGE" -> failure.copy(message = "This file is larger than 10 MB.")
+                "VALIDATION_ERROR" -> failure.copy(message = "Only PDF, DOC, DOCX, TXT, PNG, JPG or JPEG files are supported.")
+                else -> failure
+            }
+        }
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to send your attachment. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to send your attachment right now.")
+    }
+
+    override suspend fun downloadAttachment(conversationId: String, messageId: String): ApiResult<DownloadedAttachment> = try {
+        val response = api.downloadAttachment(conversationId, messageId)
+        val body = response.body()
+        if (response.isSuccessful && body != null) {
+            ApiResult.Success(DownloadedAttachment(body.bytes(), body.contentType()?.toString() ?: "application/octet-stream"))
+        } else conversationFailure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to download this attachment. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to download this attachment right now.")
+    }
+
     override suspend fun markRead(conversationId: String, request: ReadStateRequest): ApiResult<Unit> = try {
         val response = api.markRead(conversationId, request)
         if (response.isSuccessful) ApiResult.Success(Unit)
@@ -386,5 +441,44 @@ class RealCandidateConversationRepository(
     private fun conversationFailure(statusCode: Int, body: String?): ApiResult.Failure {
         val failure = errors.failure(statusCode, body)
         return if (statusCode == 404) failure.copy(message = "This conversation is no longer available.") else failure
+    }
+}
+
+interface CandidatePublicProfileRepository {
+    suspend fun recruiter(recruiterId: String): ApiResult<RecruiterPublicProfile>
+    suspend fun company(companyId: String): ApiResult<CompanyPublicProfile>
+}
+
+class RealCandidatePublicProfileRepository(
+    private val api: CandidatePublicProfileHttpApi,
+    moshi: Moshi,
+) : CandidatePublicProfileRepository {
+    private val errors = ApiErrorParser(moshi)
+
+    override suspend fun recruiter(recruiterId: String): ApiResult<RecruiterPublicProfile> = try {
+        val response = api.recruiter(recruiterId)
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else profileFailure(response.code(), response.errorBody()?.string(), "recruiter")
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load this recruiter. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to load this recruiter right now.")
+    }
+
+    override suspend fun company(companyId: String): ApiResult<CompanyPublicProfile> = try {
+        val response = api.company(companyId)
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else profileFailure(response.code(), response.errorBody()?.string(), "company")
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load this company. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to load this company right now.")
+    }
+
+    private fun profileFailure(statusCode: Int, body: String?, kind: String): ApiResult.Failure {
+        val failure = errors.failure(statusCode, body)
+        return if (statusCode == 404) failure.copy(message = "This $kind is no longer available.") else failure
     }
 }

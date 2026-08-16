@@ -15,6 +15,8 @@ import com.adproject.candidate.data.contract.Message
 import com.adproject.candidate.data.contract.PageMeta
 import com.adproject.candidate.data.contract.ReadStateRequest
 import com.adproject.candidate.data.contract.RecruiterContact
+import com.adproject.candidate.data.contract.CompanyPublicProfile
+import com.adproject.candidate.data.contract.RecruiterPublicProfile
 import com.adproject.candidate.data.contract.RefreshTokenRequest
 import com.adproject.candidate.data.contract.Salary
 import com.adproject.candidate.data.contract.SendMessageRequest
@@ -22,12 +24,17 @@ import com.adproject.candidate.data.contract.TokenData
 import com.adproject.candidate.data.contract.Visibility
 import com.adproject.candidate.data.contract.WorkplaceType
 import com.adproject.candidate.data.contract.JobStatus
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PATCH
 import retrofit2.http.PUT
+import retrofit2.http.Multipart
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.Header
@@ -129,11 +136,35 @@ interface CandidateConversationHttpApi {
         @Body request: SendMessageRequest,
     ): Response<DataEnvelope<Message>>
 
+    @Multipart
+    @POST("candidate/conversations/{conversationId}/messages/attachment")
+    suspend fun sendMessageWithAttachment(
+        @Path("conversationId") conversationId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Part("clientMessageId") clientMessageId: RequestBody,
+        @Part("body") body: RequestBody?,
+        @Part file: MultipartBody.Part,
+    ): Response<DataEnvelope<Message>>
+
+    @GET("candidate/conversations/{conversationId}/messages/{messageId}/attachment")
+    suspend fun downloadAttachment(
+        @Path("conversationId") conversationId: String,
+        @Path("messageId") messageId: String,
+    ): Response<ResponseBody>
+
     @PUT("candidate/conversations/{conversationId}/read-state")
     suspend fun markRead(
         @Path("conversationId") conversationId: String,
         @Body request: ReadStateRequest,
     ): Response<Unit>
+}
+
+interface CandidatePublicProfileHttpApi {
+    @GET("candidate/recruiters/{recruiterId}")
+    suspend fun recruiter(@Path("recruiterId") recruiterId: String): Response<DataEnvelope<RecruiterPublicProfile>>
+
+    @GET("candidate/companies/{companyId}")
+    suspend fun company(@Path("companyId") companyId: String): Response<DataEnvelope<CompanyPublicProfile>>
 }
 
 data class NetworkCandidateJob(

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -82,6 +83,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<ErrorResponse> handleConflict(DataIntegrityViolationException exception, HttpServletRequest request) {
         return response(HttpStatus.CONFLICT, "RESOURCE_CONFLICT", "Resource conflict", Map.of(), request);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<ErrorResponse> handleMaxUpload(MaxUploadSizeExceededException exception,
+                                                  HttpServletRequest request) {
+        return response(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", "Attachment exceeds the 10 MB limit",
+                Map.of(), request);
     }
 
     @ExceptionHandler(Exception.class)

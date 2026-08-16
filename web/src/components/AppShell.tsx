@@ -39,9 +39,10 @@ export function AppShell({client = authClient, sessions = authSession}: {
         <NavLink to="/recruiter/messages">Messages</NavLink>
         <NavLink to="/recruiter/google-oauth">Integrations</NavLink>
       </nav>
-      <div className="account">
+      <div className="account"><NavLink className="account-profile" to="/recruiter/profile">
         <span className="avatar">{recruiter.fullName.slice(0, 1).toUpperCase()}</span>
         <span><b>{recruiter.fullName}</b><small>{recruiter.company.name}</small></span>
+        </NavLink>
         <button className="text-button" disabled={loggingOut} onClick={logout}>
           {loggingOut ? 'Signing out…' : 'Sign out'}
         </button>
