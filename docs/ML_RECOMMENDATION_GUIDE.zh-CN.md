@@ -44,7 +44,7 @@ artifacts/active/model.joblib
 11. `backend/.../RecommendationSnapshotService.java`：把本轮 Top-N 和版本保存到 MySQL。
 12. `backend/.../job/application/CandidateJobQueryService.java`：普通职位列表/详情只显示仍然有效的推荐分数。
 
-数据库结构在 `backend/src/main/resources/db/migration/V11__create_candidate_recommendations.sql`。公开接口定义在 `docs/openapi-v1.yaml`。
+数据库结构在 `backend/src/main/resources/db/migration/V13__create_candidate_recommendations.sql`。公开接口定义在 `docs/openapi-v1.yaml`。
 
 ## 3. 本次创建的 Conda 环境
 
@@ -202,7 +202,7 @@ mvn spring-boot:run
 
 如果终端提示找不到 `mvn`，就使用 IDE 的 Spring Boot Run 按钮，环境变量仍填写相同值。
 
-启动时 Flyway 会自动执行 V11 migration。看到后端监听 `8080` 后不要关闭窗口。
+启动时 Flyway 会自动执行 V13 migration。看到后端监听 `8080` 后不要关闭窗口。
 
 ## 7. 先检查 ML 健康状态
 

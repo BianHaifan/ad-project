@@ -27,7 +27,7 @@ Spring Boot 是唯一面向客户端的业务 API。Android 或 Web 不应直接
 - `ml-service/artifacts/active/model.joblib`：当前获准上线的模型，约 1.95 MB。
 - `ml-service/artifacts/active/manifest.json`：模型版本、特征版本、数据哈希和指标。
 - `ml-service/reports/`、`ml-service/MODEL_CARD.md`：评估结果、限制和模型说明。
-- 后端 recommendation 包、V11 migration、OpenAPI/环境示例及 Android 推荐页面代码。
+- 后端 recommendation 包、V13 migration、OpenAPI/环境示例及 Android 推荐页面代码。
 
 `artifacts/active/model.joblib` 和 `manifest.json` 已被 `.gitignore` 特别放行。没有这两个文件，
 队友虽然能安装 Python 包，但无法直接启动在线模型。
@@ -65,7 +65,7 @@ Spring Boot 是唯一面向客户端的业务 API。Android 或 Web 不应直接
 cd <你的仓库目录>
 git status --short
 git diff -- ml-service backend/src/main/java/com/adproject/recommendation `
-  backend/src/main/resources/db/migration/V11__create_candidate_recommendations.sql `
+  backend/src/main/resources/db/migration/V13__create_candidate_recommendations.sql `
   android/app/src/main/java/com/adproject/candidate
 ```
 

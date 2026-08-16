@@ -88,7 +88,7 @@ Recommended jobs 页面
 
 ### 2.3 MySQL / Flyway
 
-新增 `V11__create_candidate_recommendations.sql`：
+新增 `V13__create_candidate_recommendations.sql`：
 
 - 为简历及申请简历快照增加 `skills_json`。
 - 新增 `candidate_job_preferences`。
@@ -705,7 +705,7 @@ $mvn = Get-ChildItem "$env:USERPROFILE\.m2\wrapper\dists\apache-maven-3.9.11" `
 & $mvn test
 ```
 
-当前预期：60 项，0 failures、0 errors；没有运行 Docker 时有 2 项 MySQL Testcontainers 测试跳过。真实 MySQL 的 V11 migration 已通过人工 HTTP 测试验证。
+当前预期：60 项，0 failures、0 errors；没有运行 Docker 时有 2 项 MySQL Testcontainers 测试跳过。真实 MySQL 的 V13 migration 已通过人工 HTTP 测试验证。
 
 ## 7.3 Web
 
