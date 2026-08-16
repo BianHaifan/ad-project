@@ -1,0 +1,46 @@
+{
+  "active_model": {
+    "algorithm": "PrelabelFeaturesV2+HistGradientBoostingRegressor",
+    "created_at": "2026-08-12T18:19:15.457560+00:00",
+    "dataset_sha256": "82481bb26b14acf7afb9a93f7cef514ae78e731f166c36514f8b7c26816d8060",
+    "feature_version": "pair-features-v1+prelabel-features-v2",
+    "label_source": "AI_TEACHER_EXPECTED_RELEVANCE_V2",
+    "metrics": {
+      "training_mae": 0.010112,
+      "validation_eligible_query_count": 489.0,
+      "validation_map_at_10": 0.991886,
+      "validation_map_at_10_eligible": 1.0,
+      "validation_ndcg_at_10": 0.999911,
+      "validation_precision_at_5": 0.974037,
+      "validation_query_count": 493.0,
+      "validation_recall_at_10": 0.25302,
+      "validation_relevant_query_coverage": 0.991886
+    },
+    "model_version": "match-hgb-retrieval-v3",
+    "random_seed": 42,
+    "training_pairs": 738900,
+    "training_query_groups": 2463
+  },
+  "comparison": {
+    "baseline": {
+      "eligible_query_count": 489.0,
+      "map_at_10": 0.40518,
+      "map_at_10_eligible": 0.408494,
+      "ndcg_at_10": 0.625461,
+      "precision_at_5": 0.532252,
+      "query_count": 493.0,
+      "recall_at_10": 0.080366,
+      "relevant_query_coverage": 0.991886
+    },
+    "trained": {
+      "eligible_query_count": 489.0,
+      "map_at_10": 0.991886,
+      "map_at_10_eligible": 1.0,
+      "ndcg_at_10": 0.999911,
+      "precision_at_5": 0.974037,
+      "query_count": 493.0,
+      "recall_at_10": 0.25302,
+      "relevant_query_coverage": 0.991886
+    }
+  }
+}

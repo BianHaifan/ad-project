@@ -45,7 +45,7 @@ class ProfileResumeViewModelTest {
         val repository = ResumeFake(mutableListOf(ApiResult.Failure("missing", statusCode = 404), ApiResult.Failure("missing", statusCode = 404)))
         val first = CandidateResumeViewModel(repository); advanceUntilIdle()
         assertTrue(first.state.value.notCreated)
-        first.save("Candidate", "27", "Singapore", "Engineer", "Summary", emptyList())
+        first.save("Candidate", "27", "Singapore", "Engineer", "Summary", "", emptyList())
         advanceUntilIdle()
         assertEquals(0, repository.lastRequest?.expectedVersion)
         repository.pending.complete(ApiResult.Success(resume(1)))
@@ -57,10 +57,10 @@ class ProfileResumeViewModelTest {
     @Test fun resumeValidationAndDuplicateSubmitAreHandled() = runTest(main.dispatcher) {
         val repository = ResumeFake(mutableListOf(ApiResult.Success(resume(3))))
         val viewModel = CandidateResumeViewModel(repository); advanceUntilIdle()
-        viewModel.save("Candidate", "bad", "", "", "", emptyList())
+        viewModel.save("Candidate", "bad", "", "", "", "", emptyList())
         assertTrue(viewModel.state.value.fieldErrors.keys.containsAll(listOf("age", "location", "headline", "summary")))
-        viewModel.save("Candidate", "27", "Singapore", "Engineer", "Summary", emptyList())
-        viewModel.save("Candidate", "28", "Singapore", "Engineer", "Summary", emptyList())
+        viewModel.save("Candidate", "27", "Singapore", "Engineer", "Summary", "", emptyList())
+        viewModel.save("Candidate", "28", "Singapore", "Engineer", "Summary", "", emptyList())
         advanceUntilIdle()
         assertEquals(1, repository.saveCalls)
         assertEquals(3, repository.lastRequest?.expectedVersion)
@@ -70,15 +70,44 @@ class ProfileResumeViewModelTest {
         val repository = ResumeFake(mutableListOf(ApiResult.Failure("missing", statusCode = 404)))
         val viewModel = CandidateResumeViewModel(repository)
         advanceUntilIdle()
-        viewModel.save("", "not-an-age", "", "", "", emptyList())
+        viewModel.save("", "not-an-age", "", "", "", "", emptyList())
         assertEquals("Please correct the highlighted fields.", viewModel.state.value.message)
         assertTrue(viewModel.state.value.fieldErrors.keys.containsAll(
             listOf("fullName", "age", "location", "headline", "summary")))
         assertEquals(0, repository.saveCalls)
     }
 
+    @Test fun jobPreferencesUseCurrentVersionAndRejectNegativeSalary() = runTest(main.dispatcher) {
+        val repository = PreferenceFake()
+        val viewModel = JobPreferenceViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.save("Backend Engineer", "Singapore", setOf(WorkplaceType.HYBRID),
+            setOf(EmploymentType.FULL_TIME), "-1")
+        assertEquals("Enter a non-negative whole number",
+            viewModel.state.value.fieldErrors["minimumSalary"])
+        assertEquals(0, repository.saveCalls)
+
+        viewModel.save("Backend Engineer, Java Developer", "Singapore",
+            setOf(WorkplaceType.HYBRID), setOf(EmploymentType.FULL_TIME), "5000")
+        advanceUntilIdle()
+        assertEquals(1, repository.saveCalls)
+        assertEquals(4, repository.lastRequest?.expectedVersion)
+        assertEquals(listOf("Backend Engineer", "Java Developer"),
+            repository.lastRequest?.desiredTitles)
+
+        repository.pending.complete(ApiResult.Success(preference(version = 5)))
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.saved)
+        assertEquals(5, viewModel.state.value.data?.version)
+    }
+
     private fun profile(name:String="Candidate",version:Int=1)=CandidateProfileDto("u",name,"candidate@example.com","",null,"",CandidateStats(0,0,0,0),version,"2026-08-11T08:00:00Z","2026-08-11T08:00:00Z")
     private fun resume(version:Int)=Resume("r","Candidate",27,"Singapore","Engineer","Summary",emptyList(),version,"2026-08-11T08:00:00Z","2026-08-11T08:00:00Z")
+    private fun preference(version:Int=4)=JobPreference(
+        listOf("Backend Engineer"), listOf("Singapore"), listOf(WorkplaceType.HYBRID),
+        listOf(EmploymentType.FULL_TIME), 5000, "SGD", "MONTH", version,
+        "2026-08-11T08:00:00Z", "2026-08-11T08:00:00Z")
 
     private inner class ProfileFake(private val getResult:ApiResult<CandidateProfileDto> = ApiResult.Success(profile())):CandidateProfileRepository{
         var saveCalls=0;val pending=CompletableDeferred<ApiResult<CandidateProfileDto>>()
@@ -89,5 +118,13 @@ class ProfileResumeViewModelTest {
         var getCalls=0;var saveCalls=0;var lastRequest:SaveResumeRequest?=null;val pending=CompletableDeferred<ApiResult<Resume>>()
         override suspend fun get():ApiResult<Resume>{getCalls++;return gets.removeFirst()}
         override suspend fun save(request:SaveResumeRequest):ApiResult<Resume>{saveCalls++;lastRequest=request;return pending.await()}
+    }
+    private inner class PreferenceFake:CandidateRecommendationRepository {
+        var saveCalls=0;var lastRequest:SaveJobPreferenceRequest?=null
+        val pending=CompletableDeferred<ApiResult<JobPreference>>()
+        override suspend fun preferences():ApiResult<JobPreference> = ApiResult.Success(preference())
+        override suspend fun savePreferences(request:SaveJobPreferenceRequest):ApiResult<JobPreference>{
+            saveCalls++;lastRequest=request;return pending.await()
+        }
     }
 }

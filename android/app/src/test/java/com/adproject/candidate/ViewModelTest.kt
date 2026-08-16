@@ -12,6 +12,10 @@ import com.adproject.candidate.data.contract.Company
 import com.adproject.candidate.data.contract.EmploymentType
 import com.adproject.candidate.data.contract.JobStatus
 import com.adproject.candidate.data.contract.PageMeta
+import com.adproject.candidate.data.contract.MatchAnalysis
+import com.adproject.candidate.data.contract.RecommendationEnvelope
+import com.adproject.candidate.data.contract.RecommendationMeta
+import com.adproject.candidate.data.contract.RecommendedJob
 import com.adproject.candidate.data.contract.Salary
 import com.adproject.candidate.data.contract.Visibility
 import com.adproject.candidate.data.contract.WorkplaceType
@@ -118,7 +122,7 @@ class ViewModelTest {
         val viewModel = JobFeedViewModel(repository)
         advanceUntilIdle()
         assertEquals("job-1", viewModel.state.value.data?.jobs?.first()?.jobId)
-        assertNull(viewModel.state.value.data?.jobs?.first()?.match)
+        assertEquals(0, viewModel.state.value.data?.jobs?.first()?.match)
         viewModel.refresh()
         advanceUntilIdle()
         assertTrue(viewModel.state.value.data?.jobs.isNullOrEmpty())
@@ -197,6 +201,22 @@ private class QueueJobRepository(
     override suspend fun jobs(q: String?, employmentType: EmploymentType?): ApiResult<CandidateJobPage> {
         jobCalls++
         return pageResults.removeFirst()
+    }
+    override suspend fun recommendations(limit: Int): ApiResult<RecommendationEnvelope> {
+        jobCalls++
+        return when (val result = pageResults.removeFirst()) {
+            is ApiResult.Success -> ApiResult.Success(RecommendationEnvelope(
+                data = result.value.jobs.mapIndexed { index, job -> RecommendedJob(
+                    job.jobId, job.title, job.company.companyId, job.company.name, job.location,
+                    job.employmentType, job.workplaceType, job.salary.min, job.salary.max,
+                    job.salary.currency, job.salary.period, job.description, job.skills,
+                    job.matchScore ?: 0, index + 1, MatchAnalysis(),
+                ) },
+                meta = RecommendationMeta("MODEL", "test-model", "test-features", "ACTIVE", 1,
+                    "2026-08-11T08:00:00Z", limit),
+            ))
+            is ApiResult.Failure -> result
+        }
     }
     override suspend fun job(jobId: String): ApiResult<CandidateJobDetail> = detailResults.removeFirst()
 }

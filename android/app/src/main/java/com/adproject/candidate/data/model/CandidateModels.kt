@@ -26,6 +26,8 @@ data class RecruiterContact(val recruiterId: String, val fullName: String, val t
 data class JobFeedData(
     val searchSuggestion: String,
     val jobs: List<Job>,
+    val recommendationSource: String? = null,
+    val modelVersion: String? = null,
 )
 
 data class JobDetailData(
@@ -165,4 +167,5 @@ data class ResumeData(
     val version: Int,
     val createdAt: String,
     val updatedAt: String,
+    val skills: List<String> = emptyList(),
 )

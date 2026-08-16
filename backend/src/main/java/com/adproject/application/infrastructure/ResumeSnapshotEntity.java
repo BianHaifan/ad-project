@@ -18,6 +18,7 @@ public class ResumeSnapshotEntity {
     @Column(nullable = false, length = 200) private String headline;
     @Column(nullable = false, columnDefinition = "TEXT") private String summary;
     @Column(name = "experiences_json", nullable = false, columnDefinition = "TEXT") private String experiencesJson;
+    @Column(name = "skills_json", nullable = false, columnDefinition = "TEXT") private String skillsJson;
     @Column(name = "resume_version", nullable = false) private int resumeVersion;
     @Column(name = "resume_created_at", nullable = false) private Instant resumeCreatedAt;
     @Column(name = "resume_updated_at", nullable = false) private Instant resumeUpdatedAt;
@@ -27,6 +28,7 @@ public class ResumeSnapshotEntity {
 
     public ResumeSnapshotEntity(String id, String resumeId, String candidateId, String fullName, int age,
                                 String location, String headline, String summary, String experiencesJson,
+                                String skillsJson,
                                 int resumeVersion, Instant resumeCreatedAt, Instant resumeUpdatedAt,
                                 Instant capturedAt) {
         this.id = id;
@@ -38,6 +40,7 @@ public class ResumeSnapshotEntity {
         this.headline = headline;
         this.summary = summary;
         this.experiencesJson = experiencesJson;
+        this.skillsJson = skillsJson;
         this.resumeVersion = resumeVersion;
         this.resumeCreatedAt = resumeCreatedAt;
         this.resumeUpdatedAt = resumeUpdatedAt;
@@ -52,6 +55,7 @@ public class ResumeSnapshotEntity {
     public String getHeadline() { return headline; }
     public String getSummary() { return summary; }
     public String getExperiencesJson() { return experiencesJson; }
+    public String getSkillsJson() { return skillsJson; }
     public int getResumeVersion() { return resumeVersion; }
     public Instant getResumeCreatedAt() { return resumeCreatedAt; }
     public Instant getResumeUpdatedAt() { return resumeUpdatedAt; }

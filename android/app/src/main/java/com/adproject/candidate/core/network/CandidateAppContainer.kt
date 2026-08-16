@@ -17,6 +17,8 @@ import com.adproject.candidate.data.api.CandidateApplicationHttpApi
 import com.adproject.candidate.data.api.RealCandidateApplicationRepository
 import com.adproject.candidate.data.api.CandidateConversationHttpApi
 import com.adproject.candidate.data.api.RealCandidateConversationRepository
+import com.adproject.candidate.data.api.CandidateRecommendationHttpApi
+import com.adproject.candidate.data.api.RealCandidateRecommendationRepository
 import com.adproject.candidate.data.api.CandidatePublicProfileHttpApi
 import com.adproject.candidate.data.api.RealCandidatePublicProfileRepository
 import com.squareup.moshi.Moshi
@@ -84,6 +86,9 @@ class CandidateAppContainer(context: Context) {
     )
     val candidateConversationRepository = RealCandidateConversationRepository(
         authenticatedRetrofit.create(CandidateConversationHttpApi::class.java), moshi,
+    )
+    val candidateRecommendationRepository = RealCandidateRecommendationRepository(
+        authenticatedRetrofit.create(CandidateRecommendationHttpApi::class.java), moshi,
     )
     val candidatePublicProfileRepository = RealCandidatePublicProfileRepository(
         authenticatedRetrofit.create(CandidatePublicProfileHttpApi::class.java), moshi,

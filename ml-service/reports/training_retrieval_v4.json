@@ -1,0 +1,48 @@
+{
+  "active_model": {
+    "algorithm": "GuardedPrelabelFeaturesV3+MonotonicHistGradientBoostingRegressor",
+    "created_at": "2026-08-15T12:29:21.383323+00:00",
+    "dataset_sha256": "d25b8eb4996437df9a82652600fa5c3088992af812bba3f0e8aea9c0cd63e7c2",
+    "feature_version": "pair-features-v1+prelabel-features-v3",
+    "label_source": "AI_TEACHER_EXPECTED_RELEVANCE_V2+CONSERVATIVE_HARD_NEGATIVES_V1",
+    "metrics": {
+      "hard_negative_correction_rate": 0.322113,
+      "hard_negative_corrections": 238009.0,
+      "training_mae_guarded_targets": 0.134423,
+      "validation_eligible_query_count": 488.0,
+      "validation_map_at_10": 0.967368,
+      "validation_map_at_10_eligible": 0.97728,
+      "validation_ndcg_at_10": 0.976094,
+      "validation_precision_at_5": 0.956592,
+      "validation_query_count": 493.0,
+      "validation_recall_at_10": 0.261589,
+      "validation_relevant_query_coverage": 0.989858
+    },
+    "model_version": "match-hgb-retrieval-v4",
+    "random_seed": 42,
+    "training_pairs": 738900,
+    "training_query_groups": 2463
+  },
+  "comparison": {
+    "baseline": {
+      "eligible_query_count": 488.0,
+      "map_at_10": 0.399763,
+      "map_at_10_eligible": 0.403859,
+      "ndcg_at_10": 0.624403,
+      "precision_at_5": 0.525355,
+      "query_count": 493.0,
+      "recall_at_10": 0.081108,
+      "relevant_query_coverage": 0.989858
+    },
+    "trained": {
+      "eligible_query_count": 488.0,
+      "map_at_10": 0.967368,
+      "map_at_10_eligible": 0.97728,
+      "ndcg_at_10": 0.976094,
+      "precision_at_5": 0.956592,
+      "query_count": 493.0,
+      "recall_at_10": 0.261589,
+      "relevant_query_coverage": 0.989858
+    }
+  }
+}

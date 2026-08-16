@@ -57,6 +57,21 @@ interface CandidateJobHttpApi {
 
     @GET("jobs/{jobId}")
     suspend fun job(@Path("jobId") jobId: String): Response<DataEnvelope<NetworkCandidateJob>>
+
+    @GET("candidate/recommendations/jobs")
+    suspend fun recommendations(
+        @Query("limit") limit: Int = 20,
+    ): Response<com.adproject.candidate.data.contract.RecommendationEnvelope>
+}
+
+interface CandidateRecommendationHttpApi {
+    @GET("candidate/job-preferences")
+    suspend fun preferences(): Response<DataEnvelope<com.adproject.candidate.data.contract.JobPreference>>
+
+    @PUT("candidate/job-preferences")
+    suspend fun savePreferences(
+        @Body request: com.adproject.candidate.data.contract.SaveJobPreferenceRequest,
+    ): Response<DataEnvelope<com.adproject.candidate.data.contract.JobPreference>>
 }
 
 interface CandidateProfileHttpApi {

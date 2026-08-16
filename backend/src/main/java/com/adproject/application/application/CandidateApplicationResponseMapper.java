@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class CandidateApplicationResponseMapper {
     private static final TypeReference<List<ResumeDtos.Experience>> EXPERIENCES = new TypeReference<>() {};
+    private static final TypeReference<List<String>> SKILLS = new TypeReference<>() {};
     private final ObjectMapper mapper;
 
     public CandidateApplicationResponseMapper(ObjectMapper mapper) {
@@ -67,7 +68,8 @@ public class CandidateApplicationResponseMapper {
                         value.description(), value.startDate(), value.endDate())).toList();
         return new ApplicationDtos.ResumeSnapshot(snapshot.getId(), snapshot.getCapturedAt(),
                 snapshot.getResumeId(), snapshot.getFullName(), snapshot.getAge(), snapshot.getLocation(),
-                snapshot.getHeadline(), snapshot.getSummary(), experiences, snapshot.getResumeVersion(),
+                snapshot.getHeadline(), snapshot.getSummary(), readSkills(snapshot.getSkillsJson()),
+                experiences, snapshot.getResumeVersion(),
                 snapshot.getResumeCreatedAt(), snapshot.getResumeUpdatedAt());
     }
 
@@ -102,6 +104,14 @@ public class CandidateApplicationResponseMapper {
             return mapper.readValue(json, EXPERIENCES);
         } catch (Exception exception) {
             throw new IllegalStateException("Stored resume experiences are invalid", exception);
+        }
+    }
+
+    private List<String> readSkills(String json) {
+        try {
+            return mapper.readValue(json, SKILLS);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Stored resume skills are invalid", exception);
         }
     }
 }

@@ -5,6 +5,7 @@ import type {ApplicationStatus, RecruiterApplicationCounts} from '../models/recr
 import {EmptyState, ErrorState, LoadingState} from '../components/AsyncState';
 import {PageHeader} from '../components/PageHeader';
 import {StatusBadge} from '../components/StatusBadge';
+import {rankApplicationsByMatch} from './applicationRanking';
 
 const stages: [keyof RecruiterApplicationCounts, ApplicationStatus, string, string][] = [
   ['applied', 'APPLIED', 'New applications', 'Awaiting review'],
@@ -19,6 +20,7 @@ export function ApplicationsPage() {
   const selected = applicationStatus(urlParams.get('stage'));
   const page = positiveInt(urlParams.get('page'));
   const [search, setSearch] = useState('');
+  const [rankByMatch, setRankByMatch] = useState(true);
   const query = useApplications({status: selected, q: search, page, pageSize: 20, sort: 'appliedAt,desc'});
 
   useEffect(() => setSearch(''), [selected]);
@@ -31,6 +33,7 @@ export function ApplicationsPage() {
   if (query.isLoading) return <LoadingState label="Loading applications…"/>;
   if (query.isError || !query.data) return <ErrorState onRetry={() => query.refetch()}/>;
   const {data: applications, meta} = query.data;
+  const rows = rankByMatch ? rankApplicationsByMatch(applications) : applications;
   const showMatch = applications.some(application => application.matchScore !== null);
   const first = meta.total === 0 ? 0 : (meta.page - 1) * meta.pageSize + 1;
   const last = Math.min(meta.total, (meta.page - 1) * meta.pageSize + applications.length);
@@ -45,6 +48,9 @@ export function ApplicationsPage() {
     <section className="table-panel">
       <div className="table-toolbar"><div className="grow"><h2>{selected ?? 'All applications'}</h2>
         <small>{meta.total} application{meta.total === 1 ? '' : 's'}</small></div>
+        <button className={`button ${rankByMatch ? 'soft' : 'secondary'}`}
+          aria-pressed={rankByMatch} onClick={() => setRankByMatch(value => !value)}>
+          AI ranked · Demo</button>
         <input value={search} onChange={event => {setSearch(event.target.value); chooseStage(selected);}}
           placeholder="⌕ Search candidate name or email"/>
         <select value={selected ?? 'ALL'} onChange={event => chooseStage(applicationStatus(event.target.value))}>
@@ -52,11 +58,12 @@ export function ApplicationsPage() {
             <option key={status} value={status}>{label}</option>)}<option value="WITHDRAWN">Withdrawn</option>
         </select>
       </div>
+      {rankByMatch && <p className="demo-notice">Demo ranking uses stored match scores from the API response. Recruiters must review the evidence before making a decision.</p>}
       {applications.length === 0 ? <EmptyState title="No applications found"
         description="Applications matching this stage or search will appear here."/> :
         <div className={`data-table app-table ${showMatch ? 'with-match' : 'no-match'}`}><div className="table-head"><span>Candidate</span><span>Applied role</span>
           {showMatch && <span>Match</span>}<span>Applied</span><span>Stage</span><span>Owner</span><span>Action</span></div>
-          {applications.map(application => <div className="table-row" key={application.applicationId}>
+          {rows.map(application => <div className="table-row" key={application.applicationId}>
             <span className="person"><i className="avatar">{initials(application.candidate.fullName)}</i><span>
               <b>{application.candidate.fullName}</b><small>{application.candidate.email}</small></span></span>
             <span className="cell-stack"><b className="cell-ellipsis">{application.jobTitle}</b><small>Updated {new Date(application.updatedAt).toLocaleDateString()}</small></span>

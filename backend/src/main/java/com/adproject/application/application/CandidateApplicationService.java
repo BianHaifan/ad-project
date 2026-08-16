@@ -38,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CandidateApplicationService {
     private static final String OPERATION = "SUBMIT_APPLICATION";
     private static final TypeReference<List<ResumeDtos.Experience>> EXPERIENCES = new TypeReference<>() {};
+    private static final TypeReference<List<String>> STRINGS = new TypeReference<>() {};
 
     private final UserRepository users;
     private final JobRepository jobs;
@@ -106,6 +107,7 @@ public class CandidateApplicationService {
         ResumeSnapshotEntity snapshot = snapshots.save(new ResumeSnapshotEntity(
                 snapshotId, resume.getId(), candidate.getId(), resume.getFullName(), resume.getAge(),
                 resume.getLocation(), resume.getHeadline(), resume.getSummary(), resume.getExperiencesJson(),
+                resume.getSkillsJson(),
                 resume.getVersion(), resume.getCreatedAt(), resume.getUpdatedAt(), now));
         String applicationId = UUID.randomUUID().toString();
         ApplicationEntity application = applications.save(new ApplicationEntity(
@@ -135,7 +137,8 @@ public class CandidateApplicationService {
                 company.getCreatedAt(), company.getUpdatedAt());
         var snapshotDto = new ApplicationDtos.ResumeSnapshot(snapshot.getId(), snapshot.getCapturedAt(),
                 snapshot.getResumeId(), snapshot.getFullName(), snapshot.getAge(), snapshot.getLocation(),
-                snapshot.getHeadline(), snapshot.getSummary(), experiences, snapshot.getResumeVersion(),
+                snapshot.getHeadline(), snapshot.getSummary(), readStrings(snapshot.getSkillsJson()), experiences,
+                snapshot.getResumeVersion(),
                 snapshot.getResumeCreatedAt(), snapshot.getResumeUpdatedAt());
         var detail = new ApplicationDtos.CandidateApplicationDetail(application.getId(), job.getId(),
                 application.getStatus().name(), application.getAppliedAt(), application.getUpdatedAt(),
@@ -154,6 +157,11 @@ public class CandidateApplicationService {
     private List<ResumeDtos.Experience> readExperiences(String json) {
         try { return mapper.readValue(json, EXPERIENCES); }
         catch (Exception exception) { throw new IllegalStateException("Stored resume experiences are invalid", exception); }
+    }
+
+    private List<String> readStrings(String json) {
+        try { return mapper.readValue(json, STRINGS); }
+        catch (Exception exception) { throw new IllegalStateException("Stored resume skills are invalid", exception); }
     }
 
     private String writeResponse(CandidateApplicationDetailResponse response) {

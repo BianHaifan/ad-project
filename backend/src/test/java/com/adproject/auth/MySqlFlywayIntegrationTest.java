@@ -154,13 +154,14 @@ class MySqlFlywayIntegrationTest {
                 5000, 8000, "SGD", "MONTH", "Description", "[\"Reliable APIs\"]", "[\"Java\"]",
                 "PUBLIC", "DRAFT", 0, 1, now, now);
         jdbcTemplate.update("insert into resumes (id,candidate_id,full_name,age,location,headline,summary," +
-                        "experiences_json,version,created_at,updated_at) values (?,?,?,?,?,?,?,?,?,?,?)",
-                resumeId, candidateId, "MySQL Candidate", 28, "Singapore", "Engineer", "Summary", "[]", 1, now, now);
+                        "experiences_json,skills_json,version,created_at,updated_at) values (?,?,?,?,?,?,?,?,?,?,?,?)",
+                resumeId, candidateId, "MySQL Candidate", 28, "Singapore", "Engineer", "Summary", "[]", "[]", 1,
+                now, now);
         jdbcTemplate.update("insert into resume_snapshots (id,resume_id,candidate_id,full_name,age,location,headline," +
-                        "summary,experiences_json,resume_version,resume_created_at,resume_updated_at,captured_at) " +
-                        "values (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        "summary,experiences_json,skills_json,resume_version,resume_created_at,resume_updated_at," +
+                        "captured_at) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 snapshotId, resumeId, candidateId, "MySQL Candidate", 28, "Singapore", "Engineer", "Summary", "[]",
-                1, now, now, now);
+                "[]", 1, now, now, now);
         jdbcTemplate.update("insert into applications (id,job_id,candidate_id,resume_id,resume_snapshot_id,contact_email," +
                         "share_profile,status,applied_at,updated_at,version) values (?,?,?,?,?,?,?,?,?,?,?)",
                 applicationId, jobId, candidateId, resumeId, snapshotId, candidateId + "@example.com",

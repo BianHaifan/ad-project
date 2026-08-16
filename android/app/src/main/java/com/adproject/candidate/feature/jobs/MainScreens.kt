@@ -56,6 +56,7 @@ fun JobFeedScreen(
     state: JobFeedUiState,
     onQuery: (String) -> Unit,
     onSearch: () -> Unit,
+    onRecommended: () -> Unit,
     onEmploymentType: (EmploymentType?) -> Unit,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
@@ -66,6 +67,18 @@ fun JobFeedScreen(
         LazyColumn(Modifier.fillMaxSize().padding(padding)) {
             item {
                 Column(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Recommended",
+                            Modifier.clickable(onClick = onRecommended),
+                            color = if (state.recommended) AdTealDark else AdMuted,
+                            fontWeight = if (state.recommended) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 17.sp,
+                        )
+                        Text("Browse", color = if (state.recommended) AdMuted else AdText,
+                            fontWeight = if (state.recommended) FontWeight.Normal else FontWeight.Bold,
+                            fontSize = 17.sp)
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
                         EmploymentType.entries.forEach { type ->
                             Text(
@@ -92,7 +105,15 @@ fun JobFeedScreen(
                             fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Latest published jobs", color = AdText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Column {
+                            Text(if (state.recommended) "Recommended for you" else "Latest published jobs",
+                                color = AdText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            state.data?.recommendationSource?.let { source ->
+                                Text(if (source == "MODEL") "ML model • ${state.data.modelVersion}"
+                                    else "Rules fallback • model temporarily unavailable",
+                                    color = if (source == "MODEL") AdTealDark else Color(0xFFFF8500), fontSize = 10.sp)
+                            }
+                        }
                         Text(if (state.refreshing) "Refreshing…" else "Refresh",
                             Modifier.clickable(enabled = !state.refreshing, onClick = onRefresh),
                             color = AdTealDark, fontSize = 13.sp)

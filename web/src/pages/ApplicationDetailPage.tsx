@@ -228,8 +228,10 @@ export function ApplicationDetailPage() {
       </div></section>
     </div><aside className="detail-side">
       {application.matchScore !== null && application.matchAnalysis !== null && <section className="panel fit-card"><div className="section-title"><div><h2>Candidate fit</h2>
-        <small>Signals from the current matching model</small></div></div><span className="match-badge">{application.matchScore}% match</span>
+        <small>{application.matchAnalysis.modelVersion} · advisory only</small></div></div><span className="match-badge">{application.matchScore}% match</span>
         {application.matchAnalysis.evidence.map(evidence => <div className="evidence" key={evidence}><b>{clean(evidence)}</b></div>)}
+        <div><b>Strong matches</b><p>{application.matchAnalysis.strongMatches.map(clean).join(' · ') || 'No strong signals supplied'}</p></div>
+        <div><b>Gaps to review</b><p>{application.matchAnalysis.gaps.map(clean).join(' · ') || 'No gaps supplied'}</p></div>
       </section>}
       <section className="panel decision"><div className="section-title"><h2>Review decision</h2>
         <StatusBadge status={application.status}/></div>

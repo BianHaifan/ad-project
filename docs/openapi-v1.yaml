@@ -21,6 +21,7 @@ tags:
 - name: Conversations
 - name: Messages
 - name: Resume
+- name: Recommendations
 - name: Features
 - name: Admin
 security:
@@ -757,6 +758,101 @@ paths:
         compare atomically; on success increment version; mismatch returns 409 VERSION_CONFLICT.'
       x-concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch returns
         409 VERSION_CONFLICT.
+      x-mvp-scope: MVP
+  /candidate/job-preferences:
+    get:
+      tags:
+      - Recommendations
+      summary: Get the current candidate's structured job preferences
+      operationId: getCandidateJobPreferences
+      responses:
+        '200':
+          description: Current preferences; a version-zero default is returned before first save
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CandidateJobPreference'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-clients:
+      - Candidate
+      x-permission: Candidate self only
+      x-mvp-scope: MVP
+    put:
+      tags:
+      - Recommendations
+      summary: Create or replace the current candidate's structured job preferences
+      operationId: saveCandidateJobPreferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveCandidateJobPreferenceRequest'
+      responses:
+        '200':
+          description: Saved preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CandidateJobPreference'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      x-clients:
+      - Candidate
+      x-permission: Candidate self only
+      x-concurrency: Use expectedVersion=0 for first save; stale versions return 409 VERSION_CONFLICT.
+      x-mvp-scope: MVP
+  /candidate/recommendations/jobs:
+    get:
+      tags:
+      - Recommendations
+      summary: Rank currently active public jobs for the current candidate
+      operationId: recommendJobsForCandidate
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      responses:
+        '200':
+          description: Ranked model results, or deterministic fallback results when ML is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateJobRecommendationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      x-clients:
+      - Candidate
+      x-permission: Candidate self only
+      description: Requires an online resume. Spring Boot creates the candidate/job feature payload, calls the private
+        ML service, stores versioned snapshots, and falls back to deterministic rules if ML is disabled or unavailable.
       x-mvp-scope: MVP
   /features/learning:
     get:
@@ -3330,6 +3426,7 @@ components:
       - location
       - headline
       - summary
+      - skills
       - experiences
       - version
       - createdAt
@@ -3349,6 +3446,12 @@ components:
           type: string
         summary:
           type: string
+        skills:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            maxLength: 200
         experiences:
           type: array
           items:
@@ -3391,6 +3494,13 @@ components:
           type: string
         summary:
           type: string
+        skills:
+          type: array
+          maxItems: 100
+          default: []
+          items:
+            type: string
+            maxLength: 200
         experiences:
           type: array
           items:
@@ -3400,6 +3510,208 @@ components:
           minimum: 0
       additionalProperties: false
       description: Use expectedVersion=0 only when creating the first Resume; otherwise send the current version.
+    CandidateJobPreference:
+      type: object
+      required:
+      - desiredTitles
+      - preferredLocations
+      - workplaceTypes
+      - employmentTypes
+      - salaryCurrency
+      - salaryPeriod
+      - version
+      properties:
+        desiredTitles:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 200
+        preferredLocations:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 200
+        workplaceTypes:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/WorkplaceType'
+        employmentTypes:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/EmploymentType'
+        minimumSalary:
+          oneOf:
+          - type: integer
+            minimum: 0
+          - type: 'null'
+        salaryCurrency:
+          $ref: '#/components/schemas/SalaryCurrency'
+        salaryPeriod:
+          $ref: '#/components/schemas/SalaryPeriod'
+        version:
+          type: integer
+          minimum: 0
+        createdAt:
+          oneOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        updatedAt:
+          oneOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+    SaveCandidateJobPreferenceRequest:
+      type: object
+      required:
+      - desiredTitles
+      - preferredLocations
+      - workplaceTypes
+      - employmentTypes
+      - salaryCurrency
+      - salaryPeriod
+      - expectedVersion
+      properties:
+        desiredTitles:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 200
+        preferredLocations:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 200
+        workplaceTypes:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/WorkplaceType'
+        employmentTypes:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/EmploymentType'
+        minimumSalary:
+          oneOf:
+          - type: integer
+            minimum: 0
+          - type: 'null'
+        salaryCurrency:
+          $ref: '#/components/schemas/SalaryCurrency'
+        salaryPeriod:
+          $ref: '#/components/schemas/SalaryPeriod'
+        expectedVersion:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+      description: Use expectedVersion=0 for the first save; otherwise send the current preference version.
+    CandidateJobRecommendationResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecommendedJob'
+        meta:
+          $ref: '#/components/schemas/RecommendationMeta'
+    RecommendedJob:
+      type: object
+      required:
+      - jobId
+      - title
+      - companyId
+      - companyName
+      - location
+      - employmentType
+      - workplaceType
+      - salaryMin
+      - salaryMax
+      - salaryCurrency
+      - salaryPeriod
+      - description
+      - skills
+      - matchScore
+      - rank
+      - matchAnalysis
+      properties:
+        jobId:
+          type: string
+        title:
+          type: string
+        companyId:
+          type: string
+        companyName:
+          type: string
+        location:
+          type: string
+        employmentType:
+          $ref: '#/components/schemas/EmploymentType'
+        workplaceType:
+          $ref: '#/components/schemas/WorkplaceType'
+        salaryMin:
+          type: integer
+        salaryMax:
+          type: integer
+        salaryCurrency:
+          $ref: '#/components/schemas/SalaryCurrency'
+        salaryPeriod:
+          $ref: '#/components/schemas/SalaryPeriod'
+        description:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        matchScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        rank:
+          type: integer
+          minimum: 1
+        matchAnalysis:
+          $ref: '#/components/schemas/MatchAnalysis'
+    RecommendationMeta:
+      type: object
+      required:
+      - source
+      - modelVersion
+      - featureVersion
+      - modelStatus
+      - inferenceMs
+      - generatedAt
+      - limit
+      properties:
+        source:
+          type: string
+          enum: [MODEL, FALLBACK, NONE]
+        modelVersion:
+          type: string
+        featureVersion:
+          type: string
+        modelStatus:
+          type: string
+          enum: [ACTIVE, DEGRADED, NOT_APPLICABLE]
+        inferenceMs:
+          type: integer
+          minimum: 0
+        generatedAt:
+          type: string
+          format: date-time
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
     LearningFeature:
       type: object
       required:
@@ -3689,15 +4001,16 @@ components:
     MatchAnalysis:
       type: object
       required:
-      - score
       - evidence
-      - modelVersion
-      - generatedAt
+      - strongMatches
+      - gaps
       properties:
         score:
-          type: integer
-          minimum: 0
-          maximum: 100
+          oneOf:
+          - type: integer
+            minimum: 0
+            maximum: 100
+          - type: 'null'
         evidence:
           type: array
           items:
@@ -3711,12 +4024,15 @@ components:
           items:
             type: string
         modelVersion:
-          type: string
+          oneOf:
+          - type: string
+          - type: 'null'
         generatedAt:
-          type: string
-          format: date-time
-          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-          description: ISO-8601 UTC date-time; the value MUST end with Z.
+          oneOf:
+          - type: string
+            format: date-time
+            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          - type: 'null'
       description: Optional advisory display data only. It MUST NOT grant access or automatically decide hire, rejection,
         or status transitions. MVP may return null when ML is unavailable; core job/application flows must continue.
     Application:

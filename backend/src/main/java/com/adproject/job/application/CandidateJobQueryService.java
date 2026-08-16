@@ -18,6 +18,11 @@ import com.adproject.job.domain.JobStatus;
 import com.adproject.job.domain.Visibility;
 import com.adproject.job.infrastructure.JobEntity;
 import com.adproject.job.infrastructure.JobRepository;
+import com.adproject.recommendation.api.RecommendationDtos.MatchAnalysis;
+import com.adproject.recommendation.infrastructure.CandidateJobPreferenceRepository;
+import com.adproject.recommendation.infrastructure.CandidateJobRecommendationEntity;
+import com.adproject.recommendation.infrastructure.CandidateJobRecommendationRepository;
+import com.adproject.resume.infrastructure.ResumeRepository;
 import com.adproject.profile.infrastructure.RecruiterProfileEntity;
 import com.adproject.profile.infrastructure.RecruiterProfileRepository;
 import com.adproject.user.domain.UserRole;
@@ -49,18 +54,27 @@ public class CandidateJobQueryService {
     private final CompanyRepository companyRepository;
     private final ObjectMapper objectMapper;
     private final CandidateApplicationStateService applicationStateService;
+    private final CandidateJobRecommendationRepository recommendations;
+    private final CandidateJobPreferenceRepository preferences;
+    private final ResumeRepository resumes;
     private final UserRepository userRepository;
     private final RecruiterProfileRepository recruiterProfileRepository;
 
     public CandidateJobQueryService(JobRepository jobRepository, CompanyRepository companyRepository,
                                     ObjectMapper objectMapper,
                                     CandidateApplicationStateService applicationStateService,
+                                    CandidateJobRecommendationRepository recommendations,
+                                    CandidateJobPreferenceRepository preferences,
+                                    ResumeRepository resumes,
                                     UserRepository userRepository,
                                     RecruiterProfileRepository recruiterProfileRepository) {
         this.jobRepository = jobRepository;
         this.companyRepository = companyRepository;
         this.objectMapper = objectMapper;
         this.applicationStateService = applicationStateService;
+        this.recommendations = recommendations;
+        this.preferences = preferences;
+        this.resumes = resumes;
         this.userRepository = userRepository;
         this.recruiterProfileRepository = recruiterProfileRepository;
     }
@@ -84,8 +98,17 @@ public class CandidateJobQueryService {
         Map<String, CompanyEntity> companies = companyRepository
                 .findAllById(result.getContent().stream().map(JobEntity::getCompanyId).distinct().toList())
                 .stream().collect(Collectors.toMap(CompanyEntity::getId, Function.identity()));
+        CurrentVersions versions = currentVersions(currentUser.userId());
+        Map<String, CandidateJobRecommendationEntity> matches = recommendations
+                .findByCandidateIdAndJobIdIn(currentUser.userId(),
+                        result.getContent().stream().map(JobEntity::getId).toList())
+                .stream().filter(value -> isCurrent(value, versions,
+                        result.getContent().stream().filter(job -> job.getId().equals(value.getJobId()))
+                                .findFirst().orElseThrow()))
+                .collect(Collectors.toMap(CandidateJobRecommendationEntity::getJobId, Function.identity()));
         List<CandidateJobSummary> data = result.getContent().stream()
-                .map(job -> toSummary(job, requireCompany(companies, job.getCompanyId())))
+                .map(job -> toSummary(job, requireCompany(companies, job.getCompanyId()),
+                        matches.get(job.getId())))
                 .toList();
         return new CandidateJobListResponse(data,
                 new PageMeta(page, pageSize, result.getTotalElements(), result.hasNext()));
@@ -100,14 +123,19 @@ public class CandidateJobQueryService {
                 .orElseThrow(CandidateJobQueryService::notFound);
         CompanyEntity company = companyRepository.findById(job.getCompanyId())
                 .orElseThrow(CandidateJobQueryService::notFound);
-        CandidateJobSummary summary = toSummary(job, company);
+        CurrentVersions versions = currentVersions(currentUser.userId());
+        CandidateJobRecommendationEntity recommendation = recommendations
+                .findByCandidateIdAndJobId(currentUser.userId(), job.getId())
+                .filter(value -> isCurrent(value, versions, job)).orElse(null);
+        CandidateJobSummary summary = toSummary(job, company, recommendation);
         String applicationState = applicationStateService.state(currentUser.userId(), job.getId());
         return new CandidateJobDetailResponse(new CandidateJobDetail(
                 summary.jobId(), summary.title(), summary.company(), summary.employmentType(),
                 summary.workplaceType(), summary.location(), summary.salary(), summary.description(),
                 summary.requirements(), summary.skills(), summary.deadline(), summary.visibility(),
                 summary.status(), summary.publishedAt(), summary.version(), summary.createdAt(),
-                summary.updatedAt(), null, toRecruiterContact(job), null, applicationState, false));
+                summary.updatedAt(), summary.matchScore(), toRecruiterContact(job),
+                recommendation == null ? null : analysis(recommendation), applicationState, false));
     }
 
     private static Specification<JobEntity> visibleToCandidate() {
@@ -116,14 +144,38 @@ public class CandidateJobQueryService {
                 builder.equal(root.get("visibility"), Visibility.PUBLIC));
     }
 
-    private CandidateJobSummary toSummary(JobEntity job, CompanyEntity company) {
+    private CandidateJobSummary toSummary(JobEntity job, CompanyEntity company,
+                                          CandidateJobRecommendationEntity recommendation) {
         return new CandidateJobSummary(job.getId(), job.getTitle(), toCompany(company),
                 job.getEmploymentType().name(), job.getWorkplaceType().name(), job.getLocation(),
                 new Salary(job.getSalaryMin(), job.getSalaryMax(), job.getSalaryCurrency().name(),
                         job.getSalaryPeriod().name()), job.getDescription(), readList(job.getRequirementsJson()),
                 readList(job.getSkillsJson()), job.getDeadline(), job.getVisibility().name(), job.getStatus().name(),
-                job.getPublishedAt(), job.getVersion(), job.getCreatedAt(), job.getUpdatedAt(), null, null);
+                job.getPublishedAt(), job.getVersion(), job.getCreatedAt(), job.getUpdatedAt(),
+                recommendation == null ? null : recommendation.getScore(), null);
     }
+
+    private CurrentVersions currentVersions(String candidateId) {
+        int resumeVersion = resumes.findByCandidateId(candidateId)
+                .map(value -> value.getVersion()).orElse(-1);
+        int preferenceVersion = preferences.findById(candidateId)
+                .map(value -> value.getVersion()).orElse(0);
+        return new CurrentVersions(resumeVersion, preferenceVersion);
+    }
+
+    private static boolean isCurrent(CandidateJobRecommendationEntity value,
+                                     CurrentVersions versions, JobEntity job) {
+        return value.getResumeVersion() == versions.resumeVersion()
+                && value.getPreferenceVersion() == versions.preferenceVersion()
+                && value.getJobVersion() == job.getVersion();
+    }
+
+    private MatchAnalysis analysis(CandidateJobRecommendationEntity value) {
+        return new MatchAnalysis(readList(value.getStrongMatchesJson()),
+                readList(value.getGapsJson()), readList(value.getEvidenceJson()));
+    }
+
+    private record CurrentVersions(int resumeVersion, int preferenceVersion) {}
 
     private static Company toCompany(CompanyEntity company) {
         return new Company(company.getId(), company.getName(), company.getLogoUrl(), company.getStage(),

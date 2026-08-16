@@ -21,6 +21,9 @@ import com.adproject.candidate.data.contract.SubmitApplicationRequest
 import com.adproject.candidate.data.contract.ApplicationListFilter
 import com.adproject.candidate.data.contract.CandidateApplicationPage
 import com.adproject.candidate.data.contract.WithdrawApplicationRequest
+import com.adproject.candidate.data.contract.JobPreference
+import com.adproject.candidate.data.contract.RecommendationEnvelope
+import com.adproject.candidate.data.contract.SaveJobPreferenceRequest
 import com.adproject.candidate.data.contract.CompanyPublicProfile
 import com.adproject.candidate.data.contract.RecruiterPublicProfile
 import com.squareup.moshi.Moshi
@@ -103,6 +106,8 @@ data class CandidateJobPage(val jobs: List<CandidateJob>, val meta: PageMeta)
 interface CandidateJobRepository {
     suspend fun jobs(q: String?, employmentType: EmploymentType?): ApiResult<CandidateJobPage>
     suspend fun job(jobId: String): ApiResult<CandidateJobDetail>
+    suspend fun recommendations(limit: Int = 20): ApiResult<RecommendationEnvelope> =
+        ApiResult.Failure("Recommendations are not configured for this repository.")
 }
 
 class RealCandidateJobRepository(
@@ -138,11 +143,52 @@ class RealCandidateJobRepository(
         ApiResult.Failure("Unable to load this job right now.")
     }
 
+    override suspend fun recommendations(limit: Int): ApiResult<RecommendationEnvelope> = try {
+        val response = api.recommendations(limit)
+        val body = response.body()
+        if (response.isSuccessful && body != null) ApiResult.Success(body)
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load recommendations. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to load recommendations right now.")
+    }
+
     private fun toCandidateJob(job: NetworkCandidateJob) = CandidateJob(
         job.jobId, job.title, job.company, job.employmentType, job.workplaceType, job.location, job.salary,
         job.description, job.requirements, job.skills, job.deadline, job.visibility, job.status, job.publishedAt,
         job.version, job.createdAt, job.updatedAt, job.matchScore, job.recruiter,
     )
+}
+
+interface CandidateRecommendationRepository {
+    suspend fun preferences(): ApiResult<JobPreference>
+    suspend fun savePreferences(request: SaveJobPreferenceRequest): ApiResult<JobPreference>
+}
+
+class RealCandidateRecommendationRepository(
+    private val api: CandidateRecommendationHttpApi,
+    moshi: Moshi,
+) : CandidateRecommendationRepository {
+    private val errors = ApiErrorParser(moshi)
+
+    override suspend fun preferences(): ApiResult<JobPreference> = call { api.preferences() }
+
+    override suspend fun savePreferences(request: SaveJobPreferenceRequest): ApiResult<JobPreference> =
+        call { api.savePreferences(request) }
+
+    private suspend fun call(
+        block: suspend () -> retrofit2.Response<com.adproject.candidate.data.contract.DataEnvelope<JobPreference>>,
+    ): ApiResult<JobPreference> = try {
+        val response = block()
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load job preferences. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to load job preferences right now.")
+    }
 }
 
 class ApiErrorParser(moshi: Moshi) {
