@@ -39,4 +39,16 @@ public interface ApplicationRepository extends JpaRepository<ApplicationEntity, 
             "where application.jobId = job.id and job.companyId = :companyId and application.status = :status")
     long countByCompanyIdAndStatus(@Param("companyId") String companyId,
                                    @Param("status") ApplicationStatus status);
+
+    @Query("select count(application) > 0 from ApplicationEntity application, JobEntity job " +
+            "where application.jobId = job.id and application.candidateId = :candidateId " +
+            "and job.companyId = :companyId")
+    boolean existsByCandidateIdAndCompanyId(@Param("candidateId") String candidateId,
+                                            @Param("companyId") String companyId);
+
+    @Query("select count(application) > 0 from ApplicationEntity application, JobEntity job " +
+            "where application.jobId = job.id and application.candidateId = :candidateId " +
+            "and (job.ownerId = :recruiterId or (job.ownerId is null and job.createdBy = :recruiterId))")
+    boolean existsByCandidateIdAndRecruiterId(@Param("candidateId") String candidateId,
+                                              @Param("recruiterId") String recruiterId);
 }

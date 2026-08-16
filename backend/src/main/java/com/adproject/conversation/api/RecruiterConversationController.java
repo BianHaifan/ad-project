@@ -2,9 +2,15 @@ package com.adproject.conversation.api;
 
 import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.conversation.application.ConversationService;
+import com.adproject.conversation.infrastructure.MessageAttachmentEntity;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.nio.charset.StandardCharsets;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,8 +21,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @Validated
 @RestController
@@ -58,11 +66,39 @@ public class RecruiterConversationController {
         return service.sendRecruiter(user, conversationId, idempotencyKey, request);
     }
 
+    @ResponseStatus(HttpStatus.CREATED)
+    @PostMapping(value = "/{conversationId}/messages/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    ConversationDtos.MessageResponse sendAttachment(@AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String conversationId,
+            @RequestHeader(name = "Idempotency-Key") String idempotencyKey,
+            @RequestParam(value = "body", required = false) String body,
+            @RequestParam(value = "clientMessageId", required = false) String clientMessageId,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
+        return service.sendRecruiterAttachment(user, conversationId, idempotencyKey, clientMessageId, body, file);
+    }
+
+    @GetMapping("/{conversationId}/messages/{messageId}/attachment")
+    ResponseEntity<byte[]> downloadAttachment(@AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String conversationId, @PathVariable String messageId) {
+        return attachmentResponse(service.downloadRecruiterAttachment(user, conversationId, messageId));
+    }
+
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PutMapping("/{conversationId}/read-state")
     void readState(@AuthenticationPrincipal AuthenticatedUser user,
                    @PathVariable String conversationId,
                    @RequestBody ConversationDtos.ReadStateRequest request) {
         service.updateReadStateRecruiter(user, conversationId, request);
+    }
+
+    private static ResponseEntity<byte[]> attachmentResponse(MessageAttachmentEntity attachment) {
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(attachment.getFileName(), StandardCharsets.UTF_8).build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(attachment.getContentType()))
+                .contentLength(attachment.getSizeBytes())
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(attachment.getContent());
     }
 }

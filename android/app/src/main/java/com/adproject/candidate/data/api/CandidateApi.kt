@@ -41,9 +41,9 @@ object FakeCandidateRepository : CandidateRepository {
     private const val NOW = "2026-08-09T01:42:00Z"
     private val recruiter = RecruiterContact("rec_001", "Mia Chen", "Hiring Manager")
     private val jobs = listOf(
-        Job("moonshot", "AI Backend Engineer", "Moonshot AI", "M", "Series B · 500–999", "SGD 5–8K", listOf("Python", "LLM", "K8s", "RAG"), 96, recruiter),
-        Job("bytelab", "Machine Learning Platform", "ByteDance Seed", "B", "10000+", "SGD 6–9K", listOf("Intern", "PyTorch", "MLOps"), 91, recruiter),
-        Job("minimax", "Full Stack Engineer, AI Tools", "MiniMax", "M", "No financing needed", "SGD 5–7K", listOf("React", "Node", "AI Agent"), 84, recruiter),
+        Job("moonshot", "AI Backend Engineer", "Moonshot AI", "M", "Series B · 500–999", "SGD 5–8K", listOf("Python", "LLM", "K8s", "RAG"), 96, recruiter, "co_moonshot"),
+        Job("bytelab", "Machine Learning Platform", "ByteDance Seed", "B", "10000+", "SGD 6–9K", listOf("Intern", "PyTorch", "MLOps"), 91, recruiter, "co_bytelab"),
+        Job("minimax", "Full Stack Engineer, AI Tools", "MiniMax", "M", "No financing needed", "SGD 5–7K", listOf("React", "Node", "AI Agent"), 84, recruiter, "co_minimax"),
     )
 
     override fun getJobFeed() = JobFeedData(

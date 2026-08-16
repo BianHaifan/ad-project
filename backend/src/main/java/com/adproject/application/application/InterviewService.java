@@ -19,6 +19,7 @@ import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.common.time.DatabaseTimePrecision;
 import com.adproject.company.infrastructure.CompanyMemberRepository;
+import com.adproject.conversation.application.ConversationService;
 import com.adproject.integration.google.MeetingCancelRequest;
 import com.adproject.integration.google.MeetingProvisioningException;
 import com.adproject.integration.google.MeetingProvisioningPort;
@@ -38,6 +39,7 @@ import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -51,6 +53,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class InterviewService {
     private static final Logger log = LoggerFactory.getLogger(InterviewService.class);
+    private static final DateTimeFormatter NOTICE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final InterviewRepository interviews;
     private final ApplicationRepository applications;
@@ -58,6 +61,7 @@ public class InterviewService {
     private final InterviewAuditEventRepository audits;
     private final JobRepository jobs;
     private final CompanyMemberRepository members;
+    private final ConversationService conversationService;
     private final MeetingProvisioningPort meetingProvisioning;
     private final ObjectMapper mapper;
     private final Clock clock;
@@ -66,6 +70,7 @@ public class InterviewService {
     public InterviewService(InterviewRepository interviews, ApplicationRepository applications,
                             ApplicationStatusEventRepository events, InterviewAuditEventRepository audits,
                             JobRepository jobs, CompanyMemberRepository members,
+                            ConversationService conversationService,
                             MeetingProvisioningPort meetingProvisioning, ObjectMapper mapper, Clock clock,
                             PlatformTransactionManager transactionManager) {
         this.interviews = interviews;
@@ -74,6 +79,7 @@ public class InterviewService {
         this.audits = audits;
         this.jobs = jobs;
         this.members = members;
+        this.conversationService = conversationService;
         this.meetingProvisioning = meetingProvisioning;
         this.mapper = mapper;
         this.clock = clock;
@@ -128,12 +134,13 @@ public class InterviewService {
         // attendee. It is read from the locked server-side application record here
         // and never from the request body, so a browser cannot inject a recipient.
         String[] contactEmail = new String[1];
+        String[] jobTitle = new String[1];
 
         // Transaction 1: lock the application and commit the local interview in
         // PENDING state (no link), together with the status transition and audit.
         InterviewEntity created = transactionTemplate.execute(status -> {
             ApplicationEntity application = applications.findByIdForUpdate(applicationId).orElseThrow(this::notFound);
-            requireJob(application, companyId);
+            jobTitle[0] = requireJob(application, companyId).getTitle();
             contactEmail[0] = application.getContactEmail();
             if (application.getVersion() != request.expectedApplicationVersion()) {
                 throw new ApiException(HttpStatus.CONFLICT, "VERSION_CONFLICT", "The application has changed");
@@ -164,6 +171,13 @@ public class InterviewService {
                     interview.getApplicationId(), principal.userId(), companyId, InterviewAuditAction.CREATED,
                     null, snapshot(interview), now, reasonFor(InterviewAuditAction.CREATED), requestId));
             applications.flush();
+            // Manual interviews (on-site/phone) carry their location at creation
+            // time, so the notice is written in the same transaction as the
+            // interview, guaranteeing one message commits atomically with it.
+            if (provider == MeetingProvider.MANUAL) {
+                conversationService.appendInterviewNotice(applicationId, principal.userId(), interview.getId(),
+                        interviewNoticeBody(jobTitle[0], interview));
+            }
             return interview;
         });
 
@@ -185,6 +199,11 @@ public class InterviewService {
                 case PENDING -> interview.markPending(result.eventId(), now);
                 case FAILED -> interview.markFailed(result.syncErrorCode(), now);
             }
+            // Online interviews write the notice after the provider result is
+            // known, so a generated Meet link is only included when it exists and
+            // the notice commits atomically with the final sync state.
+            conversationService.appendInterviewNotice(applicationId, principal.userId(), interview.getId(),
+                    interviewNoticeBody(jobTitle[0], interview));
             return interview;
         });
         return toDto(updated);
@@ -580,6 +599,43 @@ public class InterviewService {
             throw new ApiException(HttpStatus.CONFLICT, "GOOGLE_MEET_SYNC_IN_PROGRESS",
                     "A Google Meet synchronization is already in progress");
         }
+    }
+
+    /**
+     * Builds the in-app notice a candidate sees after an interview is scheduled.
+     * It always carries the job title, the interview time rendered in the
+     * interview's own timezone (with the timezone name), and the mode; the
+     * location or generated Meet link is appended only when one exists. A Google
+     * provisioning token, event id, or response body is never part of the text.
+     */
+    private static String interviewNoticeBody(String jobTitle, InterviewEntity interview) {
+        String time = interview.getScheduledAt().atZone(ZoneId.of(interview.getTimezone()))
+                .format(NOTICE_TIME_FORMAT);
+        StringBuilder body = new StringBuilder();
+        body.append("Interview scheduled: ").append(jobTitle).append('\n');
+        body.append("Time: ").append(time).append(" (").append(interview.getTimezone()).append(")\n");
+        body.append("Mode: ").append(modeLabel(interview.getMode()));
+        String location = interview.getLocationOrMeetingUrl();
+        if (location != null && !location.isBlank()) {
+            body.append('\n').append(locationLabel(interview.getMode())).append(": ").append(location);
+        }
+        return body.toString();
+    }
+
+    private static String modeLabel(InterviewMode mode) {
+        return switch (mode) {
+            case ONLINE -> "Online";
+            case ONSITE -> "On-site";
+            case PHONE -> "Phone";
+        };
+    }
+
+    private static String locationLabel(InterviewMode mode) {
+        return switch (mode) {
+            case ONLINE -> "Meeting link";
+            case ONSITE -> "Location";
+            case PHONE -> "Phone";
+        };
     }
 
     private InterviewDtos.Interview toDto(InterviewEntity interview) {

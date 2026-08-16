@@ -8,9 +8,12 @@ import type {
 
 const randomUuid = () => globalThis.crypto.randomUUID();
 
+export type ConversationAuthClient =
+  Pick<AuthClient, 'requestWithAuth' | 'requestWithAuthForm' | 'requestWithAuthDownload'>;
+
 export class ConversationHttpClient {
   constructor(
-    private readonly client: Pick<AuthClient, 'requestWithAuth'> = authClient,
+    private readonly client: ConversationAuthClient = authClient,
     private readonly uuid: () => string = randomUuid,
   ) {}
 
@@ -44,6 +47,24 @@ export class ConversationHttpClient {
         body: JSON.stringify({body, clientMessageId}),
       });
     return parseMessageEnvelope(payload);
+  }
+
+  async sendMessageWithAttachment(conversationId: string, body: string, file: File): Promise<Message> {
+    const clientMessageId = this.uuid();
+    const idempotencyKey = this.uuid();
+    const formData = new FormData();
+    formData.append('clientMessageId', clientMessageId);
+    if (body) formData.append('body', body);
+    formData.append('file', file);
+    const payload = await this.client.requestWithAuthForm<unknown>(
+      apiPaths.messageAttachmentUpload(encodeURIComponent(conversationId)), formData,
+      {'Idempotency-Key': idempotencyKey});
+    return parseMessageEnvelope(payload);
+  }
+
+  async downloadAttachment(conversationId: string, messageId: string): Promise<Blob> {
+    return this.client.requestWithAuthDownload(
+      apiPaths.messageAttachmentDownload(encodeURIComponent(conversationId), encodeURIComponent(messageId)));
   }
 
   async markRead(conversationId: string, lastReadMessageId: string): Promise<void> {
@@ -99,8 +120,16 @@ export function parseMessage(value: unknown): Message {
   if (!isRecord(value) || typeof value.messageId !== 'string' || typeof value.conversationId !== 'string' ||
       typeof value.body !== 'string' || !isSenderType(value.senderType) || typeof value.sentAt !== 'string' ||
       !(value.clientMessageId === null || typeof value.clientMessageId === 'string') ||
-      !isDeliveryStatus(value.deliveryStatus)) throw unexpectedResponse();
+      !isDeliveryStatus(value.deliveryStatus) ||
+      !(value.attachment === undefined || value.attachment === null || isMessageAttachment(value.attachment))) {
+    throw unexpectedResponse();
+  }
   return value as unknown as Message;
+}
+
+function isMessageAttachment(value: unknown): boolean {
+  return isRecord(value) && typeof value.attachmentId === 'string' && typeof value.fileName === 'string' &&
+    typeof value.sizeBytes === 'number' && typeof value.contentType === 'string';
 }
 
 function parseParticipant(value: unknown): ConversationParticipant {

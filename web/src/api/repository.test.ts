@@ -24,5 +24,9 @@ describe('repository data-source boundaries', () => {
     expect('updateJob' in mockRecruiterRepository).toBe(false);
     expect('publishJob' in mockRecruiterRepository).toBe(false);
     expect('changeJobStatus' in mockRecruiterRepository).toBe(false);
+      expect('getRecruiterProfile' in mockRecruiterRepository).toBe(false);
+      expect('updateRecruiterProfile' in mockRecruiterRepository).toBe(false);
+      expect(typeof recruiterRepository.getRecruiterProfile).toBe('function');
+      expect(typeof recruiterRepository.updateRecruiterProfile).toBe('function');
   });
 });

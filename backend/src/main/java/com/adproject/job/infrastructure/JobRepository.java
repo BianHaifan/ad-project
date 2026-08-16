@@ -1,6 +1,7 @@
 package com.adproject.job.infrastructure;
 
 import com.adproject.job.domain.JobStatus;
+import com.adproject.job.domain.Visibility;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
@@ -23,4 +24,13 @@ public interface JobRepository extends JpaRepository<JobEntity, String>, JpaSpec
     long countByCompanyIdAndStatus(String companyId, JobStatus status);
 
     List<JobEntity> findByCompanyId(String companyId, Pageable pageable);
+
+    boolean existsByCompanyIdAndStatusAndVisibility(String companyId, JobStatus status, Visibility visibility);
+
+    @Query("select count(job) > 0 from JobEntity job " +
+            "where (job.ownerId = :recruiterId or (job.ownerId is null and job.createdBy = :recruiterId)) " +
+            "and job.status = :status and job.visibility = :visibility")
+    boolean existsByRecruiterIdAndStatusAndVisibility(@Param("recruiterId") String recruiterId,
+                                                      @Param("status") JobStatus status,
+                                                      @Param("visibility") Visibility visibility);
 }

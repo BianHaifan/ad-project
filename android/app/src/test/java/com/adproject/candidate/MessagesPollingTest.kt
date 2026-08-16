@@ -1,8 +1,10 @@
 package com.adproject.candidate
 
 import com.adproject.candidate.data.api.ApiResult
+import com.adproject.candidate.data.api.AttachmentUpload
 import com.adproject.candidate.data.api.CandidateConversationRepository
 import com.adproject.candidate.data.api.ConversationListResult
+import com.adproject.candidate.data.api.DownloadedAttachment
 import com.adproject.candidate.data.api.MessageListResult
 import com.adproject.candidate.data.contract.ConversationDetail
 import com.adproject.candidate.data.contract.ConversationParticipant
@@ -192,6 +194,12 @@ private class CountingConversationRepository(
     }
 
     override suspend fun sendMessage(conversationId: String, idempotencyKey: String, request: SendMessageRequest): ApiResult<Message> =
+        throw UnsupportedOperationException("not used by polling tests")
+
+    override suspend fun sendMessageWithAttachment(conversationId: String, idempotencyKey: String, request: AttachmentUpload): ApiResult<Message> =
+        throw UnsupportedOperationException("not used by polling tests")
+
+    override suspend fun downloadAttachment(conversationId: String, messageId: String): ApiResult<DownloadedAttachment> =
         throw UnsupportedOperationException("not used by polling tests")
 
     override suspend fun markRead(conversationId: String, request: ReadStateRequest): ApiResult<Unit> =

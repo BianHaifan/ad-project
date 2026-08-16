@@ -1,6 +1,7 @@
 package com.adproject.candidate
 
 import com.adproject.candidate.data.api.ApiResult
+import com.adproject.candidate.data.api.AttachmentUpload
 import com.adproject.candidate.data.api.CandidateConversationHttpApi
 import com.adproject.candidate.data.api.RealCandidateConversationRepository
 import com.adproject.candidate.data.contract.ReadStateRequest
@@ -98,6 +99,36 @@ class CandidateConversationRepositoryTest {
         assertFalse(closed.message.contains("internal"))
     }
 
+    @Test fun sendMessageWithAttachmentUsesMultipartForm() = runTest {
+        server.enqueue(jsonResponse("""{"data":${message("msg-4", attachment = true)}}"""))
+        val key = "550e8400-e29b-41d4-a716-446655440000"
+        val result = repository.sendMessageWithAttachment(
+            "conv-1", key,
+            AttachmentUpload("client-id-2", "Please review", "resume.pdf", "application/pdf", "%PDF-1.4".toByteArray()),
+        ) as ApiResult.Success
+        assertEquals("msg-4", result.value.messageId)
+        assertEquals("resume.pdf", result.value.attachment?.fileName)
+        val request = server.takeRequest()
+        assertEquals("/api/v1/candidate/conversations/conv-1/messages/attachment", request.requestUrl!!.encodedPath)
+        assertEquals(key, request.getHeader("Idempotency-Key"))
+        val body = request.body.readUtf8().lowercase()
+        assertTrue(body.contains("name=\"clientmessageid\""))
+        assertTrue(body.contains("client-id-2"))
+        assertTrue(body.contains("name=\"body\""))
+        assertTrue(body.contains("please review"))
+        assertTrue(body.contains("filename=\"resume.pdf\""))
+    }
+
+    @Test fun downloadAttachmentReturnsBytesAndContentType() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/pdf").setBody("%PDF-1.4"))
+        val result = repository.downloadAttachment("conv-1", "msg-1") as ApiResult.Success
+        assertEquals("application/pdf", result.value.contentType)
+        assertEquals("%PDF-1.4", result.value.bytes.toString(Charsets.UTF_8))
+        val request = server.takeRequest()
+        assertEquals("/api/v1/candidate/conversations/conv-1/messages/msg-1/attachment", request.requestUrl!!.encodedPath)
+        assertEquals("GET", request.method)
+    }
+
     @Test fun markReadPutsLastReadMessageId() = runTest {
         server.enqueue(MockResponse().setResponseCode(204))
         assertTrue(repository.markRead("conv-1", ReadStateRequest("msg-9")) is ApiResult.Success)
@@ -144,9 +175,12 @@ class CandidateConversationRepositoryTest {
         "company":null,"online":true}
     """.trimIndent()
 
-    private fun message(id: String, clientMessageId: String? = null) = """
+    private fun message(id: String, clientMessageId: String? = null, attachment: Boolean = false) = """
         {"messageId":"$id","conversationId":"conv-1","body":"Hello","senderType":"CANDIDATE",
         "sentAt":"2026-08-11T08:00:00Z","clientMessageId":${if (clientMessageId == null) "null" else "\"$clientMessageId\""},
-        "deliveryStatus":"SENT"}
+        "deliveryStatus":"SENT","attachment":${if (attachment) attachmentMeta() else "null"}}
     """.trimIndent()
+
+    private fun attachmentMeta() =
+        """{"attachmentId":"att-1","fileName":"resume.pdf","sizeBytes":1024,"contentType":"application/pdf"}"""
 }

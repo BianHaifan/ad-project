@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.adproject.candidate.data.api.ApiResult
+import com.adproject.candidate.data.api.AttachmentUpload
 import com.adproject.candidate.data.api.CandidateConversationRepository
 import com.adproject.candidate.data.contract.ConversationDetail
 import com.adproject.candidate.data.contract.ConversationSummary
@@ -112,6 +113,22 @@ data class ChatUiState(
     val notFound: Boolean = false,
     val sending: Boolean = false,
     val draft: String = "",
+    val attachment: PendingAttachment? = null,
+    val downloadingMessageId: String? = null,
+    val downloadEvent: DownloadEvent? = null,
+)
+
+data class PendingAttachment(
+    val fileName: String,
+    val contentType: String,
+    val sizeBytes: Long,
+    val bytes: ByteArray,
+)
+
+data class DownloadEvent(
+    val fileName: String,
+    val contentType: String,
+    val bytes: ByteArray,
 )
 
 class ChatViewModel(
@@ -197,19 +214,54 @@ class ChatViewModel(
         }
     }
 
+    fun selectAttachment(value: PendingAttachment) = mutableState.update { it.copy(attachment = value, message = null) }
+
+    fun removeAttachment() = mutableState.update { it.copy(attachment = null) }
+
+    fun consumeDownload() = mutableState.update { it.copy(downloadEvent = null) }
+
+    fun download(message: Message) {
+        val attachment = message.attachment ?: return
+        if (mutableState.value.downloadingMessageId != null) return
+        mutableState.update { it.copy(downloadingMessageId = message.messageId, message = null) }
+        viewModelScope.launch {
+            when (val result = repository.downloadAttachment(conversationId, message.messageId)) {
+                is ApiResult.Success -> mutableState.update {
+                    it.copy(
+                        downloadingMessageId = null,
+                        downloadEvent = DownloadEvent(attachment.fileName, result.value.contentType, result.value.bytes),
+                    )
+                }
+                is ApiResult.Failure -> mutableState.update {
+                    it.copy(downloadingMessageId = null, message = result.message)
+                }
+            }
+        }
+    }
+
     fun send() {
-        val body = mutableState.value.draft.trim()
-        if (body.isEmpty() || mutableState.value.sending) return
+        val current = mutableState.value
+        val body = current.draft.trim()
+        val attachment = current.attachment
+        if (current.sending || (body.isEmpty() && attachment == null)) return
         val key = sendKey ?: UUID.randomUUID().toString().also { sendKey = it }
         val clientId = clientMessageId ?: UUID.randomUUID().toString().also { clientMessageId = it }
         mutableState.update { it.copy(sending = true, message = null) }
         viewModelScope.launch {
-            when (val result = repository.sendMessage(conversationId, key, SendMessageRequest(body, clientId))) {
+            val result = if (attachment != null) {
+                repository.sendMessageWithAttachment(
+                    conversationId, key,
+                    AttachmentUpload(clientId, body.ifBlank { null }, attachment.fileName, attachment.contentType, attachment.bytes),
+                )
+            } else {
+                repository.sendMessage(conversationId, key, SendMessageRequest(body, clientId))
+            }
+            when (result) {
                 is ApiResult.Success -> {
                     sendKey = null
                     clientMessageId = null
                     mutableState.update {
-                        it.copy(sending = false, draft = "", messages = it.messages + result.value, message = null)
+                        it.copy(sending = false, draft = "", attachment = null, messages = it.messages + result.value, message = null)
                     }
                 }
                 is ApiResult.Failure -> mutableState.update {

@@ -10,6 +10,7 @@ import com.adproject.company.infrastructure.CompanyMemberEntity;
 import com.adproject.company.infrastructure.CompanyMemberRepository;
 import com.adproject.company.infrastructure.CompanyRepository;
 import com.adproject.conversation.api.ConversationDtos;
+import com.adproject.conversation.api.ConversationDtos.Attachment;
 import com.adproject.conversation.api.ConversationDtos.Detail;
 import com.adproject.conversation.api.ConversationDtos.DetailResponse;
 import com.adproject.conversation.api.ConversationDtos.ListResponse;
@@ -27,6 +28,8 @@ import com.adproject.conversation.infrastructure.ConversationReadStateEntity;
 import com.adproject.conversation.infrastructure.ConversationReadStateId;
 import com.adproject.conversation.infrastructure.ConversationReadStateRepository;
 import com.adproject.conversation.infrastructure.ConversationRepository;
+import com.adproject.conversation.infrastructure.MessageAttachmentEntity;
+import com.adproject.conversation.infrastructure.MessageAttachmentRepository;
 import com.adproject.conversation.infrastructure.MessageEntity;
 import com.adproject.conversation.infrastructure.MessageRepository;
 import com.adproject.job.infrastructure.JobEntity;
@@ -36,6 +39,11 @@ import com.adproject.user.domain.UserRole;
 import com.adproject.user.infrastructure.UserEntity;
 import com.adproject.user.infrastructure.UserRepository;
 import jakarta.persistence.criteria.Subquery;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -47,20 +55,40 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class ConversationService {
     private static final int MAX_BODY_LENGTH = 5000;
+    private static final long MAX_ATTACHMENT_BYTES = 10L * 1024 * 1024;
     private static final String DELIVERY_SENT = "SENT";
+
+    private static final byte[] OLE_COMPOUND_MAGIC = {
+            (byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1};
+    private static final String DOCX_CONTENT_TYPES_ENTRY = "[Content_Types].xml";
+    private static final String DOCX_DOCUMENT_ENTRY = "word/document.xml";
+
+    private static final Map<String, String> ATTACHMENT_CONTENT_TYPES = Map.of(
+            "pdf", "application/pdf",
+            "doc", "application/msword",
+            "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "txt", "text/plain",
+            "png", "image/png",
+            "jpg", "image/jpeg",
+            "jpeg", "image/jpeg");
 
     private final ConversationRepository conversations;
     private final MessageRepository messages;
+    private final MessageAttachmentRepository attachments;
     private final ConversationReadStateRepository readStates;
     private final ApplicationRepository applications;
     private final JobRepository jobs;
@@ -71,11 +99,13 @@ public class ConversationService {
     private final Clock clock;
 
     public ConversationService(ConversationRepository conversations, MessageRepository messages,
+                               MessageAttachmentRepository attachments,
                                ConversationReadStateRepository readStates, ApplicationRepository applications,
                                JobRepository jobs, UserRepository users, CandidateProfileRepository profiles,
                                CompanyRepository companies, CompanyMemberRepository members, Clock clock) {
         this.conversations = conversations;
         this.messages = messages;
+        this.attachments = attachments;
         this.readStates = readStates;
         this.applications = applications;
         this.jobs = jobs;
@@ -171,6 +201,36 @@ public class ConversationService {
     }
 
     @Transactional
+    public MessageResponse sendCandidateAttachment(AuthenticatedUser principal, String conversationId,
+                                                   String idempotencyKey, String clientMessageId, String body,
+                                                   MultipartFile file) {
+        ConversationEntity conversation = requireCandidateConversation(principal, conversationId);
+        return sendWithAttachment(conversation, principal, idempotencyKey, clientMessageId, body, file);
+    }
+
+    @Transactional
+    public MessageResponse sendRecruiterAttachment(AuthenticatedUser principal, String conversationId,
+                                                   String idempotencyKey, String clientMessageId, String body,
+                                                   MultipartFile file) {
+        ConversationEntity conversation = requireRecruiterConversation(principal, conversationId);
+        return sendWithAttachment(conversation, principal, idempotencyKey, clientMessageId, body, file);
+    }
+
+    @Transactional(readOnly = true)
+    public MessageAttachmentEntity downloadCandidateAttachment(AuthenticatedUser principal, String conversationId,
+                                                               String messageId) {
+        ConversationEntity conversation = requireCandidateConversation(principal, conversationId);
+        return downloadAttachment(conversation, messageId);
+    }
+
+    @Transactional(readOnly = true)
+    public MessageAttachmentEntity downloadRecruiterAttachment(AuthenticatedUser principal, String conversationId,
+                                                               String messageId) {
+        ConversationEntity conversation = requireRecruiterConversation(principal, conversationId);
+        return downloadAttachment(conversation, messageId);
+    }
+
+    @Transactional
     public void updateReadStateRecruiter(AuthenticatedUser principal, String conversationId, ReadStateRequest request) {
         ConversationEntity conversation = requireRecruiterConversation(principal, conversationId);
         updateReadState(conversation, principal.userId(), request);
@@ -194,9 +254,34 @@ public class ConversationService {
         boolean hasMore = desc.size() > limit;
         List<MessageEntity> page = hasMore ? desc.subList(0, limit) : desc;
         String nextCursor = hasMore ? page.get(page.size() - 1).getId() : null;
-        List<Message> data = new ArrayList<>(page.stream().map(this::message).toList());
+        List<Message> data = new ArrayList<>(toMessages(page));
         Collections.reverse(data);
         return new MessageListResponse(data, new ConversationDtos.MessageListMeta(nextCursor, hasMore));
+    }
+
+    /**
+     * Appends a SYSTEM notice to the conversation of the given application, used
+     * when a recruiter schedules an interview. The {@code noticeId} doubles as the
+     * message id, idempotency key, and client message id, so retrying the same
+     * interview write can never produce a duplicate. A missing conversation (an
+     * application with no conversation yet) is skipped rather than treated as an
+     * error, so the interview creation is never blocked by a notification gap.
+     */
+    @Transactional
+    public void appendInterviewNotice(String applicationId, String recruiterId, String noticeId, String body) {
+        if (messages.findById(noticeId).isPresent()) {
+            return;
+        }
+        ConversationEntity conversation = conversations.findByApplicationId(applicationId).orElse(null);
+        if (conversation == null) {
+            return;
+        }
+        Instant now = clock.instant();
+        String payloadHash = digest(conversation.getId() + "\n" + noticeId + "\n" + body);
+        messages.save(new MessageEntity(noticeId, conversation.getId(), recruiterId, SenderType.SYSTEM,
+                body, now, noticeId, noticeId, payloadHash));
+        conversation.touch(now);
+        conversations.flush();
     }
 
     private MessageResponse send(ConversationEntity conversation, AuthenticatedUser principal, String idempotencyKey,
@@ -239,6 +324,206 @@ public class ConversationService {
         conversations.flush();
         return new MessageResponse(message(entity));
     }
+
+    private MessageResponse sendWithAttachment(ConversationEntity conversation, AuthenticatedUser principal,
+                                               String idempotencyKey, String clientMessageId, String body,
+                                               MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw validation("file", "is required");
+        }
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Unable to read the uploaded file");
+        }
+        AttachmentMeta meta = validateAttachment(file.getOriginalFilename(), content);
+
+        String normalizedBody = body == null ? "" : body;
+        if (normalizedBody.length() > MAX_BODY_LENGTH) {
+            throw validation("body", "must be at most " + MAX_BODY_LENGTH + " characters");
+        }
+        String clientId = requireUuid(clientMessageId, "clientMessageId");
+        String key = requireUuid(idempotencyKey, "Idempotency-Key");
+        String contentHash = digest(content);
+        String payloadHash = digest(conversation.getId() + "\n" + clientId + "\n" + normalizedBody
+                + "\n" + meta.fileName() + "\n" + meta.sizeBytes() + "\n" + contentHash);
+
+        var byKey = messages.findBySenderIdAndIdempotencyKey(principal.userId(), key);
+        if (byKey.isPresent()) {
+            if (byKey.get().getPayloadHash().equals(payloadHash)) {
+                return new MessageResponse(message(byKey.get()));
+            }
+            throw new ApiException(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED",
+                    "The idempotency key was already used with a different request");
+        }
+
+        var byClient = messages.findByConversationIdAndClientMessageId(conversation.getId(), clientId);
+        if (byClient.isPresent()) {
+            return new MessageResponse(message(byClient.get()));
+        }
+
+        ApplicationEntity application = applications.findById(conversation.getApplicationId()).orElseThrow(this::notFound);
+        if (application.getStatus() == ApplicationStatus.REJECTED || application.getStatus() == ApplicationStatus.WITHDRAWN) {
+            throw new ApiException(HttpStatus.CONFLICT, "CONVERSATION_CLOSED",
+                    "This conversation is read-only because the application is no longer active");
+        }
+
+        Instant now = clock.instant();
+        MessageEntity entity = messages.save(new MessageEntity(UUID.randomUUID().toString(), conversation.getId(),
+                principal.userId(), senderType(principal.role()), normalizedBody, now, clientId, key, payloadHash));
+        messages.flush();
+        attachments.save(new MessageAttachmentEntity(UUID.randomUUID().toString(), entity.getId(), meta.fileName(),
+                meta.contentType(), meta.sizeBytes(), content, now));
+        conversation.touch(now);
+        conversations.flush();
+        return new MessageResponse(message(entity));
+    }
+
+    private MessageAttachmentEntity downloadAttachment(ConversationEntity conversation, String messageId) {
+        MessageEntity entity = messages.findById(messageId)
+                .filter(m -> m.getConversationId().equals(conversation.getId()))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Message not found"));
+        return attachments.findByMessageId(entity.getId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attachment not found"));
+    }
+
+    private AttachmentMeta validateAttachment(String originalFilename, byte[] content) {
+        if (content.length == 0) {
+            throw validation("file", "must not be empty");
+        }
+        if (content.length > MAX_ATTACHMENT_BYTES) {
+            throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE",
+                    "Attachment exceeds the 10 MB limit");
+        }
+        String fileName = sanitizeFileName(originalFilename);
+        String extension = extensionOf(fileName);
+        String contentType = ATTACHMENT_CONTENT_TYPES.get(extension);
+        if (contentType == null) {
+            throw validation("file", "must be one of: pdf, doc, docx, txt, png, jpg, jpeg");
+        }
+        if (!matchesMagicBytes(contentType, content)) {
+            throw validation("file", "content does not match its file type");
+        }
+        return new AttachmentMeta(fileName, contentType, content.length);
+    }
+
+    private static String sanitizeFileName(String original) {
+        String name = original == null ? "" : original;
+        name = name.replace('\\', '/');
+        int slash = name.lastIndexOf('/');
+        if (slash >= 0) {
+            name = name.substring(slash + 1);
+        }
+        name = name.replaceAll("[\\x00-\\x1F\\x7F]", "").trim();
+        if (name.isEmpty()) {
+            name = "attachment";
+        }
+        if (name.length() > 255) {
+            name = name.substring(name.length() - 255);
+        }
+        return name;
+    }
+
+    private static String extensionOf(String fileName) {
+        int dot = fileName.lastIndexOf('.');
+        if (dot < 0 || dot == fileName.length() - 1) {
+            return "";
+        }
+        return fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean matchesMagicBytes(String contentType, byte[] content) {
+        return switch (contentType) {
+            case "application/pdf" -> startsWith(content, "%PDF-");
+            case "application/msword" -> startsWith(content, OLE_COMPOUND_MAGIC);
+            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> isDocx(content);
+            case "text/plain" -> isPlainText(content);
+            case "image/png" -> startsWith(content, new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A});
+            case "image/jpeg" -> content.length >= 3 && (content[0] & 0xFF) == 0xFF
+                    && (content[1] & 0xFF) == 0xD8 && (content[2] & 0xFF) == 0xFF;
+            default -> false;
+        };
+    }
+
+    /**
+     * A DOCX is a ZIP archive; verify it carries a ZIP header and the two entries
+     * every Office Open XML word document must contain. Any parse failure rejects it.
+     */
+    private static boolean isDocx(byte[] content) {
+        if (!isZip(content)) {
+            return false;
+        }
+        boolean hasContentTypes = false;
+        boolean hasDocument = false;
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(content))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (DOCX_CONTENT_TYPES_ENTRY.equals(entry.getName())) {
+                    hasContentTypes = true;
+                } else if (DOCX_DOCUMENT_ENTRY.equals(entry.getName())) {
+                    hasDocument = true;
+                }
+            }
+        } catch (IOException exception) {
+            return false;
+        }
+        return hasContentTypes && hasDocument;
+    }
+
+    private static boolean isZip(byte[] content) {
+        if (content.length < 4) {
+            return false;
+        }
+        int signature = (content[0] & 0xFF) | ((content[1] & 0xFF) << 8)
+                | ((content[2] & 0xFF) << 16) | ((content[3] & 0xFF) << 24);
+        // 0x04034B50 local file header, 0x06054B50 empty archive, 0x08074B50 spanned archive.
+        return signature == 0x04034B50 || signature == 0x06054B50 || signature == 0x08074B50;
+    }
+
+    /**
+     * A text attachment must be strictly decodable UTF-8 with no NUL byte or
+     * unprintable control characters (newline, carriage return, and tab are allowed).
+     */
+    private static boolean isPlainText(byte[] content) {
+        String text;
+        try {
+            text = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(content)).toString();
+        } catch (CharacterCodingException exception) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '\n' || c == '\r' || c == '\t') {
+                continue;
+            }
+            if (Character.isISOControl(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean startsWith(byte[] content, String prefix) {
+        return startsWith(content, prefix.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static boolean startsWith(byte[] content, byte[] prefix) {
+        if (content.length < prefix.length) {
+            return false;
+        }
+        for (int i = 0; i < prefix.length; i++) {
+            if (content[i] != prefix[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private record AttachmentMeta(String fileName, String contentType, long sizeBytes) {}
 
     private void updateReadState(ConversationEntity conversation, String userId, ReadStateRequest request) {
         String messageId = request.lastReadMessageId();
@@ -303,9 +588,24 @@ public class ConversationService {
         return jobs.findById(jobId).map(JobEntity::getTitle).orElseThrow(this::notFound);
     }
 
+    private List<Message> toMessages(List<MessageEntity> entities) {
+        List<String> ids = entities.stream().map(MessageEntity::getId).toList();
+        Map<String, MessageAttachmentEntity> byMessageId = attachments.findByMessageIdIn(ids).stream()
+                .collect(Collectors.toMap(MessageAttachmentEntity::getMessageId, a -> a));
+        return entities.stream().map(entity -> toMessage(entity, byMessageId.get(entity.getId()))).toList();
+    }
+
     private Message message(MessageEntity entity) {
+        MessageAttachmentEntity attachment = attachments.findByMessageId(entity.getId()).orElse(null);
+        return toMessage(entity, attachment);
+    }
+
+    private Message toMessage(MessageEntity entity, MessageAttachmentEntity attachment) {
+        Attachment meta = attachment == null ? null
+                : new Attachment(attachment.getId(), attachment.getFileName(), attachment.getSizeBytes(),
+                        attachment.getContentType());
         return new Message(entity.getId(), entity.getConversationId(), entity.getBody(), entity.getSenderType().name(),
-                entity.getSentAt(), entity.getClientMessageId(), DELIVERY_SENT);
+                entity.getSentAt(), entity.getClientMessageId(), DELIVERY_SENT, meta);
     }
 
     private static ConversationDtos.Company company(CompanyEntity company) {
@@ -360,9 +660,12 @@ public class ConversationService {
     }
 
     private static String digest(String value) {
+        return digest(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String digest(byte[] value) {
         try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value));
         } catch (Exception exception) { throw new IllegalStateException("SHA-256 is unavailable", exception); }
     }
 

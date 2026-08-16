@@ -11,6 +11,7 @@ export const apiPaths = {
   refresh: '/auth/refresh',
   logout: '/auth/logout',
   me: '/recruiter/me',
+    recruiterProfile: '/recruiter/profile',
   company: '/recruiter/company',
   dashboard: '/recruiter/dashboard',
   jobs: '/recruiter/jobs',
@@ -29,6 +30,9 @@ export const apiPaths = {
   conversations: '/recruiter/conversations',
   conversation: (conversationId: string) => `/recruiter/conversations/${conversationId}`,
   messages: (conversationId: string) => `/recruiter/conversations/${conversationId}/messages`,
+  messageAttachmentUpload: (conversationId: string) => `/recruiter/conversations/${conversationId}/messages/attachment`,
+  messageAttachmentDownload: (conversationId: string, messageId: string) =>
+    `/recruiter/conversations/${conversationId}/messages/${messageId}/attachment`,
   readState: (conversationId: string) => `/recruiter/conversations/${conversationId}/read-state`,
   googleOAuthAuthorize: '/recruiter/google-oauth/authorize',
   googleOAuthStatus: '/recruiter/google-oauth/status',

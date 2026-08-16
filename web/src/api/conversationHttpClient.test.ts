@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
-import {AuthApiError, type AuthClient} from './authClient';
-import {ConversationHttpClient} from './conversationHttpClient';
+import {AuthApiError} from './authClient';
+import {ConversationHttpClient, type ConversationAuthClient} from './conversationHttpClient';
 import type {ConversationDetail, ConversationSummary, Message} from '../models/recruiter';
 
 const participant = {
@@ -9,7 +9,7 @@ const participant = {
 
 const message: Message = {
   messageId: 'msg-1', conversationId: 'conv-1', body: 'Hi recruiter', senderType: 'CANDIDATE',
-  sentAt: '2026-08-12T03:00:00Z', clientMessageId: 'client-9', deliveryStatus: 'DELIVERED',
+  sentAt: '2026-08-12T03:00:00Z', clientMessageId: 'client-9', deliveryStatus: 'DELIVERED', attachment: null,
 };
 
 const summary: ConversationSummary = {
@@ -23,9 +23,13 @@ const detail: ConversationDetail = {
   updatedAt: '2026-08-12T03:00:00Z', participant, context: null,
 };
 
+function withAuthClient(partial: Partial<ConversationAuthClient>): ConversationAuthClient {
+  return {requestWithAuth: vi.fn(), requestWithAuthForm: vi.fn(), requestWithAuthDownload: vi.fn(), ...partial};
+}
+
 function setup(result: unknown) {
   const requestWithAuth = vi.fn().mockResolvedValue(result);
-  const client = new ConversationHttpClient({requestWithAuth} as Pick<AuthClient, 'requestWithAuth'>);
+  const client = new ConversationHttpClient(withAuthClient({requestWithAuth}));
   return {requestWithAuth, client};
 }
 
@@ -64,13 +68,37 @@ describe('ConversationHttpClient', () => {
     const sent: Message = {...message, senderType: 'RECRUITER', body: 'Thanks for applying', clientMessageId: 'client-1'};
     const requestWithAuth = vi.fn().mockResolvedValue({data: sent});
     const client = new ConversationHttpClient(
-      {requestWithAuth} as Pick<AuthClient, 'requestWithAuth'>, uuidSeq('client-1', 'idem-1'));
+      withAuthClient({requestWithAuth}), uuidSeq('client-1', 'idem-1'));
     await expect(client.sendMessage('conv-1', 'Thanks for applying')).resolves.toEqual(sent);
     const [path, init] = requestWithAuth.mock.calls[0] as [string, RequestInit];
     expect(path).toBe('/recruiter/conversations/conv-1/messages');
     expect(init.method).toBe('POST');
     expect((init.headers as Record<string, string>)['Idempotency-Key']).toBe('idem-1');
     expect(JSON.parse(String(init.body))).toEqual({body: 'Thanks for applying', clientMessageId: 'client-1'});
+  });
+
+  it('uploads a message attachment as multipart with a UUID clientMessageId', async () => {
+    const sent: Message = {...message, body: 'Resume attached', senderType: 'RECRUITER', clientMessageId: 'client-1',
+      attachment: {attachmentId: 'att-1', fileName: 'resume.pdf', sizeBytes: 1024, contentType: 'application/pdf'}};
+    const requestWithAuthForm = vi.fn().mockResolvedValue({data: sent});
+    const client = new ConversationHttpClient(
+      withAuthClient({requestWithAuthForm}), uuidSeq('client-1', 'idem-1'));
+    await expect(client.sendMessageWithAttachment('conv-1', 'Resume attached', new File(['x'], 'resume.pdf')))
+      .resolves.toEqual(sent);
+    const [path, formData, headers] = requestWithAuthForm.mock.calls[0] as [string, FormData, Record<string, string>];
+    expect(path).toBe('/recruiter/conversations/conv-1/messages/attachment');
+    expect(headers['Idempotency-Key']).toBe('idem-1');
+    expect(formData.get('clientMessageId')).toBe('client-1');
+    expect(formData.get('body')).toBe('Resume attached');
+    expect((formData.get('file') as File).name).toBe('resume.pdf');
+  });
+
+  it('downloads an attachment as a blob', async () => {
+    const blob = new Blob(['content']);
+    const requestWithAuthDownload = vi.fn().mockResolvedValue(blob);
+    const client = new ConversationHttpClient(withAuthClient({requestWithAuthDownload}));
+    await expect(client.downloadAttachment('conv-1', 'msg-1')).resolves.toBe(blob);
+    expect(requestWithAuthDownload).toHaveBeenCalledWith('/recruiter/conversations/conv-1/messages/msg-1/attachment');
   });
 
   it('marks read with only the last read message id', async () => {
@@ -93,7 +121,7 @@ describe('ConversationHttpClient', () => {
 
   it('preserves safe network and server failures from the authenticated client', async () => {
     const requestWithAuth = vi.fn().mockRejectedValue(new AuthApiError(409, 'IDEMPOTENCY_CONFLICT', 'Duplicate send'));
-    const client = new ConversationHttpClient({requestWithAuth} as Pick<AuthClient, 'requestWithAuth'>);
+    const client = new ConversationHttpClient(withAuthClient({requestWithAuth}));
     await expect(client.sendMessage('conv-1', 'hi')).rejects.toMatchObject({status: 409, code: 'IDEMPOTENCY_CONFLICT'});
   });
 });
