@@ -156,6 +156,7 @@ private fun toUiJob(job: RecommendedJob) = Job(
     skills = job.skills,
     match = job.matchScore,
     recruiter = null,
+    companyId = job.companyId,
 )
 
 private fun toUiDetail(job: CandidateJob, analysis: MatchAnalysis?,
