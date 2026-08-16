@@ -14,7 +14,7 @@ const participant = {
 
 const candidateMessage: Message = {
   messageId: 'msg-1', conversationId: 'conv-1', body: 'Hi recruiter', senderType: 'CANDIDATE',
-  sentAt: '2026-08-12T03:00:00Z', clientMessageId: 'client-9', deliveryStatus: 'DELIVERED',
+  sentAt: '2026-08-12T03:00:00Z', clientMessageId: 'client-9', deliveryStatus: 'DELIVERED', attachment: null,
 };
 
 const recruiterMessage: Message = {

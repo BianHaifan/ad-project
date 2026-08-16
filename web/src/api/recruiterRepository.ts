@@ -3,6 +3,7 @@ import type {
   EmploymentType, GoogleAuthorizeResponse, GoogleConnection, Interview, JobDraft, JobStatus, Message,
   MessageListResult, PageMeta, RecruiterApplicationDetail, RecruiterApplicationListResult, RecruiterJobSummary,
   RecruiterProfile, UpdateInterviewRequest,
+    RecruiterProfileDetail, UpdateRecruiterProfileInput,
 } from '../models/recruiter';
 
 export type RecruiterTransitionStatus = Extract<ApplicationStatus, 'IN_REVIEW' | 'REJECTED'>;
@@ -31,6 +32,8 @@ export interface RecruiterRepository {
   signIn(email: string, password: string): Promise<RecruiterProfile>;
   register(fullName: string, companyName: string, email: string, password: string): Promise<RecruiterProfile>;
   getMe(): Promise<RecruiterProfile>;
+    getRecruiterProfile(): Promise<RecruiterProfileDetail>;
+    updateRecruiterProfile(input: UpdateRecruiterProfileInput): Promise<RecruiterProfileDetail>;
   getDashboard(): Promise<Dashboard>;
   listJobs(params?: ListJobsParams): Promise<JobListResult>;
   getJob(jobId: string): Promise<RecruiterJobSummary>;
@@ -49,6 +52,8 @@ export interface RecruiterRepository {
   getConversation(conversationId: string): Promise<ConversationDetail>;
   listMessages(conversationId: string): Promise<MessageListResult>;
   sendMessage(conversationId: string, body: string): Promise<Message>;
+  sendMessageWithAttachment(conversationId: string, body: string, file: File): Promise<Message>;
+  downloadAttachment(conversationId: string, messageId: string): Promise<Blob>;
   markRead(conversationId: string, lastReadMessageId: string): Promise<void>;
   beginGoogleConnection(): Promise<GoogleAuthorizeResponse>;
   getGoogleConnection(): Promise<GoogleConnection>;

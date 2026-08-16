@@ -18,6 +18,7 @@ data class Job(
     val skills: List<String>,
     val match: Int?,
     val recruiter: RecruiterContact?,
+    val companyId: String,
 )
 
 data class RecruiterContact(val recruiterId: String, val fullName: String, val title: String)

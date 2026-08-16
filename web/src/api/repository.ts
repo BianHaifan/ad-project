@@ -4,6 +4,7 @@ import {applicationHttpClient} from './applicationHttpClient';
 import {dashboardHttpClient} from './dashboardHttpClient';
 import {conversationHttpClient} from './conversationHttpClient';
 import {googleOAuthHttpClient} from './googleOAuthHttpClient';
+import {recruiterProfileHttpClient} from './recruiterProfileHttpClient';
 import type {RecruiterRepository} from './recruiterRepository';
 
 export type RecruiterBusinessRepository = Omit<RecruiterRepository, 'signIn' | 'register'>;
@@ -12,6 +13,8 @@ export type RecruiterBusinessRepository = Omit<RecruiterRepository, 'signIn' | '
 export const recruiterRepository: RecruiterBusinessRepository = {
   ...mockRecruiterRepository,
   getDashboard: () => dashboardHttpClient.getDashboard(),
+    getRecruiterProfile: () => recruiterProfileHttpClient.getProfile(),
+    updateRecruiterProfile: input => recruiterProfileHttpClient.updateProfile(input),
   listJobs: params => jobHttpClient.listJobs(params),
   getJob: jobId => jobHttpClient.getJob(jobId),
   createJob: input => jobHttpClient.createJob(input),
@@ -29,6 +32,10 @@ export const recruiterRepository: RecruiterBusinessRepository = {
   getConversation: conversationId => conversationHttpClient.getConversation(conversationId),
   listMessages: conversationId => conversationHttpClient.listMessages(conversationId),
   sendMessage: (conversationId, body) => conversationHttpClient.sendMessage(conversationId, body),
+  sendMessageWithAttachment: (conversationId, body, file) =>
+    conversationHttpClient.sendMessageWithAttachment(conversationId, body, file),
+  downloadAttachment: (conversationId, messageId) =>
+    conversationHttpClient.downloadAttachment(conversationId, messageId),
   markRead: (conversationId, lastReadMessageId) => conversationHttpClient.markRead(conversationId, lastReadMessageId),
   beginGoogleConnection: () => googleOAuthHttpClient.beginConnection(),
   getGoogleConnection: () => googleOAuthHttpClient.getConnection(),

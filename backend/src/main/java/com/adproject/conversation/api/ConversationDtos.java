@@ -13,8 +13,10 @@ public final class ConversationDtos {
     public record Participant(String userId, String fullName, String avatarUrl, String title, Company company,
                               boolean online) {}
 
+    public record Attachment(String attachmentId, String fileName, long sizeBytes, String contentType) {}
+
     public record Message(String messageId, String conversationId, String body, String senderType, Instant sentAt,
-                          String clientMessageId, String deliveryStatus) {}
+                          String clientMessageId, String deliveryStatus, Attachment attachment) {}
 
     public record Summary(String conversationId, String applicationId, String jobId, Instant createdAt,
                           Instant updatedAt, Participant participant, Message lastMessage, long unreadCount,

@@ -55,4 +55,26 @@ describe('AppShell', () => {
     await waitFor(() => expect(screen.getByText('Sign-in screen')).toBeInTheDocument());
     expect(sessions.getSnapshot()).toBeNull();
   });
+
+    it('links to the recruiter profile from the account area', () => {
+      const sessions = new AuthSessionStore(new MemoryStorage(), new MemoryStorage());
+      sessions.save({
+        accessToken: 'access-profile', refreshToken: 'refresh-profile',
+        accessTokenExpiresAt: 10_000, refreshTokenExpiresAt: 20_000, remember: false,
+        user: {
+          userId: 'user-1', role: 'RECRUITER', fullName: 'Real Recruiter', email: 'real@example.com', avatarUrl: null,
+          company: {companyId: 'company-1', name: 'Real Company'},
+          createdAt: '2026-08-10T01:00:00Z', updatedAt: '2026-08-10T01:00:00Z',
+        },
+      });
+      const router = createMemoryRouter([
+        {path: '/recruiter', element: <AppShell sessions={sessions}/>, children: [
+          {path: 'dashboard', element: <div>Dashboard content</div>},
+          {path: 'profile', element: <div>Profile content</div>},
+        ]},
+      ], {initialEntries: ['/recruiter/dashboard']});
+      render(<RouterProvider router={router}/>);
+      expect(screen.getByRole('link', {name: /Real Recruiter/})).toHaveAttribute('href', '/recruiter/profile');
+    });
+
 });

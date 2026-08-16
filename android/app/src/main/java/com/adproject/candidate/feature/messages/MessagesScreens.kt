@@ -28,12 +28,24 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -54,7 +66,13 @@ import com.adproject.candidate.data.contract.ConversationDetail
 import com.adproject.candidate.data.contract.ConversationSummary
 import com.adproject.candidate.data.contract.InterviewContext
 import com.adproject.candidate.data.contract.Message
+import com.adproject.candidate.data.contract.MessageAttachment
 import com.adproject.candidate.data.contract.SenderType
+import java.io.File
+import java.io.FileOutputStream
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun MessagesScreen(
@@ -148,10 +166,30 @@ fun ChatScreen(
     onRetry: () -> Unit,
     onDraft: (String) -> Unit,
     onSend: () -> Unit,
+    onSelectAttachment: (PendingAttachment) -> Unit,
+    onRemoveAttachment: () -> Unit,
+    onDownloadAttachment: (Message) -> Unit,
+    onConsumeDownload: () -> Unit,
     onViewJob: (String) -> Unit,
+    onViewRecruiter: (String) -> Unit,
 ) {
+    val context = LocalContext.current
+    var pendingUri by remember { mutableStateOf<Uri?>(null) }
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) pendingUri = uri
+    }
+    LaunchedEffect(pendingUri) {
+        val uri = pendingUri ?: return@LaunchedEffect
+        pendingUri = null
+        readPendingAttachment(context, uri)?.let(onSelectAttachment)
+    }
+    LaunchedEffect(state.downloadEvent) {
+        val event = state.downloadEvent ?: return@LaunchedEffect
+        openDownloadedAttachment(context, event)
+        onConsumeDownload()
+    }
     Column(Modifier.fillMaxSize().background(AdBackground)) {
-        ChatHeader(state.conversation, onBack)
+        ChatHeader(state.conversation, onBack, onViewRecruiter)
         state.conversation?.context?.let { context ->
             JobContextCard(context, state.conversation.jobId, onViewJob)
         }
@@ -181,16 +219,25 @@ fun ChatScreen(
                         Text("No messages yet", color = AdMuted, fontSize = 13.sp)
                     }
                 } else {
-                    MessageList(state.messages, Modifier.fillMaxWidth().weight(1f))
+                    MessageList(state.messages, state.downloadingMessageId, onDownloadAttachment, Modifier.fillMaxWidth().weight(1f))
                 }
             }
         }
-        MessageComposer(state.draft, state.sending, onDraft, onSend)
+        MessageComposer(
+            value = state.draft,
+            attachment = state.attachment,
+            sending = state.sending,
+            onValueChange = onDraft,
+            onSend = onSend,
+            onPickAttachment = { filePicker.launch(ATTACHMENT_MIME_TYPES) },
+            onRemoveAttachment = onRemoveAttachment,
+        )
     }
 }
 
 @Composable
-private fun ChatHeader(conversation: ConversationDetail?, onBack: () -> Unit) {
+private fun ChatHeader(conversation: ConversationDetail?, onBack: () -> Unit, onViewRecruiter: (String) -> Unit) {
+    val recruiterId = conversation?.participant?.userId
     Row(
         Modifier.fillMaxWidth().height(80.dp).background(Color.White).border(1.dp, Color(0xFFE8EDF0))
             .padding(horizontal = 10.dp),
@@ -201,11 +248,17 @@ private fun ChatHeader(conversation: ConversationDetail?, onBack: () -> Unit) {
                 FigmaSvg(R.raw.icon_back, "Back to messages", Modifier.size(22.dp))
             }
         }
-        Box(Modifier.size(42.dp).clip(CircleShape).background(AdTealSoft), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(42.dp).clip(CircleShape).background(AdTealSoft).clickable(enabled = recruiterId != null) { onViewRecruiter(recruiterId.orEmpty()) },
+            contentAlignment = Alignment.Center,
+        ) {
             Text(conversation?.participant?.fullName?.take(1)?.uppercase() ?: "·", color = AdTeal, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(
+            Modifier.weight(1f).clickable(enabled = recruiterId != null) { onViewRecruiter(recruiterId.orEmpty()) },
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
             Text(conversation?.participant?.fullName ?: "…", color = AdText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Text(
                 conversation?.participant?.company?.name ?: conversation?.participant?.title ?: "Recruiter",
@@ -241,7 +294,7 @@ private fun JobContextCard(context: InterviewContext, jobId: String, onViewJob: 
 }
 
 @Composable
-private fun MessageList(messages: List<Message>, modifier: Modifier = Modifier) {
+private fun MessageList(messages: List<Message>, downloadingMessageId: String?, onDownload: (Message) -> Unit, modifier: Modifier = Modifier) {
     val listState = rememberLazyListState()
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
@@ -252,12 +305,14 @@ private fun MessageList(messages: List<Message>, modifier: Modifier = Modifier) 
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        items(messages, key = { it.messageId }) { message -> MessageBubble(message) }
+        items(messages, key = { it.messageId }) { message ->
+            MessageBubble(message, downloadingMessageId == message.messageId, onDownload)
+        }
     }
 }
 
 @Composable
-private fun MessageBubble(message: Message) {
+private fun MessageBubble(message: Message, downloading: Boolean, onDownload: (Message) -> Unit) {
     val sent = message.senderType == SenderType.CANDIDATE
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (sent) Arrangement.End else Arrangement.Start) {
         Column(
@@ -266,10 +321,44 @@ private fun MessageBubble(message: Message) {
                 .background(if (sent) AdTeal else Color.White)
                 .then(if (sent) Modifier else Modifier.border(1.dp, Color(0xFFE8EDF0), RoundedCornerShape(4.dp, 14.dp, 14.dp, 14.dp)))
                 .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(message.body, color = if (sent) Color.White else AdText, fontSize = 13.sp, lineHeight = 18.sp)
+            if (message.body.isNotBlank()) {
+                Text(message.body, color = if (sent) Color.White else AdText, fontSize = 13.sp, lineHeight = 18.sp)
+            }
+            message.attachment?.let { attachment ->
+                AttachmentChip(attachment, sent, downloading) { onDownload(message) }
+            }
             Text(formatMessageTime(message.sentAt), color = if (sent) Color(0xFFD4F5F2) else Color(0xFF6B7885), fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun AttachmentChip(attachment: MessageAttachment, sent: Boolean, downloading: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+            .background(if (sent) Color(0x33FFFFFF) else Color(0xFFF0F2F4))
+            .clickable(enabled = !downloading, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (downloading) {
+            CircularProgressIndicator(Modifier.size(16.dp), color = AdTeal, strokeWidth = 2.dp)
+        } else {
+            Text("📎", fontSize = 14.sp)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                attachment.fileName,
+                color = if (sent) Color.White else AdText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                formatBytes(attachment.sizeBytes),
+                color = if (sent) Color(0xFFD4F5F2) else AdMuted, fontSize = 11.sp,
+            )
         }
     }
 }
@@ -277,42 +366,73 @@ private fun MessageBubble(message: Message) {
 @Composable
 private fun MessageComposer(
     value: String,
+    attachment: PendingAttachment?,
     sending: Boolean,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
+    onPickAttachment: () -> Unit,
+    onRemoveAttachment: () -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().height(74.dp).background(Color.White).border(1.dp, Color(0xFFE8EDF0))
+    val canSend = value.isNotBlank() || attachment != null
+    Column(
+        Modifier.fillMaxWidth().background(Color.White).border(1.dp, Color(0xFFE8EDF0))
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.weight(1f).height(46.dp),
-            singleLine = true,
-            textStyle = TextStyle(color = AdText, fontSize = 13.sp),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { onSend() }),
-            decorationBox = { input ->
-                Box(
-                    Modifier.fillMaxSize().clip(RoundedCornerShape(23.dp)).background(Color(0xFFF5F7F9)).padding(horizontal = 14.dp),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    if (value.isEmpty()) Text("Write a message…", color = Color(0xFF6B7885), fontSize = 13.sp)
-                    input()
+        if (attachment != null) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFFF5F7F9))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "📎 ${attachment.fileName} · ${formatBytes(attachment.sizeBytes)}",
+                    Modifier.weight(1f), color = AdText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "Remove",
+                    Modifier.clickable(onClick = onRemoveAttachment),
+                    color = AdTeal, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().height(46.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            IconButton(onClick = onPickAttachment, modifier = Modifier.size(46.dp), enabled = !sending) {
+                Box(Modifier.fillMaxSize().clip(CircleShape).background(Color(0xFFF5F7F9)), contentAlignment = Alignment.Center) {
+                    Text("+", color = AdText, fontSize = 22.sp, fontWeight = FontWeight.Medium)
                 }
-            },
-        )
-        if (sending) {
-            CircularProgressIndicator(Modifier.size(24.dp), color = AdTeal, strokeWidth = 2.dp)
-        } else {
-            IconButton(onClick = onSend, modifier = Modifier.size(48.dp), enabled = value.isNotBlank()) {
-                Box(
-                    Modifier.fillMaxSize().clip(CircleShape).background(if (value.isNotBlank()) AdTeal else Color(0xFF9AD7D6)),
-                    contentAlignment = Alignment.Center,
-                ) { Text("↑", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Medium) }
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.weight(1f).height(46.dp),
+                singleLine = true,
+                textStyle = TextStyle(color = AdText, fontSize = 13.sp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { onSend() }),
+                decorationBox = { input ->
+                    Box(
+                        Modifier.fillMaxSize().clip(RoundedCornerShape(23.dp)).background(Color(0xFFF5F7F9)).padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (value.isEmpty()) Text("Write a message…", color = Color(0xFF6B7885), fontSize = 13.sp)
+                        input()
+                    }
+                },
+            )
+            if (sending) {
+                CircularProgressIndicator(Modifier.size(24.dp), color = AdTeal, strokeWidth = 2.dp)
+            } else {
+                IconButton(onClick = onSend, modifier = Modifier.size(48.dp), enabled = canSend) {
+                    Box(
+                        Modifier.fillMaxSize().clip(CircleShape).background(if (canSend) AdTeal else Color(0xFF9AD7D6)),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("↑", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Medium) }
+                }
             }
         }
     }
@@ -329,3 +449,55 @@ private fun formatInterviewTime(value: String): String = runCatching {
 private fun formatMessageTime(value: String): String = runCatching {
     java.time.OffsetDateTime.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
 }.getOrDefault(value)
+
+private val ATTACHMENT_MIME_TYPES = arrayOf(
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain",
+    "image/png",
+    "image/jpeg",
+)
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes < 0 -> ""
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "%.1f KB".format(Locale.US, bytes / 1024.0)
+    else -> "%.1f MB".format(Locale.US, bytes / (1024.0 * 1024.0))
+}
+
+private suspend fun readPendingAttachment(context: Context, uri: Uri): PendingAttachment? = withContext(Dispatchers.IO) {
+    runCatching {
+        val resolver = context.contentResolver
+        val meta = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    val name = if (nameIdx >= 0) cursor.getString(nameIdx) else null
+                    val size = if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) cursor.getLong(sizeIdx) else -1L
+                    name to size
+                } else null
+            }
+        val fileName = meta?.first.orEmpty().ifBlank { "attachment" }
+        val sizeBytes = meta?.second ?: -1L
+        val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
+        if (bytes.isEmpty()) null
+        else PendingAttachment(fileName, resolver.getType(uri) ?: "application/octet-stream", sizeBytes, bytes)
+    }.getOrNull()
+}
+
+private suspend fun openDownloadedAttachment(context: Context, event: DownloadEvent) {
+    val uri = withContext(Dispatchers.IO) {
+        val safeName = event.fileName.substringAfterLast('/').substringAfterLast('\\').ifBlank { "attachment" }
+        val dir = File(context.cacheDir, "attachments").apply { mkdirs() }
+        val file = File(dir, safeName)
+        FileOutputStream(file).use { it.write(event.bytes) }
+        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    }
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, event.contentType)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    runCatching { context.startActivity(intent) }
+}

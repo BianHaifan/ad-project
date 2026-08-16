@@ -75,4 +75,10 @@ public class UserEntity {
         this.fullName = fullName;
         this.updatedAt = now;
     }
+
+    public void updateAvatarUrl(String avatarUrl, Instant now) {
+        this.avatarUrl = avatarUrl;
+        this.updatedAt = now;
+    }
+
 }

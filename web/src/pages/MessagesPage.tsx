@@ -1,8 +1,20 @@
-import {useEffect, useRef, useState, type FormEvent} from 'react';
+import {useEffect, useRef, useState, type ChangeEvent, type FormEvent} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
-import {useConversation, useConversations, useMarkConversationRead, useMessages, useSendMessage} from '../api/queries';
+import {
+  useConversation, useConversations, useDownloadAttachment, useMarkConversationRead, useMessages,
+  useSendMessage, useSendMessageWithAttachment,
+} from '../api/queries';
 import {EmptyState, ErrorState, LoadingState} from '../components/AsyncState';
 import {PageHeader} from '../components/PageHeader';
+import type {Message} from '../models/recruiter';
+
+const ACCEPTED_ATTACHMENT_TYPES = '.pdf,.doc,.docx,.txt,.png,.jpg,.jpeg';
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function MessagesPage() {
   const {conversationId} = useParams();
@@ -12,8 +24,12 @@ export function MessagesPage() {
   const detail = useConversation(activeId);
   const messages = useMessages(activeId);
   const send = useSendMessage();
+  const sendWithAttachment = useSendMessageWithAttachment();
+  const download = useDownloadAttachment();
   const {mutate: markRead} = useMarkConversationRead();
   const [body, setBody] = useState('');
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!conversationId && list.data?.data[0]) {
@@ -39,11 +55,42 @@ export function MessagesPage() {
   if (list.isLoading) return <LoadingState label="Loading conversations…"/>;
   if (list.isError || !list.data) return <ErrorState onRetry={() => list.refetch()}/>;
 
+  const sending = send.isPending || sendWithAttachment.isPending;
+  const canSend = !!activeId && (body.trim() !== '' || attachment !== null) && !sending;
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (body.trim() && activeId) {
+    if (!activeId) return;
+    if (attachment) {
+      sendWithAttachment.mutate({id: activeId, body: body.trim(), file: attachment}, {
+        onSuccess: () => {setBody(''); setAttachment(null);},
+      });
+    } else if (body.trim()) {
       send.mutate({id: activeId, body: body.trim()}, {onSuccess: () => setBody('')});
     }
+  };
+
+  const pickFile = () => fileInputRef.current?.click();
+  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setAttachment(event.target.files?.[0] ?? null);
+    event.target.value = '';
+  };
+
+  const onDownload = (message: Message) => {
+    if (!message.attachment || !activeId) return;
+    const fileName = message.attachment.fileName;
+    download.mutate({id: activeId, messageId: message.messageId}, {
+      onSuccess: blob => {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+      },
+    });
   };
 
   return <>
@@ -90,19 +137,44 @@ export function MessagesPage() {
                 ? <EmptyState title="No messages yet" description="Start the conversation by sending a message."/>
                 : messageList.map(message => (
                   <div key={message.messageId} className={`message ${message.senderType.toLowerCase()}`}>
-                    <span>{message.body}</span>
+                    {message.body && <span>{message.body}</span>}
+                    {message.attachment && (
+                      <button type="button" className="message-attachment"
+                        disabled={download.isPending}
+                        onClick={() => onDownload(message)}>
+                        <span>📎 {message.attachment.fileName}</span>
+                        <small>{formatBytes(message.attachment.sizeBytes)}</small>
+                      </button>
+                    )}
                     {message.senderType !== 'SYSTEM' &&
                       <small>{new Date(message.sentAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</small>}
                   </div>
                 ))}
             </div>
             <form className="message-composer" onSubmit={submit}>
-              <input value={body} onChange={event => setBody(event.target.value)} placeholder="Write a message…"
-                disabled={send.isPending}/>
-              <button className="button primary" disabled={!body.trim() || send.isPending}>
-                {send.isPending ? 'Sending…' : 'Send'}</button>
+              {attachment && (
+                <div className="attachment-preview">
+                  <span className="file-name">📎 {attachment.name} · {formatBytes(attachment.size)}</span>
+                  <button type="button" className="text-button" aria-label="Remove attachment"
+                    onClick={() => setAttachment(null)}>Remove</button>
+                </div>
+              )}
+              <div className="composer-row">
+                <input ref={fileInputRef} type="file" accept={ACCEPTED_ATTACHMENT_TYPES}
+                  style={{display: 'none'}} onChange={onFileChange}/>
+                <button type="button" className="button secondary" aria-label="Attach a file"
+                  disabled={sending} onClick={pickFile}>+</button>
+                <input value={body} onChange={event => setBody(event.target.value)} placeholder="Write a message…"
+                  disabled={sending}/>
+                <button className="button primary" disabled={!canSend}>
+                  {sending ? 'Sending…' : 'Send'}</button>
+              </div>
             </form>
-            {send.isError && <small role="alert" className="form-error">Message could not be sent. Please try again.</small>}
+            {(send.isError || sendWithAttachment.isError) &&
+              <small role="alert" className="form-error">
+                {sendWithAttachment.isError ? 'Attachment could not be sent. Please try again.' :
+                  'Message could not be sent. Please try again.'}
+              </small>}
           </>
         ) : (
           <EmptyState title="Conversation not found" description="This conversation is no longer available."/>

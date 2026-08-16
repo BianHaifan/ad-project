@@ -11,13 +11,18 @@ import com.adproject.job.api.CandidateJobResponses.CandidateJobListResponse;
 import com.adproject.job.api.CandidateJobResponses.CandidateJobSummary;
 import com.adproject.job.api.CandidateJobResponses.Company;
 import com.adproject.job.api.CandidateJobResponses.PageMeta;
+import com.adproject.job.api.CandidateJobResponses.RecruiterContact;
 import com.adproject.job.api.CandidateJobResponses.Salary;
 import com.adproject.job.domain.EmploymentType;
 import com.adproject.job.domain.JobStatus;
 import com.adproject.job.domain.Visibility;
 import com.adproject.job.infrastructure.JobEntity;
 import com.adproject.job.infrastructure.JobRepository;
+import com.adproject.profile.infrastructure.RecruiterProfileEntity;
+import com.adproject.profile.infrastructure.RecruiterProfileRepository;
 import com.adproject.user.domain.UserRole;
+import com.adproject.user.infrastructure.UserEntity;
+import com.adproject.user.infrastructure.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,14 +49,20 @@ public class CandidateJobQueryService {
     private final CompanyRepository companyRepository;
     private final ObjectMapper objectMapper;
     private final CandidateApplicationStateService applicationStateService;
+    private final UserRepository userRepository;
+    private final RecruiterProfileRepository recruiterProfileRepository;
 
     public CandidateJobQueryService(JobRepository jobRepository, CompanyRepository companyRepository,
                                     ObjectMapper objectMapper,
-                                    CandidateApplicationStateService applicationStateService) {
+                                    CandidateApplicationStateService applicationStateService,
+                                    UserRepository userRepository,
+                                    RecruiterProfileRepository recruiterProfileRepository) {
         this.jobRepository = jobRepository;
         this.companyRepository = companyRepository;
         this.objectMapper = objectMapper;
         this.applicationStateService = applicationStateService;
+        this.userRepository = userRepository;
+        this.recruiterProfileRepository = recruiterProfileRepository;
     }
 
     @Transactional(readOnly = true)
@@ -96,7 +107,7 @@ public class CandidateJobQueryService {
                 summary.workplaceType(), summary.location(), summary.salary(), summary.description(),
                 summary.requirements(), summary.skills(), summary.deadline(), summary.visibility(),
                 summary.status(), summary.publishedAt(), summary.version(), summary.createdAt(),
-                summary.updatedAt(), null, null, null, applicationState, false));
+                summary.updatedAt(), null, toRecruiterContact(job), null, applicationState, false));
     }
 
     private static Specification<JobEntity> visibleToCandidate() {
@@ -119,6 +130,19 @@ public class CandidateJobQueryService {
                 company.getEmployeeRange(), company.getVerificationStatus().name(), company.getWebsite(),
                 company.getDescription(), company.getLocation(), company.getVersion(), company.getCreatedAt(),
                 company.getUpdatedAt());
+    }
+
+    private RecruiterContact toRecruiterContact(JobEntity job) {
+        String recruiterId = job.getOwnerId() != null ? job.getOwnerId() : job.getCreatedBy();
+        UserEntity recruiter = userRepository.findById(recruiterId)
+                .filter(user -> user.getRole() == UserRole.RECRUITER)
+                .orElse(null);
+        if (recruiter == null) {
+            return null;
+        }
+        RecruiterProfileEntity profile = recruiterProfileRepository.findById(recruiterId).orElse(null);
+        return new RecruiterContact(recruiter.getId(), recruiter.getFullName(),
+                profile == null ? "" : profile.getTitle(), recruiter.getAvatarUrl());
     }
 
     private List<String> readList(String value) {
