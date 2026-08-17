@@ -42,7 +42,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.criteria.Subquery;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
