@@ -5914,11 +5914,11 @@ components:
             - $ref: '#/components/schemas/AdminUserDetail'
 
 x-catalog-counts:
-  uniqueOperations: 55
+  uniqueOperations: 72
   candidateOperations: 19
   recruiterOperations: 31
   sharedOperations: 4
-    adminOperations: 9
+  adminOperations: 14
 x-source-documents:
 - /Users/yezhian/code/adproject/android/docs/API_V1.md
 - /Users/yezhian/code/adproject/android/docs/openapi-v1.yaml
