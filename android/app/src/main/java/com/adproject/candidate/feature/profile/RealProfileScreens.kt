@@ -16,7 +16,7 @@ import com.adproject.candidate.data.contract.Experience
 @Composable
 fun RealProfileScreen(state: ProfileUiState, onRetry: () -> Unit, onEdit: () -> Unit,
                       onSave: (String, String, String) -> Unit, onResume: () -> Unit,
-                      onApplications: () -> Unit, onPreferences: () -> Unit,
+                      onApplications: () -> Unit, onPreferences: () -> Unit, onCommunity: () -> Unit,
                       onLogout: () -> Unit,
                       onTab: (MainTab) -> Unit) {
     when {
@@ -49,6 +49,7 @@ fun RealProfileScreen(state: ProfileUiState, onRetry: () -> Unit, onEdit: () -> 
                 PrimaryButton("Online resume", onResume, Modifier.fillMaxWidth())
                 SecondaryButton("My applications", onApplications, Modifier.fillMaxWidth())
                 SecondaryButton("Job preferences", onPreferences, Modifier.fillMaxWidth())
+                SecondaryButton("Community", onCommunity, Modifier.fillMaxWidth())
                 SecondaryButton("Sign out", onLogout, Modifier.fillMaxWidth())
             } }
         }

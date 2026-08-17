@@ -24,6 +24,7 @@ tags:
 - name: Recommendations
 - name: Features
 - name: Admin
+- name: Community
 security:
 - bearerAuth: []
 paths:
@@ -2435,361 +2436,540 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-    /admin/overview:
-      get:
-        tags:
-        - Admin
-        summary: Get admin overview counts and recent audit events
-        operationId: getAdminOverview
-        responses:
-          '200':
-            description: Admin overview
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/AdminOverviewResponse'
-          '401':
-            $ref: '#/components/responses/Unauthorized'
-          '403':
-            $ref: '#/components/responses/Forbidden'
-        x-status: DRAFT
-        x-clients:
-        - Admin
-        x-permission: Admin role
-        description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Returns pendingCompanies, activeJobs,
-          activeUsers, disabledUsers, and at most 10 safe recentActions. Recent actions never include tokens, password
-          hashes, Google OAuth data, or resume bodies.'
-        x-mvp-scope: MVP
-    /admin/reviews:
-      get:
-        tags:
-        - Admin
-        summary: List admin review items
-        operationId: listAdminReviews
-        parameters:
-        - name: type
-          in: query
-          required: true
-          schema:
-            $ref: '#/components/schemas/AdminReviewType'
-        - $ref: '#/components/parameters/Page'
-        - name: pageSize
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 50
-            default: 20
-        - name: q
-          in: query
-          schema:
-            type: string
-        - name: status
-          in: query
-          schema:
-            type: string
-        responses:
-          '200':
-            description: Admin review page
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/AdminReviewListResponse'
-          '401':
-            $ref: '#/components/responses/Unauthorized'
-          '403':
-            $ref: '#/components/responses/Forbidden'
-        x-status: DRAFT
-        x-clients:
-        - Admin
-        x-permission: Admin role
-        description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. type is required; pageSize defaults to 20
-          and max is 50. Default statuses are COMPANY=PENDING, JOB=ACTIVE, USER=ACTIVE. Lists and details return only
-          the minimum safe fields needed for review.'
-        x-mvp-scope: MVP
-    /admin/companies/{companyId}:
-      get:
-        tags:
-        - Admin
-        summary: Get admin company review detail
-        operationId: getAdminCompany
-        parameters:
-        - name: companyId
-          in: path
-          required: true
-          schema:
-            type: string
-        responses:
-          '200':
-            description: Company review detail
-            content:
-              application/json:
-                schema:
-                  type: object
-                  required:
-                  - data
-                  properties:
-                    data:
-                      $ref: '#/components/schemas/AdminCompanyDetail'
-          '401':
-            $ref: '#/components/responses/Unauthorized'
-          '403':
-            $ref: '#/components/responses/Forbidden'
-          '404':
-            $ref: '#/components/responses/NotFound'
-        x-status: DRAFT
-        x-clients:
-        - Admin
-        x-permission: Admin role
-        description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Returns only safe company review fields.'
-        x-mvp-scope: MVP
-    /admin/jobs/{jobId}:
-      get:
-        tags:
-        - Admin
-        summary: Get admin job review detail
-        operationId: getAdminJob
-        parameters:
-        - name: jobId
-          in: path
-          required: true
-          schema:
-            type: string
-        responses:
-          '200':
-            description: Job review detail
-            content:
-              application/json:
-                schema:
-                  type: object
-                  required:
-                  - data
-                  properties:
-                    data:
-                      $ref: '#/components/schemas/AdminJobDetail'
-          '401':
-            $ref: '#/components/responses/Unauthorized'
-          '403':
-            $ref: '#/components/responses/Forbidden'
-          '404':
-            $ref: '#/components/responses/NotFound'
-        x-status: DRAFT
-        x-clients:
-        - Admin
-        x-permission: Admin role
-        description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Returns only safe job review fields.'
-        x-mvp-scope: MVP
-    /admin/users/{userId}:
-      get:
-        tags:
-        - Admin
-        summary: Get admin user review detail
-        operationId: getAdminUser
-        parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
-        responses:
-          '200':
-            description: User review detail
-            content:
-              application/json:
-                schema:
-                  type: object
-                  required:
-                  - data
-                  properties:
-                    data:
-                      $ref: '#/components/schemas/AdminUserDetail'
-          '401':
-            $ref: '#/components/responses/Unauthorized'
-          '403':
-            $ref: '#/components/responses/Forbidden'
-          '404':
-            $ref: '#/components/responses/NotFound'
-        x-status: DRAFT
-        x-clients:
-        - Admin
-        x-permission: Admin role
-        description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Never returns password hash, refresh
-          token, Google OAuth connection, resume body, or other unrelated sensitive data.'
-        x-mvp-scope: MVP
-    /admin/companies/{companyId}/approve:
-      post:
-        tags:
-        - Admin
-        summary: Approve a pending company
-        operationId: approveAdminCompany
-        parameters:
-        - name: companyId
-          in: path
-          required: true
-          schema:
-            type: string
-        requestBody:
-          required: true
+  /admin/overview:
+    get:
+      tags:
+      - Admin
+      summary: Get admin overview counts and recent audit events
+      operationId: getAdminOverview
+      responses:
+        '200':
+          description: Admin overview
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminActionRequest'
-        responses:
-          '200':
-            description: Company approved
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/AdminActionResponse'
-          '401':
-            $ref: '#/components/responses/Unauthorized'
-          '403':
-            $ref: '#/components/responses/Forbidden'
-          '404':
-            $ref: '#/components/responses/NotFound'
-          '409':
-            $ref: '#/components/responses/Conflict'
-          '422':
-            $ref: '#/components/responses/ValidationError'
-        x-status: DRAFT
-        x-clients:
-        - Admin
-        x-permission: Admin role
-        description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Requires a non-blank reason of length
-          1-500 and the current expectedVersion. Writes an admin audit event. Allowed only from PENDING; otherwise
-          409 INVALID_ADMIN_TRANSITION.'
-        x-audit: true
-        x-mvp-scope: MVP
-    /admin/companies/{companyId}/reject:
-      post:
-        tags:
-        - Admin
-        summary: Reject a pending company
-        operationId: rejectAdminCompany
-        parameters:
-        - name: companyId
-          in: path
-          required: true
-          schema:
-            type: string
-        requestBody:
-          required: true
+                $ref: '#/components/schemas/AdminOverviewResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-status: DRAFT
+      x-clients:
+      - Admin
+      x-permission: Admin role
+      description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Returns pendingCompanies, activeJobs,
+        activeUsers, disabledUsers, and at most 10 safe recentActions. Recent actions never include tokens, password
+        hashes, Google OAuth data, or resume bodies.'
+      x-mvp-scope: MVP
+  /admin/reviews:
+    get:
+      tags:
+      - Admin
+      summary: List admin review items
+      operationId: listAdminReviews
+      parameters:
+      - name: type
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/AdminReviewType'
+      - $ref: '#/components/parameters/Page'
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      - name: q
+        in: query
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Admin review page
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminActionRequest'
-        responses:
-          '200':
-            description: Company rejected
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/AdminActionResponse'
-          '401':
-            $ref: '#/components/responses/Unauthorized'
-          '403':
-            $ref: '#/components/responses/Forbidden'
-          '404':
-            $ref: '#/components/responses/NotFound'
-          '409':
-            $ref: '#/components/responses/Conflict'
-          '422':
-            $ref: '#/components/responses/ValidationError'
-        x-status: DRAFT
-        x-clients:
-        - Admin
-        x-permission: Admin role
-        description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Requires a non-blank reason of length
-          1-500 and the current expectedVersion. Writes an admin audit event. Allowed only from PENDING; otherwise
-          409 INVALID_ADMIN_TRANSITION.'
-        x-audit: true
-        x-mvp-scope: MVP
-    /admin/jobs/{jobId}/remove:
-      post:
-        tags:
-        - Admin
-        summary: Remove (close) a non-CLOSED job
-        operationId: removeAdminJob
-        parameters:
-        - name: jobId
-          in: path
-          required: true
-          schema:
-            type: string
-        requestBody:
-          required: true
+                $ref: '#/components/schemas/AdminReviewListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-status: DRAFT
+      x-clients:
+      - Admin
+      x-permission: Admin role
+      description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. type is required; pageSize defaults to 20
+        and max is 50. Default statuses are COMPANY=PENDING, JOB=ACTIVE, USER=ACTIVE. Lists and details return only
+        the minimum safe fields needed for review.'
+      x-mvp-scope: MVP
+  /admin/companies/{companyId}:
+    get:
+      tags:
+      - Admin
+      summary: Get admin company review detail
+      operationId: getAdminCompany
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Company review detail
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminActionRequest'
-        responses:
-          '200':
-            description: Job removed
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/AdminActionResponse'
-          '401':
-            $ref: '#/components/responses/Unauthorized'
-          '403':
-            $ref: '#/components/responses/Forbidden'
-          '404':
-            $ref: '#/components/responses/NotFound'
-          '409':
-            $ref: '#/components/responses/Conflict'
-          '422':
-            $ref: '#/components/responses/ValidationError'
-        x-status: DRAFT
-        x-clients:
-        - Admin
-        x-permission: Admin role
-        description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Only changes a non-CLOSED job to CLOSED.
-          Writes an admin audit event. CLOSED targets return 409 INVALID_ADMIN_TRANSITION. No data is deleted.'
-        x-audit: true
-        x-mvp-scope: MVP
-    /admin/users/{userId}/disable:
-      post:
-        tags:
-        - Admin
-        summary: Disable an active user
-        operationId: disableAdminUser
-        parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
-        requestBody:
-          required: true
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminCompanyDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-status: DRAFT
+      x-clients:
+      - Admin
+      x-permission: Admin role
+      description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Returns only safe company review fields.'
+      x-mvp-scope: MVP
+  /admin/jobs/{jobId}:
+    get:
+      tags:
+      - Admin
+      summary: Get admin job review detail
+      operationId: getAdminJob
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Job review detail
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminActionRequest'
-        responses:
-          '200':
-            description: User disabled
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/AdminActionResponse'
-          '401':
-            $ref: '#/components/responses/Unauthorized'
-          '403':
-            $ref: '#/components/responses/Forbidden'
-          '404':
-            $ref: '#/components/responses/NotFound'
-          '409':
-            $ref: '#/components/responses/Conflict'
-          '422':
-            $ref: '#/components/responses/ValidationError'
-        x-status: DRAFT
-        x-clients:
-        - Admin
-        x-permission: Admin role
-        description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Only changes an ACTIVE user to DISABLED.
-          Admin self-disable returns 409 ADMIN_SELF_DISABLE_FORBIDDEN. Writes an admin audit event. No data is deleted.'
-        x-audit: true
-        x-mvp-scope: MVP
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminJobDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-status: DRAFT
+      x-clients:
+      - Admin
+      x-permission: Admin role
+      description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Returns only safe job review fields.'
+      x-mvp-scope: MVP
+  /admin/users/{userId}:
+    get:
+      tags:
+      - Admin
+      summary: Get admin user review detail
+      operationId: getAdminUser
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: User review detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminUserDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-status: DRAFT
+      x-clients:
+      - Admin
+      x-permission: Admin role
+      description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Never returns password hash, refresh
+        token, Google OAuth connection, resume body, or other unrelated sensitive data.'
+      x-mvp-scope: MVP
+  /admin/companies/{companyId}/approve:
+    post:
+      tags:
+      - Admin
+      summary: Approve a pending company
+      operationId: approveAdminCompany
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminActionRequest'
+      responses:
+        '200':
+          description: Company approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminActionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      x-status: DRAFT
+      x-clients:
+      - Admin
+      x-permission: Admin role
+      description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Requires a non-blank reason of length
+        1-500 and the current expectedVersion. Writes an admin audit event. Allowed only from PENDING; otherwise
+        409 INVALID_ADMIN_TRANSITION.'
+      x-audit: true
+      x-mvp-scope: MVP
+  /admin/companies/{companyId}/reject:
+    post:
+      tags:
+      - Admin
+      summary: Reject a pending company
+      operationId: rejectAdminCompany
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminActionRequest'
+      responses:
+        '200':
+          description: Company rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminActionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      x-status: DRAFT
+      x-clients:
+      - Admin
+      x-permission: Admin role
+      description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Requires a non-blank reason of length
+        1-500 and the current expectedVersion. Writes an admin audit event. Allowed only from PENDING; otherwise
+        409 INVALID_ADMIN_TRANSITION.'
+      x-audit: true
+      x-mvp-scope: MVP
+  /admin/jobs/{jobId}/remove:
+    post:
+      tags:
+      - Admin
+      summary: Remove (close) a non-CLOSED job
+      operationId: removeAdminJob
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminActionRequest'
+      responses:
+        '200':
+          description: Job removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminActionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      x-status: DRAFT
+      x-clients:
+      - Admin
+      x-permission: Admin role
+      description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Only changes a non-CLOSED job to CLOSED.
+        Writes an admin audit event. CLOSED targets return 409 INVALID_ADMIN_TRANSITION. No data is deleted.'
+      x-audit: true
+      x-mvp-scope: MVP
+  /admin/users/{userId}/disable:
+    post:
+      tags:
+      - Admin
+      summary: Disable an active user
+      operationId: disableAdminUser
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminActionRequest'
+      responses:
+        '200':
+          description: User disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminActionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      x-status: DRAFT
+      x-clients:
+      - Admin
+      x-permission: Admin role
+      description: 'Permission: Admin role. Status: DRAFT. Clients: Admin. Only changes an ACTIVE user to DISABLED.
+        Admin self-disable returns 409 ADMIN_SELF_DISABLE_FORBIDDEN. Writes an admin audit event. No data is deleted.'
+      x-audit: true
+      x-mvp-scope: MVP
+
+  /community/posts:
+    get:
+      tags: [Community]
+      summary: List the authenticated community feed
+      operationId: listCommunityPosts
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/CommunityPageSize'
+      responses:
+        '200':
+          description: Community posts ordered by createdAt descending, then id descending
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunityFeedResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+      x-status: DRAFT
+      x-clients: [Candidate, Recruiter]
+      x-permission: Authenticated Candidate or Recruiter only
+      description: 'Permission: authenticated CANDIDATE or RECRUITER only. Stable sort: createdAt DESC, then id DESC. Counts and likedByCurrentUser are server-derived for the authenticated viewer.'
+      x-mvp-scope: P2_DEMO
+    post:
+      tags: [Community]
+      summary: Create a text-only community post
+      operationId: createCommunityPost
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCommunityPostRequest' }
+      responses:
+        '201':
+          description: Community post created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunityPostResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+      x-status: DRAFT
+      x-clients: [Candidate, Recruiter]
+      x-permission: Authenticated Candidate or Recruiter only
+      description: 'Permission: authenticated CANDIDATE or RECRUITER only. Text-only body is trimmed by the server and must contain 1 to 2,000 characters after trimming.'
+      x-mvp-scope: P2_DEMO
+  /community/posts/{postId}:
+    get:
+      tags: [Community]
+      summary: Get a community post
+      operationId: getCommunityPost
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/CommunityPostId'
+      responses:
+        '200':
+          description: Community post detail without embedded comments
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunityPostResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+      x-status: DRAFT
+      x-clients: [Candidate, Recruiter]
+      x-permission: Authenticated Candidate or Recruiter only
+      description: 'Permission: authenticated CANDIDATE or RECRUITER only. Returns 404 when the Post does not exist. Comments are fetched through the separate comments operation.'
+      x-mvp-scope: P2_DEMO
+  /community/posts/{postId}/like:
+    put:
+      tags: [Community]
+      summary: Like a community post
+      operationId: likeCommunityPost
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/CommunityPostId'
+      responses:
+        '200':
+          description: Latest server-derived Like state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunityInteractionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+      x-status: DRAFT
+      x-clients: [Candidate, Recruiter]
+      x-permission: Authenticated Candidate or Recruiter only
+      description: 'Permission: authenticated CANDIDATE or RECRUITER only. Idempotent: liking an already-liked Post succeeds without creating another Like. Returns the latest likeCount and likedByCurrentUser=true.'
+      x-idempotent: true
+      x-mvp-scope: P2_DEMO
+    delete:
+      tags: [Community]
+      summary: Remove the current user's Like from a community post
+      operationId: unlikeCommunityPost
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/CommunityPostId'
+      responses:
+        '200':
+          description: Latest server-derived Like state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunityInteractionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+      x-status: DRAFT
+      x-clients: [Candidate, Recruiter]
+      x-permission: Authenticated Candidate or Recruiter only
+      description: 'Permission: authenticated CANDIDATE or RECRUITER only. Idempotent: removing a Like that does not exist succeeds. Returns the latest likeCount and likedByCurrentUser=false.'
+      x-idempotent: true
+      x-mvp-scope: P2_DEMO
+  /community/posts/{postId}/comments:
+    get:
+      tags: [Community]
+      summary: List comments for a community post
+      operationId: listCommunityComments
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/CommunityPostId'
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/CommunityPageSize'
+      responses:
+        '200':
+          description: Comments ordered by createdAt ascending, then id ascending
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunityCommentListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+      x-status: DRAFT
+      x-clients: [Candidate, Recruiter]
+      x-permission: Authenticated Candidate or Recruiter only
+      description: 'Permission: authenticated CANDIDATE or RECRUITER only. Returns 404 when the Post does not exist. Stable sort: createdAt ASC, then id ASC.'
+      x-mvp-scope: P2_DEMO
+    post:
+      tags: [Community]
+      summary: Create a text-only comment on a community post
+      operationId: createCommunityComment
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/CommunityPostId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCommunityCommentRequest' }
+      responses:
+        '201':
+          description: Community comment created with the Post's latest comment count
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateCommunityCommentResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+      x-status: DRAFT
+      x-clients: [Candidate, Recruiter]
+      x-permission: Authenticated Candidate or Recruiter only
+      description: 'Permission: authenticated CANDIDATE or RECRUITER only. Text-only body is trimmed by the server and must contain 1 to 500 characters after trimming. Returns 404 when the Post does not exist.'
+      x-mvp-scope: P2_DEMO
 
 components:
   securitySchemes:
@@ -2813,6 +2993,22 @@ components:
         minimum: 1
         maximum: 100
         default: 20
+    CommunityPageSize:
+      name: pageSize
+      in: query
+      description: Community-only page size. This does not change the shared PageSize maximum of 100.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+    CommunityPostId:
+      name: postId
+      in: path
+      required: true
+      description: Opaque Community Post identifier.
+      schema:
+        type: string
     JobId:
       name: jobId
       in: path
@@ -2879,6 +3075,143 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    CommunityAuthor:
+      type: object
+      additionalProperties: false
+      required: [userId, fullName, avatarUrl, role, companyName]
+      properties:
+        userId: { type: string }
+        fullName: { type: string }
+        avatarUrl:
+          oneOf:
+          - { type: string, format: uri }
+          - { type: 'null' }
+        role:
+          type: string
+          enum: [CANDIDATE, RECRUITER]
+        companyName:
+          oneOf:
+          - { type: string }
+          - { type: 'null' }
+          description: Nullable and only populated for a Recruiter when a company name exists.
+      description: Public Community author projection. It never contains email, resume data, tokens, company verification status, or other private account fields.
+    CommunityPost:
+      type: object
+      additionalProperties: false
+      required: [id, author, body, likeCount, commentCount, likedByCurrentUser, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        author: { $ref: '#/components/schemas/CommunityAuthor' }
+        body: { type: string }
+        likeCount: { type: integer, minimum: 0 }
+        commentCount: { type: integer, minimum: 0 }
+        likedByCurrentUser: { type: boolean }
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+    CommunityComment:
+      type: object
+      additionalProperties: false
+      required: [id, postId, author, body, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        postId: { type: string }
+        author: { $ref: '#/components/schemas/CommunityAuthor' }
+        body: { type: string }
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+    CreateCommunityPostRequest:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          pattern: ^.*\S.*$
+          description: Text only. The server trims leading and trailing whitespace before validation; the normalized value must contain 1 to 2,000 characters and at least one non-whitespace character.
+          x-normalization: trim
+          x-trimmed-minLength: 1
+          x-trimmed-maxLength: 2000
+    CreateCommunityCommentRequest:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 500
+          pattern: ^.*\S.*$
+          description: Text only. The server trims leading and trailing whitespace before validation; the normalized value must contain 1 to 500 characters and at least one non-whitespace character.
+          x-normalization: trim
+          x-trimmed-minLength: 1
+          x-trimmed-maxLength: 500
+    CommunityInteraction:
+      type: object
+      additionalProperties: false
+      required: [postId, likeCount, likedByCurrentUser]
+      properties:
+        postId: { type: string }
+        likeCount: { type: integer, minimum: 0 }
+        likedByCurrentUser: { type: boolean }
+    CommunityFeedResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CommunityPost' }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+    CommunityCommentListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CommunityComment' }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+    CommunityPostResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CommunityPost' }
+    CommunityInteractionResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CommunityInteraction' }
+    CreateCommunityCommentResult:
+      type: object
+      additionalProperties: false
+      required: [comment, commentCount]
+      properties:
+        comment: { $ref: '#/components/schemas/CommunityComment' }
+        commentCount:
+          type: integer
+          minimum: 0
+          description: Latest server-derived comment count for the Post after creation.
+    CreateCommunityCommentResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CreateCommunityCommentResult' }
     RegisterRequest:
       oneOf:
       - $ref: '#/components/schemas/CandidateRegisterRequest'
@@ -3786,6 +4119,16 @@ components:
       properties:
         error:
           $ref: '#/components/schemas/ErrorDetail'
+    SalaryCurrency:
+      type: string
+      enum:
+      - SGD
+    SalaryPeriod:
+      type: string
+      enum:
+      - HOUR
+      - MONTH
+      - YEAR
     UserRole:
       type: string
       enum:
@@ -4370,101 +4713,101 @@ components:
           format: date-time
           pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
           description: ISO-8601 UTC date-time; the value MUST end with Z.
-      RecruiterCompanySummary:
-        type: object
-        required:
-        - companyId
-        - name
-        - logoUrl
-        - verificationStatus
-        properties:
-          companyId:
-            type: string
-          name:
-            type: string
-          logoUrl:
-            oneOf:
-            - type: string
-              format: uri
-            - type: 'null'
-          verificationStatus:
-            oneOf:
-            - type: string
-              enum:
-              - PENDING
-              - APPROVED
-              - REJECTED
-            - type: 'null'
-      RecruiterProfileDetail:
-        type: object
-        required:
-        - userId
-        - fullName
-        - avatarUrl
-        - title
-        - bio
-        - company
-        - email
-        - createdAt
-        - updatedAt
-        properties:
-          userId:
-            type: string
-          fullName:
-            type: string
-          avatarUrl:
-            oneOf:
-            - type: string
-              format: uri
-            - type: 'null'
-          title:
-            type: string
-          bio:
-            oneOf:
-            - type: string
-            - type: 'null'
-          company:
-            $ref: '#/components/schemas/RecruiterCompanySummary'
-          email:
-            type: string
-            format: email
-          createdAt:
-            type: string
-            format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-          updatedAt:
-            type: string
-            format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-        description: Recruiter-only self profile. Does not expose role, password hash, refresh token, Google OAuth
-          data, or resume bodies.
-      UpdateRecruiterProfileRequest:
-        type: object
-        additionalProperties: false
-        properties:
-          fullName:
-            type: string
-            minLength: 1
-            maxLength: 100
-          title:
-            type: string
-            minLength: 1
-            maxLength: 100
-          bio:
-            oneOf:
-            - type: string
-              maxLength: 1000
-            - type: 'null'
-          avatarUrl:
-            oneOf:
-            - type: string
-              format: uri
-              maxLength: 500
-            - type: 'null'
-        description: PATCH partial update. Only fullName, title, bio, and avatarUrl are accepted; read-only fields are
-          rejected as unknown fields. Title is required when the server has no existing recruiter profile row.
+    RecruiterCompanySummary:
+      type: object
+      required:
+      - companyId
+      - name
+      - logoUrl
+      - verificationStatus
+      properties:
+        companyId:
+          type: string
+        name:
+          type: string
+        logoUrl:
+          oneOf:
+          - type: string
+            format: uri
+          - type: 'null'
+        verificationStatus:
+          oneOf:
+          - type: string
+            enum:
+            - PENDING
+            - APPROVED
+            - REJECTED
+          - type: 'null'
+    RecruiterProfileDetail:
+      type: object
+      required:
+      - userId
+      - fullName
+      - avatarUrl
+      - title
+      - bio
+      - company
+      - email
+      - createdAt
+      - updatedAt
+      properties:
+        userId:
+          type: string
+        fullName:
+          type: string
+        avatarUrl:
+          oneOf:
+          - type: string
+            format: uri
+          - type: 'null'
+        title:
+          type: string
+        bio:
+          oneOf:
+          - type: string
+          - type: 'null'
+        company:
+          $ref: '#/components/schemas/RecruiterCompanySummary'
+        email:
+          type: string
+          format: email
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+      description: Recruiter-only self profile. Does not expose role, password hash, refresh token, Google OAuth
+        data, or resume bodies.
+    UpdateRecruiterProfileRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        bio:
+          oneOf:
+          - type: string
+            maxLength: 1000
+          - type: 'null'
+        avatarUrl:
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: 'null'
+      description: PATCH partial update. Only fullName, title, bio, and avatarUrl are accepted; read-only fields are
+        rejected as unknown fields. Title is required when the server has no existing recruiter profile row.
 
     UpdateCompanyRequest:
       type: object
@@ -5146,404 +5489,404 @@ components:
         expectedVersion:
           type: integer
           minimum: 1
-      AdminReviewType:
-        type: string
-        enum:
-        - COMPANY
-        - JOB
-        - USER
-        description: Required discriminator for the admin reviews list.
-      AdminAuditEvent:
-        type: object
-        required:
-        - eventId
-        - actorId
-        - targetType
-        - targetId
-        - action
-        - fromStatus
-        - toStatus
-        - reason
-        - requestId
-        - occurredAt
-        properties:
-          eventId:
-            type: string
-          actorId:
-            type: string
-            description: Opaque user id. The event never includes the actor email, tokens, or credentials.
-          targetType:
-            $ref: '#/components/schemas/AdminReviewType'
-          targetId:
-            type: string
-          action:
-            type: string
-            enum:
-            - COMPANY_APPROVED
-            - COMPANY_REJECTED
-            - JOB_REMOVED
-            - USER_DISABLED
-          fromStatus:
+    AdminReviewType:
+      type: string
+      enum:
+      - COMPANY
+      - JOB
+      - USER
+      description: Required discriminator for the admin reviews list.
+    AdminAuditEvent:
+      type: object
+      required:
+      - eventId
+      - actorId
+      - targetType
+      - targetId
+      - action
+      - fromStatus
+      - toStatus
+      - reason
+      - requestId
+      - occurredAt
+      properties:
+        eventId:
+          type: string
+        actorId:
+          type: string
+          description: Opaque user id. The event never includes the actor email, tokens, or credentials.
+        targetType:
+          $ref: '#/components/schemas/AdminReviewType'
+        targetId:
+          type: string
+        action:
+          type: string
+          enum:
+          - COMPANY_APPROVED
+          - COMPANY_REJECTED
+          - JOB_REMOVED
+          - USER_DISABLED
+        fromStatus:
+          oneOf:
+          - type: string
+          - type: 'null'
+        toStatus:
+          oneOf:
+          - type: string
+          - type: 'null'
+        reason:
+          type: string
+        requestId:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+    AdminOverview:
+      type: object
+      required:
+      - pendingCompanies
+      - activeJobs
+      - activeUsers
+      - disabledUsers
+      - recentActions
+      properties:
+        pendingCompanies:
+          type: integer
+          minimum: 0
+        activeJobs:
+          type: integer
+          minimum: 0
+        activeUsers:
+          type: integer
+          minimum: 0
+        disabledUsers:
+          type: integer
+          minimum: 0
+        recentActions:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/AdminAuditEvent'
+    AdminOverviewResponse:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/AdminOverview'
+    AdminCompanySummary:
+      type: object
+      required:
+      - companyId
+      - name
+      - verificationStatus
+      - version
+      - createdAt
+      properties:
+        companyId:
+          type: string
+        name:
+          type: string
+        verificationStatus:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+        location:
+          oneOf:
+          - type: string
+          - type: 'null'
+        stage:
+          oneOf:
+          - type: string
+          - type: 'null'
+        version:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+    AdminJobSummary:
+      type: object
+      required:
+      - jobId
+      - companyId
+      - title
+      - status
+      - applicantCount
+      - version
+      - updatedAt
+      properties:
+        jobId:
+          type: string
+        companyId:
+          type: string
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        applicantCount:
+          type: integer
+          minimum: 0
+        version:
+          type: integer
+          minimum: 1
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+    AdminUserSummary:
+      type: object
+      required:
+      - userId
+      - email
+      - fullName
+      - role
+      - status
+      - createdAt
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - DISABLED
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+    AdminReviewListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
             oneOf:
-            - type: string
-            - type: 'null'
-          toStatus:
-            oneOf:
-            - type: string
-            - type: 'null'
-          reason:
-            type: string
-          requestId:
-            type: string
-          occurredAt:
-            type: string
+            - $ref: '#/components/schemas/AdminCompanySummary'
+            - $ref: '#/components/schemas/AdminJobSummary'
+            - $ref: '#/components/schemas/AdminUserSummary'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+      description: The concrete item shape depends on the required type query; clients should parse the matching
+        summary type and must ignore unknown fields.
+    AdminCompanyDetail:
+      type: object
+      required:
+      - companyId
+      - name
+      - verificationStatus
+      - version
+      - createdAt
+      - updatedAt
+      properties:
+        companyId:
+          type: string
+        name:
+          type: string
+        logoUrl:
+          oneOf:
+          - type: string
+            format: uri
+          - type: 'null'
+        stage:
+          oneOf:
+          - type: string
+          - type: 'null'
+        employeeRange:
+          oneOf:
+          - type: string
+          - type: 'null'
+        verificationStatus:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+        website:
+          oneOf:
+          - type: string
+            format: uri
+          - type: 'null'
+        description:
+          oneOf:
+          - type: string
+          - type: 'null'
+        location:
+          oneOf:
+          - type: string
+          - type: 'null'
+        version:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+    AdminJobDetail:
+      type: object
+      required:
+      - jobId
+      - companyId
+      - title
+      - status
+      - employmentType
+      - workplaceType
+      - location
+      - salaryMin
+      - salaryMax
+      - salaryCurrency
+      - salaryPeriod
+      - visibility
+      - applicantCount
+      - version
+      - createdAt
+      - updatedAt
+      properties:
+        jobId:
+          type: string
+        companyId:
+          type: string
+        title:
+          type: string
+        employmentType:
+          $ref: '#/components/schemas/EmploymentType'
+        workplaceType:
+          $ref: '#/components/schemas/WorkplaceType'
+        location:
+          type: string
+        salaryMin:
+          type: integer
+          minimum: 0
+        salaryMax:
+          type: integer
+          minimum: 0
+        salaryCurrency:
+          type: string
+        salaryPeriod:
+          type: string
+        deadline:
+          oneOf:
+          - type: string
             format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-      AdminOverview:
-        type: object
-        required:
-        - pendingCompanies
-        - activeJobs
-        - activeUsers
-        - disabledUsers
-        - recentActions
-        properties:
-          pendingCompanies:
-            type: integer
-            minimum: 0
-          activeJobs:
-            type: integer
-            minimum: 0
-          activeUsers:
-            type: integer
-            minimum: 0
-          disabledUsers:
-            type: integer
-            minimum: 0
-          recentActions:
-            type: array
-            maxItems: 10
-            items:
-              $ref: '#/components/schemas/AdminAuditEvent'
-      AdminOverviewResponse:
-        type: object
-        required:
-        - data
-        properties:
-          data:
-            $ref: '#/components/schemas/AdminOverview'
-      AdminCompanySummary:
-        type: object
-        required:
-        - companyId
-        - name
-        - verificationStatus
-        - version
-        - createdAt
-        properties:
-          companyId:
-            type: string
-          name:
-            type: string
-          verificationStatus:
-            type: string
-            enum:
-            - PENDING
-            - APPROVED
-            - REJECTED
-          location:
-            oneOf:
-            - type: string
-            - type: 'null'
-          stage:
-            oneOf:
-            - type: string
-            - type: 'null'
-          version:
-            type: integer
-            minimum: 1
-          createdAt:
-            type: string
-            format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-      AdminJobSummary:
-        type: object
-        required:
-        - jobId
-        - companyId
-        - title
-        - status
-        - applicantCount
-        - version
-        - updatedAt
-        properties:
-          jobId:
-            type: string
-          companyId:
-            type: string
-          title:
-            type: string
-          status:
-            $ref: '#/components/schemas/JobStatus'
-          applicantCount:
-            type: integer
-            minimum: 0
-          version:
-            type: integer
-            minimum: 1
-          updatedAt:
-            type: string
-            format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-      AdminUserSummary:
-        type: object
-        required:
-        - userId
-        - email
-        - fullName
-        - role
-        - status
-        - createdAt
-        properties:
-          userId:
-            type: string
-          email:
-            type: string
-            format: email
-          fullName:
-            type: string
-          role:
-            $ref: '#/components/schemas/UserRole'
-          status:
-            type: string
-            enum:
-            - ACTIVE
-            - DISABLED
-          createdAt:
-            type: string
-            format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-      AdminReviewListResponse:
-        type: object
-        required:
-        - data
-        - meta
-        properties:
-          data:
-            type: array
-            items:
-              oneOf:
-              - $ref: '#/components/schemas/AdminCompanySummary'
-              - $ref: '#/components/schemas/AdminJobSummary'
-              - $ref: '#/components/schemas/AdminUserSummary'
-          meta:
-            $ref: '#/components/schemas/PageMeta'
-        description: The concrete item shape depends on the required type query; clients should parse the matching
-          summary type and must ignore unknown fields.
-      AdminCompanyDetail:
-        type: object
-        required:
-        - companyId
-        - name
-        - verificationStatus
-        - version
-        - createdAt
-        - updatedAt
-        properties:
-          companyId:
-            type: string
-          name:
-            type: string
-          logoUrl:
-            oneOf:
-            - type: string
-              format: uri
-            - type: 'null'
-          stage:
-            oneOf:
-            - type: string
-            - type: 'null'
-          employeeRange:
-            oneOf:
-            - type: string
-            - type: 'null'
-          verificationStatus:
-            type: string
-            enum:
-            - PENDING
-            - APPROVED
-            - REJECTED
-          website:
-            oneOf:
-            - type: string
-              format: uri
-            - type: 'null'
-          description:
-            oneOf:
-            - type: string
-            - type: 'null'
-          location:
-            oneOf:
-            - type: string
-            - type: 'null'
-          version:
-            type: integer
-            minimum: 1
-          createdAt:
-            type: string
-            format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-          updatedAt:
-            type: string
-            format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-      AdminJobDetail:
-        type: object
-        required:
-        - jobId
-        - companyId
-        - title
-        - status
-        - employmentType
-        - workplaceType
-        - location
-        - salaryMin
-        - salaryMax
-        - salaryCurrency
-        - salaryPeriod
-        - visibility
-        - applicantCount
-        - version
-        - createdAt
-        - updatedAt
-        properties:
-          jobId:
-            type: string
-          companyId:
-            type: string
-          title:
-            type: string
-          employmentType:
-            $ref: '#/components/schemas/EmploymentType'
-          workplaceType:
-            $ref: '#/components/schemas/WorkplaceType'
-          location:
-            type: string
-          salaryMin:
-            type: integer
-            minimum: 0
-          salaryMax:
-            type: integer
-            minimum: 0
-          salaryCurrency:
-            type: string
-          salaryPeriod:
-            type: string
-          deadline:
-            oneOf:
-            - type: string
-              format: date-time
-            - type: 'null'
-          visibility:
-            $ref: '#/components/schemas/Visibility'
-          status:
-            $ref: '#/components/schemas/JobStatus'
-          applicantCount:
-            type: integer
-            minimum: 0
-          version:
-            type: integer
-            minimum: 1
-          createdAt:
-            type: string
-            format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-          updatedAt:
-            type: string
-            format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-      AdminUserDetail:
-        type: object
-        required:
-        - userId
-        - email
-        - fullName
-        - role
-        - status
-        - createdAt
-        - updatedAt
-        properties:
-          userId:
-            type: string
-          email:
-            type: string
-            format: email
-          fullName:
-            type: string
-          role:
-            $ref: '#/components/schemas/UserRole'
-          status:
-            type: string
-            enum:
-            - ACTIVE
-            - DISABLED
-          avatarUrl:
-            oneOf:
-            - type: string
-              format: uri
-            - type: 'null'
-          createdAt:
-            type: string
-            format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-          updatedAt:
-            type: string
-            format: date-time
-            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
-        description: Admin-only safe user view. Never includes password hash, refresh token, Google OAuth connection,
-          or resume body.
-      AdminActionRequest:
-        type: object
-        additionalProperties: false
-        required:
-        - reason
-        - expectedVersion
-        properties:
-          reason:
-            type: string
-            minLength: 1
-            maxLength: 500
-            description: Required high-risk action reason; leading and trailing whitespace is ignored before validation.
-          expectedVersion:
-            type: integer
-            minimum: 1
-      AdminActionResponse:
-        type: object
-        required:
-        - data
-        properties:
-          data:
-            oneOf:
-            - $ref: '#/components/schemas/AdminCompanyDetail'
-            - $ref: '#/components/schemas/AdminJobDetail'
-            - $ref: '#/components/schemas/AdminUserDetail'
+          - type: 'null'
+        visibility:
+          $ref: '#/components/schemas/Visibility'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        applicantCount:
+          type: integer
+          minimum: 0
+        version:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+    AdminUserDetail:
+      type: object
+      required:
+      - userId
+      - email
+      - fullName
+      - role
+      - status
+      - createdAt
+      - updatedAt
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - DISABLED
+        avatarUrl:
+          oneOf:
+          - type: string
+            format: uri
+          - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+      description: Admin-only safe user view. Never includes password hash, refresh token, Google OAuth connection,
+        or resume body.
+    AdminActionRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - reason
+      - expectedVersion
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Required high-risk action reason; leading and trailing whitespace is ignored before validation.
+        expectedVersion:
+          type: integer
+          minimum: 1
+    AdminActionResponse:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          oneOf:
+          - $ref: '#/components/schemas/AdminCompanyDetail'
+          - $ref: '#/components/schemas/AdminJobDetail'
+          - $ref: '#/components/schemas/AdminUserDetail'
 
 x-catalog-counts:
-  uniqueOperations: 55
-  candidateOperations: 19
-  recruiterOperations: 31
-  sharedOperations: 4
-    adminOperations: 9
+  uniqueOperations: 74
+  candidateOperations: 34
+  recruiterOperations: 42
+  sharedOperations: 11
+  adminOperations: 9
 x-source-documents:
 - /Users/yezhian/code/adproject/android/docs/API_V1.md
 - /Users/yezhian/code/adproject/android/docs/openapi-v1.yaml

@@ -37,6 +37,7 @@ export function AppShell({client = authClient, sessions = authSession}: {
         <NavLink to="/recruiter/jobs">Jobs</NavLink>
         <NavLink to="/recruiter/applications">Applications</NavLink>
         <NavLink to="/recruiter/messages">Messages</NavLink>
+        <NavLink to="/recruiter/community">Community</NavLink>
         <NavLink to="/recruiter/google-oauth">Integrations</NavLink>
       </nav>
       <div className="account"><NavLink className="account-profile" to="/recruiter/profile">
