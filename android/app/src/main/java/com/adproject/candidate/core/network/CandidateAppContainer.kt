@@ -12,6 +12,7 @@ import com.adproject.candidate.data.api.RealCandidateJobRepository
 import com.adproject.candidate.data.api.CandidateProfileHttpApi
 import com.adproject.candidate.data.api.CandidateResumeHttpApi
 import com.adproject.candidate.data.api.RealCandidateProfileRepository
+import com.adproject.candidate.data.api.RealCandidateAvatarRepository
 import com.adproject.candidate.data.api.RealCandidateResumeRepository
 import com.adproject.candidate.data.api.CandidateApplicationHttpApi
 import com.adproject.candidate.data.api.RealCandidateApplicationRepository
@@ -80,6 +81,7 @@ class CandidateAppContainer(context: Context) {
         moshi,
     )
     val candidateProfileRepository = RealCandidateProfileRepository(authenticatedRetrofit.create(CandidateProfileHttpApi::class.java), moshi)
+    val candidateAvatarRepository = RealCandidateAvatarRepository(authenticatedRetrofit.create(CandidateProfileHttpApi::class.java), moshi)
     val candidateResumeRepository = RealCandidateResumeRepository(authenticatedRetrofit.create(CandidateResumeHttpApi::class.java), moshi)
     val candidateApplicationRepository = RealCandidateApplicationRepository(
         authenticatedRetrofit.create(CandidateApplicationHttpApi::class.java), moshi,

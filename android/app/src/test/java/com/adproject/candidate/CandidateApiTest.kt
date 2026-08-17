@@ -29,7 +29,7 @@ class CandidateApiTest {
     @Test
     fun applicationStatusesAndCandidatePathsMatchTheFinalContract() {
         assertEquals(
-            listOf("APPLIED", "IN_REVIEW", "INTERVIEW", "REJECTED", "WITHDRAWN"),
+            listOf("APPLIED", "IN_REVIEW", "INTERVIEW", "OFFERED", "REJECTED", "WITHDRAWN"),
             ApplicationStatus.entries.map { it.name },
         )
         assertEquals("/jobs/job_001/applications", CandidateApiPaths.submitApplication("job_001"))

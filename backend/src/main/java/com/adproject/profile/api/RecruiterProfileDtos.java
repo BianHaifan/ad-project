@@ -20,8 +20,6 @@ public final class RecruiterProfileDtos {
         private boolean titlePresent;
         private String bio;
         private boolean bioPresent;
-        private String avatarUrl;
-        private boolean avatarUrlPresent;
 
         @JsonSetter("fullName")
         public void setFullName(String value) { this.fullName = value; this.fullNamePresent = true; }
@@ -29,8 +27,6 @@ public final class RecruiterProfileDtos {
         public void setTitle(String value) { this.title = value; this.titlePresent = true; }
         @JsonSetter("bio")
         public void setBio(String value) { this.bio = value; this.bioPresent = true; }
-        @JsonSetter("avatarUrl")
-        public void setAvatarUrl(String value) { this.avatarUrl = value; this.avatarUrlPresent = true; }
 
         public String getFullName() { return fullName; }
         public boolean isFullNamePresent() { return fullNamePresent; }
@@ -38,7 +34,5 @@ public final class RecruiterProfileDtos {
         public boolean isTitlePresent() { return titlePresent; }
         public String getBio() { return bio; }
         public boolean isBioPresent() { return bioPresent; }
-        public String getAvatarUrl() { return avatarUrl; }
-        public boolean isAvatarUrlPresent() { return avatarUrlPresent; }
     }
 }

@@ -29,6 +29,7 @@ import okhttp3.RequestBody
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PATCH
@@ -60,8 +61,26 @@ interface CandidateJobHttpApi {
 
     @GET("candidate/recommendations/jobs")
     suspend fun recommendations(
-        @Query("limit") limit: Int = 20,
+        @Query("q") q: String?,
+        @Query("employmentType") employmentType: EmploymentType?,
+        @Query("workplaceType") workplaceType: WorkplaceType?,
+        @Query("location") location: String?,
+        @Query("minimumSalary") minimumSalary: Long?,
+        @Query("page") page: Int = 1,
+        @Query("pageSize") pageSize: Int = 10,
     ): Response<com.adproject.candidate.data.contract.RecommendationEnvelope>
+
+    @GET("candidate/saved-jobs")
+    suspend fun savedJobs(
+        @Query("page") page: Int = 1,
+        @Query("pageSize") pageSize: Int = 20,
+    ): Response<ListEnvelope<NetworkCandidateJob, PageMeta>>
+
+    @PUT("candidate/saved-jobs/{jobId}")
+    suspend fun saveJob(@Path("jobId") jobId: String): Response<Unit>
+
+    @DELETE("candidate/saved-jobs/{jobId}")
+    suspend fun unsaveJob(@Path("jobId") jobId: String): Response<Unit>
 }
 
 interface CandidateRecommendationHttpApi {
@@ -77,6 +96,13 @@ interface CandidateRecommendationHttpApi {
 interface CandidateProfileHttpApi {
     @GET("candidate/profile") suspend fun get(): Response<DataEnvelope<com.adproject.candidate.data.contract.CandidateProfileDto>>
     @PATCH("candidate/profile") suspend fun update(@Body request: com.adproject.candidate.data.contract.UpdateProfileRequest): Response<DataEnvelope<com.adproject.candidate.data.contract.CandidateProfileDto>>
+
+    @Multipart
+    @POST("profile/avatar")
+    suspend fun uploadAvatar(@Part file: MultipartBody.Part): Response<DataEnvelope<com.adproject.candidate.data.contract.AvatarMetadata>>
+
+    @DELETE("profile/avatar")
+    suspend fun deleteAvatar(): Response<Unit>
 }
 
 interface CandidateResumeHttpApi {

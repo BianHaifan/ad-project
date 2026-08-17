@@ -102,6 +102,19 @@ private class FixedJobRepository : CandidateJobRepository {
         calls++
         return ApiResult.Success(CandidateJobDetail(candidateJob(), null, CandidateJobApplicationState.NOT_APPLIED, false))
     }
+    override suspend fun recommendations(
+        q: String?,
+        employmentType: EmploymentType?,
+        workplaceType: WorkplaceType?,
+        location: String?,
+        minimumSalary: Long?,
+        page: Int,
+        pageSize: Int,
+    ): ApiResult<RecommendationEnvelope> = ApiResult.Failure("Not used")
+    override suspend fun saveJob(jobId: String): ApiResult<Unit> = ApiResult.Success(Unit)
+    override suspend fun unsaveJob(jobId: String): ApiResult<Unit> = ApiResult.Success(Unit)
+    override suspend fun savedJobs(page: Int, pageSize: Int): ApiResult<CandidateJobPage> =
+        ApiResult.Success(CandidateJobPage(emptyList(), PageMeta(1, 20, 0, false)))
 }
 private class FixedProfileRepository : CandidateProfileRepository {
     override suspend fun get() = ApiResult.Success(profile())
@@ -134,7 +147,7 @@ private fun candidateJob() = CandidateJob("job-1", "Backend Engineer", company()
 private fun company() = Company("company-1", "Real Company", null, null, null, "APPROVED", null, null, null,
     1, "2026-08-11T08:00:00Z", "2026-08-11T08:00:00Z")
 private fun profile() = CandidateProfileDto("candidate-1", "Candidate", "candidate@example.com", "Engineer", null,
-    "Singapore", CandidateStats(0, 0, 0, 0), 1, "2026-08-11T08:00:00Z", "2026-08-11T08:00:00Z")
+    "Singapore", null, null, null, null, CandidateStats(0, 0, 0, 0), 1, "2026-08-11T08:00:00Z", "2026-08-11T08:00:00Z")
 private fun resume() = Resume("resume-1", "Candidate", 27, "Singapore", "Engineer", "Summary", emptyList(), 1,
     "2026-08-11T08:00:00Z", "2026-08-11T08:00:00Z")
 private fun application() = CandidateApplication("application-1", "job-1", ApplicationStatus.APPLIED,

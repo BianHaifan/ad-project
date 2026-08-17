@@ -37,10 +37,11 @@ export function AppShell({client = authClient, sessions = authSession}: {
         <NavLink to="/recruiter/jobs">Jobs</NavLink>
         <NavLink to="/recruiter/applications">Applications</NavLink>
         <NavLink to="/recruiter/messages">Messages</NavLink>
-        <NavLink to="/recruiter/google-oauth">Integrations</NavLink>
       </nav>
       <div className="account"><NavLink className="account-profile" to="/recruiter/profile">
-        <span className="avatar">{recruiter.fullName.slice(0, 1).toUpperCase()}</span>
+        {recruiter.avatarUrl
+          ? <img className="avatar" src={recruiter.avatarUrl} alt=""/>
+          : <span className="avatar">{recruiter.fullName.slice(0, 1).toUpperCase()}</span>}
         <span><b>{recruiter.fullName}</b><small>{recruiter.company.name}</small></span>
         </NavLink>
         <button className="text-button" disabled={loggingOut} onClick={logout}>

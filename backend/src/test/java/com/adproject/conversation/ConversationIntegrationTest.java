@@ -122,6 +122,80 @@ class ConversationIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(1));
     }
 
+    @Test void recruiterFindsUniqueConversationByApplicationId() throws Exception {
+        Fixture f = fixture("Lookup Candidate");
+        String jobA = job(f, "Lookup Job A");
+        String jobB = job(f, "Lookup Job B");
+        String appA = submit(f, jobA, UUID.randomUUID().toString());
+        submit(f, jobB, UUID.randomUUID().toString());
+        String convA = conversationId(appA);
+
+        mvc.perform(get("/api/v1/recruiter/conversations")
+                        .header("Authorization", recruiter(f))
+                        .param("applicationId", appA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.meta.total").value(1))
+                .andExpect(jsonPath("$.data[0].conversationId").value(convA))
+                .andExpect(jsonPath("$.data[0].applicationId").value(appA));
+    }
+
+    @Test void listWithoutApplicationIdPreservesExistingBehavior() throws Exception {
+        Fixture f = fixture("Preserve List Candidate");
+        String jobA = job(f, "Preserve Job A");
+        String jobB = job(f, "Preserve Job B");
+        submit(f, jobA, UUID.randomUUID().toString());
+        submit(f, jobB, UUID.randomUUID().toString());
+
+        mvc.perform(get("/api/v1/recruiter/conversations").header("Authorization", recruiter(f)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.meta.total").value(2));
+    }
+
+    @Test void applicationIdDoesNotLeakCrossCompanyOrMissingApplication() throws Exception {
+        Fixture a = fixture("Cross Lookup A");
+        String appA = submit(a, job(a, "Cross A Job"), UUID.randomUUID().toString());
+
+        Fixture b = fixture("Cross Lookup B");
+        mvc.perform(get("/api/v1/recruiter/conversations")
+                        .header("Authorization", recruiter(b))
+                        .param("applicationId", appA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0))
+                .andExpect(jsonPath("$.meta.total").value(0));
+
+        mvc.perform(get("/api/v1/recruiter/conversations")
+                        .header("Authorization", recruiter(a))
+                        .param("applicationId", UUID.randomUUID().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0))
+                .andExpect(jsonPath("$.meta.total").value(0));
+    }
+
+    @Test void applicationIdRequiresAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/recruiter/conversations")
+                        .param("applicationId", UUID.randomUUID().toString()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test void applicationIdRejectsCandidateRole() throws Exception {
+        Fixture f = fixture("Role Lookup Candidate");
+        mvc.perform(get("/api/v1/recruiter/conversations")
+                        .header("Authorization", candidate(f))
+                        .param("applicationId", UUID.randomUUID().toString()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test void applicationIdRejectsInvalidUuid() throws Exception {
+        Fixture f = fixture("Invalid Uuid Candidate");
+        mvc.perform(get("/api/v1/recruiter/conversations")
+                        .header("Authorization", recruiter(f))
+                        .param("applicationId", "not-a-uuid"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
     @Test void roleAndAuthEnforcement() throws Exception {
         Fixture f = fixture("Role Candidate");
         String jobId = job(f, "Role Job");

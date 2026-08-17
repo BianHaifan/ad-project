@@ -21,8 +21,10 @@ import com.adproject.candidate.data.contract.ApplicationStatus
 import com.adproject.candidate.data.contract.ApplicationListFilter
 import com.adproject.candidate.data.contract.WithdrawApplicationRequest
 import com.adproject.candidate.data.contract.UpdateProfileRequest
+import com.adproject.candidate.data.contract.Gender
 import com.adproject.candidate.data.contract.SaveResumeRequest
 import com.adproject.candidate.data.contract.EmploymentType
+import com.adproject.candidate.data.contract.WorkplaceType
 import com.adproject.candidate.data.contract.InterviewMode
 import com.adproject.candidate.data.contract.InterviewStatus
 import com.adproject.candidate.data.contract.MeetingProvider
@@ -116,6 +118,50 @@ class RepositoryIntegrationTest {
         assertEquals("This job is no longer available.", missing.message)
     }
 
+    @Test fun recommendationsSendQueryTypeAndPageAndMapPaginationMeta() = runTest {
+        val repository = RealCandidateJobRepository(retrofit().create(CandidateJobHttpApi::class.java), moshi)
+        server.enqueue(jsonResponse(recommendationBody()))
+        val result = repository.recommendations("Engineer", EmploymentType.FULL_TIME, WorkplaceType.HYBRID,
+            "Singapore", 6000, 2, 10) as ApiResult.Success
+        assertEquals(1, result.value.data.size)
+        assertEquals("rec-1", result.value.data.first().jobId)
+        assertEquals("MODEL", result.value.meta.source)
+        assertEquals(2, result.value.meta.page)
+        assertEquals(10, result.value.meta.pageSize)
+        assertEquals(23, result.value.meta.total)
+        assertTrue(result.value.meta.hasNext)
+
+        val path = server.takeRequest().path!!
+        assertTrue(path.contains("q=Engineer"))
+        assertTrue(path.contains("employmentType=FULL_TIME"))
+        assertTrue(path.contains("workplaceType=HYBRID"))
+        assertTrue(path.contains("location=Singapore"))
+        assertTrue(path.contains("minimumSalary=6000"))
+        assertTrue(path.contains("page=2"))
+        assertTrue(path.contains("pageSize=10"))
+    }
+
+    @Test fun saveUnsaveAndSavedJobsHitCorrectEndpoints() = runTest {
+        val repository = RealCandidateJobRepository(retrofit().create(CandidateJobHttpApi::class.java), moshi)
+        server.enqueue(MockResponse().setResponseCode(204))
+        assertTrue(repository.saveJob("job-1") is ApiResult.Success)
+        assertEquals("/api/v1/candidate/saved-jobs/job-1", server.takeRequest().path)
+
+        server.enqueue(MockResponse().setResponseCode(204))
+        assertTrue(repository.unsaveJob("job-1") is ApiResult.Success)
+        val unsave = server.takeRequest()
+        assertEquals("/api/v1/candidate/saved-jobs/job-1", unsave.path)
+        assertEquals("DELETE", unsave.method)
+
+        server.enqueue(jsonResponse("""{"data":[${jobObject().replace("\"matchScore\":null", "\"matchScore\":null,\"isSaved\":true")}],"meta":{"page":1,"pageSize":20,"total":1,"hasNext":false}}"""))
+        val saved = repository.savedJobs(1, 20) as ApiResult.Success
+        assertEquals(1, saved.value.jobs.size)
+        assertTrue(saved.value.jobs.first().isSaved ?: false)
+        val savedRequest = server.takeRequest()
+        assertTrue(savedRequest.path!!.contains("page=1"))
+        assertTrue(savedRequest.path!!.contains("pageSize=20"))
+    }
+
     @Test fun detailMapsTransitionalApplicationAndSavedState() = runTest {
         val repository = RealCandidateJobRepository(retrofit().create(CandidateJobHttpApi::class.java), moshi)
         server.enqueue(jsonResponse("""{"data":${jobObject()},"matchAnalysis":null}""".replace(
@@ -170,12 +216,30 @@ class RepositoryIntegrationTest {
         assertEquals("Candidate", (repository.get() as ApiResult.Success).value.fullName)
         server.takeRequest()
         server.enqueue(jsonResponse("""{"data":${profile.replace("\"version\":1", "\"version\":2")}}"""))
-        val updated = repository.update(UpdateProfileRequest("Candidate", "Engineer", "Singapore", 1)) as ApiResult.Success
+        val updated = repository.update(UpdateProfileRequest("Candidate", "Engineer", null, null, null, null, null, 1)) as ApiResult.Success
         assertEquals(2, updated.value.version)
         assertFalse(server.takeRequest().body.readUtf8().contains("userId"))
         server.enqueue(jsonResponse(errorBody("VALIDATION_ERROR", "Request validation failed", "headline"), 422))
-        val error = repository.update(UpdateProfileRequest("Candidate", "x", "Singapore", 2)) as ApiResult.Failure
+        val error = repository.update(UpdateProfileRequest("Candidate", "x", null, null, null, null, null, 2)) as ApiResult.Failure
         assertEquals("invalid", error.fieldErrors["headline"])
+    }
+
+    @Test fun profileUpdateSerializesIdentityFields() = runTest {
+        val repository = RealCandidateProfileRepository(retrofit().create(CandidateProfileHttpApi::class.java), moshi)
+        val profile = """{"userId":"candidate-1","fullName":"Candidate","email":"candidate@example.com","headline":"Engineer","avatarUrl":null,"location":"Singapore","age":27,"gender":"FEMALE","phone":"+65 1234 5678","birthplace":"Singapore","stats":{"chatCount":0,"applicationCount":0,"interviewCount":0,"savedJobCount":0},"version":2,"createdAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z"}"""
+        server.enqueue(jsonResponse("""{"data":$profile}"""))
+        val updated = repository.update(UpdateProfileRequest("Candidate", "Engineer", "Singapore", 27, Gender.FEMALE, "+65 1234 5678", "Singapore", 1)) as ApiResult.Success
+        assertEquals(Gender.FEMALE, updated.value.gender)
+        assertEquals("+65 1234 5678", updated.value.phone)
+        assertEquals("Singapore", updated.value.birthplace)
+        assertEquals(27, updated.value.age)
+        assertEquals("Singapore", updated.value.location)
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"gender\":\"FEMALE\""))
+        assertTrue(body.contains("\"phone\":\"+65 1234 5678\""))
+        assertTrue(body.contains("\"birthplace\":\"Singapore\""))
+        assertTrue(body.contains("\"location\":\"Singapore\""))
+        assertTrue(body.contains("\"age\":27"))
     }
 
     @Test fun resumeRepositoryHandlesMissingCreateAndRotatingVersions() = runTest {
@@ -185,11 +249,15 @@ class RepositoryIntegrationTest {
         server.takeRequest()
         val resume = """{"resumeId":"resume-1","fullName":"Candidate","age":27,"location":"Singapore","headline":"Engineer","summary":"Summary","experiences":[],"version":1,"createdAt":"2026-08-11T08:00:00Z","updatedAt":"2026-08-11T08:00:00Z"}"""
         server.enqueue(jsonResponse("""{"data":$resume}"""))
-        val saved = repository.save(SaveResumeRequest("Candidate", 27, "Singapore", "Engineer", "Summary", emptyList(), 0)) as ApiResult.Success
+        val saved = repository.save(SaveResumeRequest("Summary", emptyList(), 0)) as ApiResult.Success
         assertEquals(1, saved.value.version)
         val body = server.takeRequest().body.readUtf8()
         assertTrue(body.contains("\"expectedVersion\":0"))
         assertFalse(body.contains("candidateId"))
+        assertFalse(body.contains("fullName"))
+        assertFalse(body.contains("headline"))
+        assertFalse(body.contains("\"age\""))
+        assertFalse(body.contains("\"location\""))
     }
 
     @Test fun applicationSubmissionUsesHeaderRealFieldsAndMapsRealResultAndConflicts() = runTest {
@@ -320,6 +388,16 @@ class RepositoryIntegrationTest {
     """.trimIndent()
 
     private fun jobPageBody() = """{"data":[${jobObject()}],"meta":{"page":1,"pageSize":20,"total":1,"hasNext":false}}"""
+    private fun recommendationBody() = """
+        {"data":[{"jobId":"rec-1","title":"Backend Engineer","companyId":"company-1","companyName":"Real Company",
+        "location":"Singapore","employmentType":"FULL_TIME","workplaceType":"HYBRID",
+        "salaryMin":5000,"salaryMax":8000,"salaryCurrency":"SGD","salaryPeriod":"MONTH",
+        "description":"Real role","skills":["Java"],"matchScore":92,"rank":1,
+        "matchAnalysis":{"strongMatches":["Java"],"gaps":[],"evidence":[]}}],
+        "meta":{"source":"MODEL","modelVersion":"test-model","featureVersion":"test-features",
+        "modelStatus":"ACTIVE","inferenceMs":12,"generatedAt":"2026-08-11T08:00:00Z",
+        "page":2,"pageSize":10,"total":23,"hasNext":true}}
+    """.trimIndent()
     private fun jobObject() = """
         {"jobId":"job-1","title":"Backend Engineer","company":{"companyId":"company-1","name":"Real Company",
         "logoUrl":null,"stage":null,"employeeRange":null,"verificationStatus":"APPROVED","website":null,

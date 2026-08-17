@@ -11,6 +11,15 @@ import com.adproject.company.infrastructure.CompanyMemberRepository;
 import com.adproject.job.infrastructure.JobEntity;
 import com.adproject.job.infrastructure.JobRepository;
 import com.adproject.profile.infrastructure.CandidateProfileRepository;
+import com.adproject.recommendation.infrastructure.CandidateJobPreferenceEntity;
+import com.adproject.recommendation.infrastructure.CandidateJobPreferenceRepository;
+import com.adproject.recommendation.infrastructure.CandidateJobRecommendationEntity;
+import com.adproject.recommendation.infrastructure.CandidateJobRecommendationRepository;
+import com.adproject.resume.infrastructure.ResumeEntity;
+import com.adproject.resume.infrastructure.ResumeRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.adproject.user.domain.UserRole;
 import com.adproject.user.infrastructure.UserEntity;
 import com.adproject.user.infrastructure.UserRepository;
@@ -21,6 +30,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -30,6 +41,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RecruiterApplicationService {
+    private static final Logger log = LoggerFactory.getLogger(RecruiterApplicationService.class);
+    private static final TypeReference<List<String>> STRINGS = new TypeReference<>() {};
+
     private final ApplicationRepository applications;
     private final ApplicationStatusEventRepository events;
     private final ResumeSnapshotRepository snapshots;
@@ -39,6 +53,10 @@ public class RecruiterApplicationService {
     private final CandidateProfileRepository profiles;
     private final CompanyMemberRepository members;
     private final CandidateApplicationResponseMapper mapper;
+    private final CandidateJobRecommendationRepository recommendations;
+    private final CandidateJobPreferenceRepository preferences;
+    private final ResumeRepository resumes;
+    private final ObjectMapper objectMapper;
     private final Clock clock;
 
     public RecruiterApplicationService(ApplicationRepository applications,
@@ -47,10 +65,16 @@ public class RecruiterApplicationService {
                                        JobRepository jobs,
                                        UserRepository users, CandidateProfileRepository profiles,
                                        CompanyMemberRepository members,
-                                       CandidateApplicationResponseMapper mapper, Clock clock) {
+                                       CandidateApplicationResponseMapper mapper,
+                                       CandidateJobRecommendationRepository recommendations,
+                                       CandidateJobPreferenceRepository preferences,
+                                       ResumeRepository resumes,
+                                       ObjectMapper objectMapper, Clock clock) {
         this.applications = applications; this.events = events; this.snapshots = snapshots; this.interviews = interviews;
         this.jobs = jobs;
-        this.users = users; this.profiles = profiles; this.members = members; this.mapper = mapper; this.clock = clock;
+        this.users = users; this.profiles = profiles; this.members = members; this.mapper = mapper;
+        this.recommendations = recommendations; this.preferences = preferences; this.resumes = resumes;
+        this.objectMapper = objectMapper; this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -85,6 +109,7 @@ public class RecruiterApplicationService {
                 applications.countByCompanyIdAndStatus(companyId, ApplicationStatus.APPLIED),
                 applications.countByCompanyIdAndStatus(companyId, ApplicationStatus.IN_REVIEW),
                 applications.countByCompanyIdAndStatus(companyId, ApplicationStatus.INTERVIEW),
+                applications.countByCompanyIdAndStatus(companyId, ApplicationStatus.OFFERED),
                 applications.countByCompanyIdAndStatus(companyId, ApplicationStatus.REJECTED));
     }
 
@@ -155,21 +180,57 @@ public class RecruiterApplicationService {
         var candidateDto = new RecruiterApplicationDtos.CandidateSummary(candidate.getId(), candidate.getFullName(),
                 candidate.getEmail(), profile == null ? null : profile.getHeadline(), candidate.getAvatarUrl(),
                 profile == null ? null : profile.getLocation());
+        RecruiterApplicationDtos.MatchAnalysis match = storedMatch(candidate.getId(), job);
         return new RecruiterApplicationDtos.Summary(application.getId(), application.getJobId(),
                 application.getStatus().name(), application.getAppliedAt(), application.getUpdatedAt(),
-                application.getVersion(), candidateDto, job.getTitle(), null, null);
+                application.getVersion(), candidateDto, job.getTitle(), match == null ? null : match.score(), null);
     }
 
     private RecruiterApplicationDtos.Detail detail(ApplicationEntity application) {
         RecruiterApplicationDtos.Summary summary = summary(application);
+        JobEntity job = jobs.findById(application.getJobId()).orElseThrow(this::notFound);
         var snapshot = snapshots.findById(application.getResumeSnapshotId()).orElseThrow(this::notFound);
         var timeline = events.findByApplicationIdOrderByOccurredAtAscIdAsc(application.getId()).stream()
                 .map(this::audit).toList();
         InterviewDtos.Interview interview = interviews.findByApplicationId(application.getId())
                 .map(this::interviewDto).orElse(null);
+        RecruiterApplicationDtos.MatchAnalysis match = storedMatch(summary.candidate().candidateId(), job);
         return new RecruiterApplicationDtos.Detail(summary.applicationId(), summary.jobId(), summary.status(),
                 summary.appliedAt(), summary.updatedAt(), summary.version(), summary.candidate(), summary.jobTitle(),
-                null, null, mapper.resumeSnapshot(snapshot), timeline, null, interview, List.of());
+                summary.matchScore(), null, mapper.resumeSnapshot(snapshot), timeline, match, interview, List.of());
+    }
+
+    /**
+     * Reuses a persisted candidate&rarr;job recommendation snapshot when it is still valid for the candidate's
+     * current resume, preference and job versions. Returns null when no snapshot exists or it is stale, in which
+     * case the caller surfaces an empty score ("—") rather than a fabricated value.
+     */
+    private RecruiterApplicationDtos.MatchAnalysis storedMatch(String candidateId, JobEntity job) {
+        int resumeVersion = resumes.findByCandidateId(candidateId)
+                .map(ResumeEntity::getVersion).orElse(-1);
+        int preferenceVersion = preferences.findById(candidateId)
+                .map(CandidateJobPreferenceEntity::getVersion).orElse(0);
+        return recommendations.findByCandidateIdAndJobId(candidateId, job.getId())
+                .filter(value -> value.getResumeVersion() == resumeVersion
+                        && value.getPreferenceVersion() == preferenceVersion
+                        && value.getJobVersion() == job.getVersion())
+                .map(value -> new RecruiterApplicationDtos.MatchAnalysis(value.getScore(),
+                        readList(value.getEvidenceJson()), readList(value.getStrongMatchesJson()),
+                        readList(value.getGapsJson()), value.getModelVersion(), value.getGeneratedAt()))
+                .orElse(null);
+    }
+
+    private List<String> readList(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<String> parsed = objectMapper.readValue(value, STRINGS);
+            return parsed == null ? List.of() : parsed;
+        } catch (JsonProcessingException exception) {
+            log.warn("Stored recommendation list field is not a valid JSON string array; treating as empty", exception);
+            return List.of();
+        }
     }
 
     private InterviewDtos.Interview interviewDto(InterviewEntity interview) {
@@ -203,7 +264,7 @@ public class RecruiterApplicationService {
     private boolean allowed(ApplicationStatus from, ApplicationStatus to) {
         return (from == ApplicationStatus.APPLIED && (to == ApplicationStatus.IN_REVIEW || to == ApplicationStatus.REJECTED))
                 || (from == ApplicationStatus.IN_REVIEW && to == ApplicationStatus.REJECTED)
-                || (from == ApplicationStatus.INTERVIEW && to == ApplicationStatus.REJECTED);
+                || (from == ApplicationStatus.INTERVIEW && (to == ApplicationStatus.OFFERED || to == ApplicationStatus.REJECTED));
     }
 
     private ApiException notFound() {

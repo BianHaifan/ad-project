@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CandidateApplicationQueryService {
     private static final List<ApplicationStatus> ACTIVE = List.of(ApplicationStatus.APPLIED, ApplicationStatus.IN_REVIEW);
     private static final List<ApplicationStatus> INTERVIEW = List.of(ApplicationStatus.INTERVIEW);
-    private static final List<ApplicationStatus> ARCHIVED = List.of(ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN);
+    private static final List<ApplicationStatus> ARCHIVED = List.of(ApplicationStatus.OFFERED, ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN);
 
     private final ApplicationRepository applications;
     private final ApplicationStatusEventRepository events;
@@ -91,7 +91,8 @@ public class CandidateApplicationQueryService {
         if (application.getVersion() != request.expectedVersion()) {
             throw new ApiException(HttpStatus.CONFLICT, "VERSION_CONFLICT", "The application has changed");
         }
-        if (application.getStatus() == ApplicationStatus.REJECTED
+        if (application.getStatus() == ApplicationStatus.OFFERED
+                || application.getStatus() == ApplicationStatus.REJECTED
                 || application.getStatus() == ApplicationStatus.WITHDRAWN) {
             throw new ApiException(HttpStatus.CONFLICT, "INVALID_APPLICATION_TRANSITION",
                     "The application cannot be withdrawn from its current status");

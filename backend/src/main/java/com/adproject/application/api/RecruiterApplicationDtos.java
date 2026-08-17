@@ -9,7 +9,7 @@ import java.util.List;
 
 public final class RecruiterApplicationDtos {
     private RecruiterApplicationDtos() {}
-    public enum TransitionTarget { IN_REVIEW, REJECTED }
+    public enum TransitionTarget { IN_REVIEW, OFFERED, REJECTED }
 
     public record CandidateSummary(String candidateId, String fullName, String email, String headline,
                                    String avatarUrl, String location) {}
@@ -20,10 +20,18 @@ public final class RecruiterApplicationDtos {
     public record Detail(String applicationId, String jobId, String status, Instant appliedAt, Instant updatedAt,
                          int version, CandidateSummary candidate, String jobTitle, Integer matchScore, User owner,
                          ApplicationDtos.ResumeSnapshot resumeSnapshot, List<AuditEvent> timeline,
-                         Object matchAnalysis, InterviewDtos.Interview interview, List<Object> notes) {}
+                         MatchAnalysis matchAnalysis, InterviewDtos.Interview interview, List<Object> notes) {}
+
+    /**
+     * Advisory, persisted candidate&rarr;job recommendation reused from the recommendation snapshot store. It is only
+     * populated when a stored score is still valid for the candidate's current resume, preference and job versions;
+     * otherwise it is null. It MUST NOT grant access or decide a transition on its own.
+     */
+    public record MatchAnalysis(int score, List<String> evidence, List<String> strongMatches, List<String> gaps,
+                                String modelVersion, Instant generatedAt) {}
     public record AuditEvent(String eventId, String actorId, String companyId, String fromStatus, String toStatus,
                              Instant occurredAt, String reason, String requestId) {}
-    public record Counts(long applied, long inReview, long interview, long rejected) {}
+    public record Counts(long applied, long inReview, long interview, long offered, long rejected) {}
     public record Meta(int page, int pageSize, long total, boolean hasNext, Counts counts) {}
     public record ListResponse(List<Summary> data, Meta meta) {}
     public record DetailResponse(Detail data) {}

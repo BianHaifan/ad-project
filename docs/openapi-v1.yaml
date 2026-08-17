@@ -821,6 +821,76 @@ paths:
       x-permission: Candidate self only
       x-concurrency: Use expectedVersion=0 for first save; stale versions return 409 VERSION_CONFLICT.
       x-mvp-scope: MVP
+  /candidate/saved-jobs:
+    get:
+      tags:
+      - Jobs
+      summary: List the current candidate's saved jobs
+      operationId: listCandidateSavedJobs
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Saved jobs page
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/PageResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/CandidateJobSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-clients:
+      - Candidate
+      x-permission: Candidate self only
+      x-mvp-scope: MVP
+  /candidate/saved-jobs/{jobId}:
+    put:
+      tags:
+      - Jobs
+      summary: Save a job for the current candidate
+      operationId: saveJobForCandidate
+      parameters:
+      - $ref: '#/components/parameters/JobId'
+      responses:
+        '204':
+          description: Job saved (idempotent)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-clients:
+      - Candidate
+      x-permission: Candidate self only; target job must be ACTIVE and visible
+      x-mvp-scope: MVP
+    delete:
+      tags:
+      - Jobs
+      summary: Remove a job from the current candidate's saved jobs
+      operationId: unsaveJobForCandidate
+      parameters:
+      - $ref: '#/components/parameters/JobId'
+      responses:
+        '204':
+          description: Job removed (idempotent)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-clients:
+      - Candidate
+      x-permission: Candidate self only
+      x-mvp-scope: MVP
   /candidate/recommendations/jobs:
     get:
       tags:
@@ -828,13 +898,59 @@ paths:
       summary: Rank currently active public jobs for the current candidate
       operationId: recommendJobsForCandidate
       parameters:
-      - name: limit
+      - name: q
         in: query
+        required: false
+        schema:
+          type: string
+        description: Optional case-insensitive title substring. Filters the candidate
+          job set before ranking, so results remain recommendations rather than a
+          separate job search.
+      - name: employmentType
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/EmploymentType'
+        description: Optional employment type filter applied to the candidate set before
+          ranking.
+      - name: workplaceType
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/WorkplaceType'
+        description: Optional workplace type filter applied to the candidate set before
+          ranking.
+      - name: location
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Optional case-insensitive location substring filter applied to the
+          candidate set before ranking.
+      - name: minimumSalary
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+        description: Optional minimum monthly salary filter; jobs whose salary max is
+          below this value are excluded before ranking.
+      - name: page
+        in: query
+        required: false
         schema:
           type: integer
           minimum: 1
-          maximum: 100
-          default: 20
+          default: 1
+      - name: pageSize
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 10
       responses:
         '200':
           description: Ranked model results, or deterministic fallback results when ML is unavailable
@@ -1056,10 +1172,135 @@ paths:
                     $ref: '#/components/schemas/ErrorResponse'
           '422':
             $ref: '#/components/responses/ValidationError'
-        description: 'Permission: Recruiter self. Status: DRAFT. Clients: Recruiter. Only fullName, title, bio, and
-          avatarUrl are editable. Email, company, role, and createdAt are read-only and rejected as unknown fields.
-          Unknown fields return 400 INVALID_REQUEST.'
+        description: 'Permission: Recruiter self. Status: DRAFT. Clients: Recruiter. Only fullName, title, and bio are
+          editable; avatarUrl is read-only and managed by the avatar endpoints (/profile/avatar). Email, company, role,
+          avatarUrl, and createdAt are rejected as unknown fields. Unknown fields return 400 INVALID_REQUEST.'
         x-mvp-scope: MVP
+
+  /profile/avatar:
+    post:
+      tags:
+      - Profile
+      summary: Upload or replace the current user's avatar
+      operationId: uploadAvatar
+      x-status: DRAFT
+      x-clients:
+      - Candidate
+      - Recruiter
+      x-permission: Authenticated self (Candidate or Recruiter); no target user ID accepted
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: A PNG or JPEG image up to 5 MiB
+      responses:
+        '200':
+          description: Avatar stored and avatarUrl updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AvatarMetadata'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          description: Avatar exceeds the 5 MiB limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: 'Permission: Authenticated self (Candidate or Recruiter). Status: DRAFT. Clients: Candidate, Recruiter.
+        Accepts PNG/JPEG only. The server validates empty files, the declared MIME type, magic bytes, decodability, and
+        a pixel upper bound; SVG, GIF, HTML, forged MIME, oversized, and corrupt images are rejected. On success the
+        server sets users.avatar_url to /api/v1/avatars/{userId}.'
+      x-mvp-scope: MVP
+    delete:
+      tags:
+      - Profile
+      summary: Delete the current user's avatar
+      operationId: deleteAvatar
+      x-status: DRAFT
+      x-clients:
+      - Candidate
+      - Recruiter
+      x-permission: Authenticated self (Candidate or Recruiter); no target user ID accepted
+      responses:
+        '204':
+          description: Avatar deleted and avatarUrl cleared
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      description: 'Permission: Authenticated self (Candidate or Recruiter). Status: DRAFT. Clients: Candidate, Recruiter.
+        Clears users.avatar_url and removes the avatar row. Deleting when no avatar exists is a no-op that still returns
+        204.'
+      x-mvp-scope: MVP
+
+  /avatars/{userId}:
+    get:
+      tags:
+      - Profile
+      summary: Read a user's avatar image
+      operationId: getAvatar
+      security: []
+      x-status: DRAFT
+      x-clients:
+      - Candidate
+      - Recruiter
+      x-permission: Public; the avatar is part of the public profile
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Avatar image bytes
+          headers:
+            Content-Type:
+              schema:
+                type: string
+              description: image/png or image/jpeg
+            Cache-Control:
+              schema:
+                type: string
+              description: Always no-store; the image must not be served from cache after replacement or deletion
+            X-Content-Type-Options:
+              schema:
+                type: string
+              description: Always nosniff
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+      description: 'Permission: Public. Status: DRAFT. Clients: Candidate, Recruiter. Returns only the avatar bytes and
+        never account data, email, tokens, or filesystem paths. Missing, absent, or unknown avatars return a uniform
+        404.'
+      x-mvp-scope: MVP
 
   /recruiter/company:
     get:
@@ -1443,6 +1684,53 @@ paths:
       - ACTIVE->CLOSED
       - PAUSED->ACTIVE
       - PAUSED->CLOSED
+      x-mvp-scope: MVP
+  /recruiter/jobs/{jobId}/applicant-recommendations:
+    get:
+      tags:
+      - Applications
+      summary: AI-rank eligible applicants for one own-company job
+      operationId: recommendApplicantsForRecruiterJob
+      x-status: DRAFT
+      x-clients:
+      - Recruiter
+      x-permission: Recruiter; own-company job; cross-company resources return 404
+      parameters:
+      - $ref: '#/components/parameters/JobId'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: pageSize
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      responses:
+        '200':
+          description: Ranked eligible applicants, or deterministic fallback when ML is unavailable; empty data when there are no eligible applicants.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecruiterApplicantRecommendationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Ranks APPLIED/IN_REVIEW/INTERVIEW applications for the recruiter's own job via the ML reverse endpoint;
+        falls back to deterministic rules when the model is unavailable (meta.modelStatus=DEGRADED). Returns 422
+        RECOMMENDATION_INPUT_LIMIT when more than 500 eligible applicants exist (no silent truncation). Read-only; no
+        snapshots are stored.
       x-mvp-scope: MVP
   /recruiter/applications:
     get:
@@ -1926,7 +2214,7 @@ paths:
       x-status: IMPLEMENTED
       x-clients:
       - Recruiter
-      x-permission: Recruiter participant; own-company jobs
+      x-permission: Recruiter participant; own-company conversations
       parameters:
       - name: q
         in: query
@@ -1936,6 +2224,15 @@ paths:
         in: query
         schema:
           type: boolean
+      - name: applicationId
+        in: query
+        required: false
+        description: When provided, restricts the list to the single conversation of this
+          application within the recruiter's own company. A non-UUID value is rejected with
+          VALIDATION_ERROR; a UUID that matches no own-company application returns an empty list.
+        schema:
+          type: string
+          format: uuid
       - $ref: '#/components/parameters/Page'
       - $ref: '#/components/parameters/PageSize'
       responses:
@@ -1958,7 +2255,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         '403':
           $ref: '#/components/responses/Forbidden'
-      description: 'Permission: Recruiter participant; own-company jobs. Status: IMPLEMENTED. Clients: Recruiter.'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: 'Permission: Recruiter participant; own-company conversations. Status: IMPLEMENTED. Clients: Recruiter.'
       x-mvp-scope: MVP
   /recruiter/conversations/{conversationId}:
     get:
@@ -3076,12 +3375,14 @@ components:
       - APPLIED
       - IN_REVIEW
       - INTERVIEW
+      - OFFERED
       - REJECTED
       - WITHDRAWN
       description: 'MVP lifecycle: APPLIED->IN_REVIEW|REJECTED|WITHDRAWN; IN_REVIEW->INTERVIEW|REJECTED|WITHDRAWN;
-        INTERVIEW->REJECTED|WITHDRAWN; REJECTED and WITHDRAWN are terminal. Recruiter cannot set WITHDRAWN; Candidate
-        can only withdraw their own application. NOT_APPLIED is intentionally excluded. OFFERED/HIRED are deferred
-        to a future Offer resource.'
+        INTERVIEW->OFFERED|REJECTED|WITHDRAWN; OFFERED, REJECTED and WITHDRAWN are terminal. Recruiter cannot set
+        WITHDRAWN; Candidate can only withdraw their own application. NOT_APPLIED is intentionally excluded. OFFERED
+        means the recruiter has issued a hiring decision and does not imply candidate acceptance; it is not a salary
+        contract or onboarding flow.'
     SubmitApplicationRequest:
       type: object
       additionalProperties: false
@@ -3357,6 +3658,31 @@ components:
           - type: 'null'
         location:
           type: string
+        age:
+          oneOf:
+          - type: integer
+            minimum: 16
+            maximum: 100
+          - type: 'null'
+        gender:
+          oneOf:
+          - type: string
+            enum:
+            - MALE
+            - FEMALE
+            - OTHER
+            - PREFER_NOT_TO_SAY
+          - type: 'null'
+        phone:
+          oneOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+        birthplace:
+          oneOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
         stats:
           $ref: '#/components/schemas/CandidateStats'
         version:
@@ -3387,6 +3713,31 @@ components:
         location:
           type: string
           maxLength: 100
+        age:
+          oneOf:
+          - type: integer
+            minimum: 16
+            maximum: 100
+          - type: 'null'
+        gender:
+          oneOf:
+          - type: string
+            enum:
+            - MALE
+            - FEMALE
+            - OTHER
+            - PREFER_NOT_TO_SAY
+          - type: 'null'
+        phone:
+          oneOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+        birthplace:
+          oneOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
         expectedVersion:
           type: integer
           minimum: 1
@@ -3474,24 +3825,10 @@ components:
     SaveResumeRequest:
       type: object
       required:
-      - fullName
-      - age
-      - location
-      - headline
       - summary
       - experiences
       - expectedVersion
       properties:
-        fullName:
-          type: string
-        age:
-          type: integer
-          minimum: 16
-          maximum: 100
-        location:
-          type: string
-        headline:
-          type: string
         summary:
           type: string
         skills:
@@ -3643,6 +3980,7 @@ components:
       - matchScore
       - rank
       - matchAnalysis
+      - isSaved
       properties:
         jobId:
           type: string
@@ -3681,6 +4019,8 @@ components:
           minimum: 1
         matchAnalysis:
           $ref: '#/components/schemas/MatchAnalysis'
+        isSaved:
+          type: boolean
     RecommendationMeta:
       type: object
       required:
@@ -3690,7 +4030,10 @@ components:
       - modelStatus
       - inferenceMs
       - generatedAt
-      - limit
+      - page
+      - pageSize
+      - total
+      - hasNext
       properties:
         source:
           type: string
@@ -3708,10 +4051,20 @@ components:
         generatedAt:
           type: string
           format: date-time
-        limit:
+        page:
           type: integer
           minimum: 1
-          maximum: 100
+        pageSize:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+          description: Number of candidate jobs matching the current q/employmentType
+            filters (capped at 100), before paging.
+        hasNext:
+          type: boolean
+          description: True when a further page of ranked results is available.
     LearningFeature:
       type: object
       required:
@@ -4033,8 +4386,78 @@ components:
             format: date-time
             pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
           - type: 'null'
-      description: Optional advisory display data only. It MUST NOT grant access or automatically decide hire, rejection,
-        or status transitions. MVP may return null when ML is unavailable; core job/application flows must continue.
+      description: Advisory, explainable match data reused from the candidate's persisted candidate-job recommendation
+        snapshot. It is only populated when the snapshot is still valid for the candidate's current resume, preference
+        and job versions; otherwise it is null. It MUST NOT grant access or decide a status transition on its own.
+        MVP may return null when no valid snapshot exists; core job/application flows must continue.
+    RecruiterApplicantRecommendationResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecommendedApplicant'
+        meta:
+          $ref: '#/components/schemas/RecommendationMeta'
+    RecommendedApplicant:
+      type: object
+      required:
+      - applicationId
+      - candidate
+      - status
+      - appliedAt
+      - matchScore
+      - rank
+      - matchAnalysis
+      properties:
+        applicationId:
+          type: string
+        candidate:
+          $ref: '#/components/schemas/RecruiterApplicantCandidateSummary'
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        appliedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+          description: ISO-8601 UTC date-time; the value MUST end with Z.
+        matchScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        rank:
+          type: integer
+          minimum: 1
+        matchAnalysis:
+          $ref: '#/components/schemas/MatchAnalysis'
+    RecruiterApplicantCandidateSummary:
+      type: object
+      required:
+      - candidateId
+      - fullName
+      properties:
+        candidateId:
+          type: string
+        fullName:
+          type: string
+        headline:
+          oneOf:
+          - type: string
+          - type: 'null'
+        avatarUrl:
+          oneOf:
+          - type: string
+            format: uri
+          - type: 'null'
+        location:
+          oneOf:
+          - type: string
+          - type: 'null'
+      description: Safe applicant summary for the ranking list. Email and the full resume are intentionally omitted;
+        open the application detail to view them.
     Application:
       type: object
       required:
@@ -4082,6 +4505,9 @@ components:
               minimum: 0
               maximum: 100
             - type: 'null'
+            description: Advisory AI fit score reused from the candidate's persisted, still-valid candidate-job
+              recommendation snapshot (valid for the candidate's current resume, preference and job versions). It is
+              null when no such snapshot exists or it is stale; clients MUST render null as an empty dash, never as 0.
           owner:
             oneOf:
             - $ref: '#/components/schemas/User'
@@ -4328,6 +4754,9 @@ components:
             oneOf:
             - $ref: '#/components/schemas/MatchAnalysis'
             - type: 'null'
+            description: Explainable breakdown of the stored match score (evidence, strong matches, gaps, model and
+              generation time). Null when the persisted recommendation snapshot is absent or stale; clients render an
+              "AI analysis unavailable" empty state rather than hiding the panel.
           interview:
             oneOf:
             - $ref: '#/components/schemas/Interview'
@@ -4440,6 +4869,35 @@ components:
             description: ISO-8601 UTC date-time; the value MUST end with Z.
         description: Recruiter-only self profile. Does not expose role, password hash, refresh token, Google OAuth
           data, or resume bodies.
+      AvatarMetadata:
+        type: object
+        required:
+        - userId
+        - avatarUrl
+        - contentType
+        - sizeBytes
+        - updatedAt
+        properties:
+          userId:
+            type: string
+          avatarUrl:
+            type: string
+            description: Stable server-generated API path, e.g. /api/v1/avatars/{userId}
+          contentType:
+            type: string
+            enum:
+            - image/png
+            - image/jpeg
+          sizeBytes:
+            type: integer
+            format: int64
+          updatedAt:
+            type: string
+            format: date-time
+            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+            description: ISO-8601 UTC date-time; the value MUST end with Z.
+        description: Safe avatar metadata returned by upload. Contains no binary content, email, tokens, or filesystem
+          paths.
       UpdateRecruiterProfileRequest:
         type: object
         additionalProperties: false
@@ -4457,14 +4915,9 @@ components:
             - type: string
               maxLength: 1000
             - type: 'null'
-          avatarUrl:
-            oneOf:
-            - type: string
-              format: uri
-              maxLength: 500
-            - type: 'null'
-        description: PATCH partial update. Only fullName, title, bio, and avatarUrl are accepted; read-only fields are
-          rejected as unknown fields. Title is required when the server has no existing recruiter profile row.
+        description: PATCH partial update. Only fullName, title, and bio are accepted; avatarUrl and other read-only
+          fields are rejected as unknown fields. Title is required when the server has no existing recruiter profile
+          row.
 
     UpdateCompanyRequest:
       type: object
@@ -4651,6 +5104,7 @@ components:
       - applied
       - inReview
       - interview
+      - offered
       - rejected
       properties:
         applied:
@@ -4660,6 +5114,9 @@ components:
           type: integer
           minimum: 0
         interview:
+          type: integer
+          minimum: 0
+        offered:
           type: integer
           minimum: 0
         rejected:
@@ -4689,6 +5146,7 @@ components:
           enum:
           - IN_REVIEW
           - INTERVIEW
+          - OFFERED
           - REJECTED
         reason:
           type: string
@@ -4827,6 +5285,8 @@ components:
             oneOf:
             - $ref: '#/components/schemas/RecruiterContact'
             - type: 'null'
+          isSaved:
+            type: boolean
         description: Candidate projection. Public Candidate job results contain ACTIVE jobs only.
     CandidateJobDetail:
       allOf:

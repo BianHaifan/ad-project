@@ -3,6 +3,7 @@ package com.adproject.application.infrastructure;
 import com.adproject.application.domain.ApplicationStatus;
 import java.util.Optional;
 import java.util.Collection;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -18,6 +19,9 @@ public interface ApplicationRepository extends JpaRepository<ApplicationEntity, 
     @Query("select application.status from ApplicationEntity application " +
             "where application.jobId = :jobId and application.candidateId = :candidateId")
     Optional<ApplicationStatus> findStatus(@Param("jobId") String jobId, @Param("candidateId") String candidateId);
+
+    List<ApplicationEntity> findByJobIdAndStatusInOrderByAppliedAtAscIdAsc(String jobId,
+                                                                           Collection<ApplicationStatus> statuses);
 
     Page<ApplicationEntity> findByCandidateId(String candidateId, Pageable pageable);
     Page<ApplicationEntity> findByCandidateIdAndStatusIn(String candidateId, Collection<ApplicationStatus> statuses,

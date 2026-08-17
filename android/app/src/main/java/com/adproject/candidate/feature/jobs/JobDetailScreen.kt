@@ -39,13 +39,12 @@ import com.adproject.candidate.core.designsystem.FigmaSvg
 import com.adproject.candidate.core.designsystem.PrimaryButton
 import com.adproject.candidate.core.designsystem.SecondaryButton
 import com.adproject.candidate.core.designsystem.TagChip
-import com.adproject.candidate.data.model.JobDetailData
 import com.adproject.candidate.data.contract.CandidateJobApplicationState
 
 @Composable
 fun JobDetailScreen(state: JobDetailUiState, onBack: () -> Unit, onRetry: () -> Unit,
                     onApply: (String) -> Unit, onViewCompany: (String) -> Unit,
-                    onViewRecruiter: (String) -> Unit) {
+                    onViewRecruiter: (String) -> Unit, onToggleSave: () -> Unit) {
     when {
         state.loading -> Box(Modifier.fillMaxSize().background(AdBackground), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = AdTeal)
@@ -60,15 +59,32 @@ fun JobDetailScreen(state: JobDetailUiState, onBack: () -> Unit, onRetry: () -> 
                 if (!state.notFound) PrimaryButton("Try again", onRetry)
             }
         }
-        else -> JobDetailContent(state.data, onBack, onApply, onViewCompany, onViewRecruiter)
+        else -> JobDetailContent(state, onBack, onApply, onViewCompany, onViewRecruiter, onToggleSave)
     }
 }
 
 @Composable
-private fun JobDetailContent(data: JobDetailData, onBack: () -> Unit, onApply: (String) -> Unit,
-                             onViewCompany: (String) -> Unit, onViewRecruiter: (String) -> Unit) {
+private fun JobDetailContent(state: JobDetailUiState, onBack: () -> Unit, onApply: (String) -> Unit,
+                             onViewCompany: (String) -> Unit, onViewRecruiter: (String) -> Unit,
+                             onToggleSave: () -> Unit) {
+    val data = state.data ?: return
     Column(Modifier.fillMaxSize().background(AdBackground)) {
-        AdTopBar("Job details", onBack) { Text("Save unavailable", color = AdMuted, fontSize = 10.sp) }
+        AdTopBar("Job details", onBack) {
+            Text(
+                if (state.isSaved) "Saved" else "Save",
+                Modifier.clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = !state.saving) { onToggleSave() }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                color = if (state.isSaved) AdTealDark else AdMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        state.saveError?.let { message ->
+            Text(message, Modifier.fillMaxWidth().background(Color.White)
+                .padding(horizontal = 18.dp, vertical = 6.dp),
+                color = Color(0xFFB42318), fontSize = 12.sp)
+        }
         Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 18.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             SecondaryButton(data.job.match?.let { "AI Match $it%" } ?: "Match unavailable", {},
                 Modifier.weight(1f), enabled = false)
@@ -144,6 +160,7 @@ private fun CandidateJobApplicationState.displayLabel() = when (this) {
     CandidateJobApplicationState.APPLIED -> "Applied"
     CandidateJobApplicationState.IN_REVIEW -> "In review"
     CandidateJobApplicationState.INTERVIEW -> "Interview"
+    CandidateJobApplicationState.OFFERED -> "Offer received"
     CandidateJobApplicationState.REJECTED -> "Rejected"
     CandidateJobApplicationState.WITHDRAWN -> "Withdrawn"
 }

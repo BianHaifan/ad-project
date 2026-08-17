@@ -9,8 +9,8 @@ const failIfDemoError = async () => {
 
 type MockOnlyRepository = Omit<RecruiterRepository,
   'listJobs' | 'getJob' | 'createJob' | 'updateJob' | 'publishJob' | 'changeJobStatus' |
-  'listApplications' | 'getApplication' | 'updateApplicationStatus' | 'getDashboard' |
-    'getRecruiterProfile' | 'updateRecruiterProfile' |
+  'listApplications' | 'listApplicantRecommendations' | 'getApplication' | 'updateApplicationStatus' | 'getDashboard' |
+    'getRecruiterProfile' | 'updateRecruiterProfile' | 'uploadAvatar' | 'deleteAvatar' |
   'createInterview' | 'updateInterview' |
   'listConversations' | 'getConversation' | 'listMessages' | 'sendMessage' | 'sendMessageWithAttachment' |
   'downloadAttachment' | 'markRead' |

@@ -5,6 +5,7 @@ import {dashboardHttpClient} from './dashboardHttpClient';
 import {conversationHttpClient} from './conversationHttpClient';
 import {googleOAuthHttpClient} from './googleOAuthHttpClient';
 import {recruiterProfileHttpClient} from './recruiterProfileHttpClient';
+import {avatarHttpClient} from './avatarHttpClient';
 import type {RecruiterRepository} from './recruiterRepository';
 
 export type RecruiterBusinessRepository = Omit<RecruiterRepository, 'signIn' | 'register'>;
@@ -15,6 +16,8 @@ export const recruiterRepository: RecruiterBusinessRepository = {
   getDashboard: () => dashboardHttpClient.getDashboard(),
     getRecruiterProfile: () => recruiterProfileHttpClient.getProfile(),
     updateRecruiterProfile: input => recruiterProfileHttpClient.updateProfile(input),
+  uploadAvatar: file => avatarHttpClient.upload(file),
+  deleteAvatar: () => avatarHttpClient.delete(),
   listJobs: params => jobHttpClient.listJobs(params),
   getJob: jobId => jobHttpClient.getJob(jobId),
   createJob: input => jobHttpClient.createJob(input),
@@ -23,12 +26,13 @@ export const recruiterRepository: RecruiterBusinessRepository = {
   changeJobStatus: (jobId, status, reason, expectedVersion) =>
     jobHttpClient.changeJobStatus(jobId, status, reason, expectedVersion),
   listApplications: params => applicationHttpClient.listApplications(params),
+  listApplicantRecommendations: (jobId, params) => applicationHttpClient.listApplicantRecommendations(jobId, params),
   getApplication: applicationId => applicationHttpClient.getApplication(applicationId),
   updateApplicationStatus: (applicationId, status, reason, expectedVersion) =>
     applicationHttpClient.updateApplicationStatus(applicationId, status, reason, expectedVersion),
   createInterview: (applicationId, input) => applicationHttpClient.createInterview(applicationId, input),
   updateInterview: (interviewId, input) => applicationHttpClient.updateInterview(interviewId, input),
-  listConversations: () => conversationHttpClient.listConversations(),
+  listConversations: applicationId => conversationHttpClient.listConversations(applicationId),
   getConversation: conversationId => conversationHttpClient.getConversation(conversationId),
   listMessages: conversationId => conversationHttpClient.listMessages(conversationId),
   sendMessage: (conversationId, body) => conversationHttpClient.sendMessage(conversationId, body),

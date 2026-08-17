@@ -65,6 +65,12 @@ export class AuthSessionStore {
     return replacement;
   }
 
+  updateAvatarUrl(avatarUrl: string | null): void {
+    const current = this.snapshot;
+    if (!current || current.user.avatarUrl === avatarUrl) return;
+    this.save({...current, user: {...current.user, avatarUrl}});
+  }
+
   clear(): void {
     this.sessionStorage.removeItem(SESSION_KEY);
     this.persistentStorage.removeItem(SESSION_KEY);

@@ -181,6 +181,20 @@ class CandidateApplicationQueryIntegrationTest {
         withdraw(recruiter, applicationId, 2, 403, "FORBIDDEN");
     }
 
+    @Test
+    void offeredIsArchivedAndCannotBeWithdrawn() throws Exception {
+        Fixture owner = fixture(UserRole.CANDIDATE);
+        String applicationId = submit(owner, addJob(owner, "Offered role"));
+        setStatus(applicationId, "OFFERED", 2, owner, "INTERVIEW", Instant.now());
+
+        mvc.perform(get("/api/v1/candidate/applications").header("Authorization", bearer(owner))
+                        .param("filter", "ARCHIVED"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].status").value("OFFERED"));
+
+        withdraw(owner, applicationId, 2, 409, "INVALID_APPLICATION_TRANSITION");
+    }
+
     private void withdraw(Fixture fixture, String applicationId, int version, int expected, String code) throws Exception {
         var result = mvc.perform(post("/api/v1/candidate/applications/{id}/withdraw", applicationId)
                 .header("Authorization", bearer(fixture)).contentType(MediaType.APPLICATION_JSON)

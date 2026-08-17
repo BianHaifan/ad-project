@@ -4,7 +4,6 @@ import com.adproject.job.domain.EmploymentType;
 import com.adproject.job.domain.SalaryCurrency;
 import com.adproject.job.domain.SalaryPeriod;
 import com.adproject.job.domain.WorkplaceType;
-import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -57,7 +56,8 @@ public final class RecommendationDtos {
             List<String> skills,
             int matchScore,
             int rank,
-            MatchAnalysis matchAnalysis) {}
+            MatchAnalysis matchAnalysis,
+            boolean isSaved) {}
 
     public record MatchAnalysis(
             List<String> strongMatches,
@@ -71,5 +71,8 @@ public final class RecommendationDtos {
             String modelStatus,
             int inferenceMs,
             Instant generatedAt,
-            @Min(1) @Max(100) int limit) {}
+            int page,
+            int pageSize,
+            int total,
+            boolean hasNext) {}
 }

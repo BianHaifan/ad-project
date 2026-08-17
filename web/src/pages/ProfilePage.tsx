@@ -1,41 +1,73 @@
-import {useEffect, useRef, useState, type FormEvent} from 'react';
+import {useEffect, useRef, useState, type ChangeEvent, type FormEvent} from 'react';
+import {useSearchParams} from 'react-router-dom';
 import {AuthApiError} from '../api/authClient';
-import {useRecruiterProfile, useUpdateRecruiterProfile} from '../api/queries';
+import {authSession, type AuthSessionStore} from '../api/authSession';
+import {useDeleteAvatar, useRecruiterProfile, useUpdateRecruiterProfile, useUploadAvatar} from '../api/queries';
 import {ErrorState, LoadingState} from '../components/AsyncState';
+import {GoogleConnectionSection} from '../components/GoogleConnectionSection';
 import {PageHeader} from '../components/PageHeader';
+import {parseOAuthCallbackResult, type GoogleOAuthCallbackResult} from '../lib/googleOAuth';
+import type {RecruiterProfileDetail} from '../models/recruiter';
 
+type Redirect = (url: string) => void;
+const defaultRedirect: Redirect = url => window.location.assign(url);
+
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+
+const RESULT_COPY: Record<GoogleOAuthCallbackResult, {tone: 'success' | 'info' | 'warn'; message: string}> = {
+  connected: {tone: 'success', message: 'Successfully connected to Google.'},
+  denied: {tone: 'info', message: 'You cancelled the Google authorization.'},
+  failed: {tone: 'warn', message: "The connection wasn't completed. You can try again."},
+};
 
 interface ProfileForm {
   fullName: string;
   title: string;
   bio: string;
-  avatarUrl: string;
 }
 
-export function ProfilePage() {
+export function ProfilePage({redirect = defaultRedirect, sessions = authSession}: {
+  redirect?: Redirect;
+  sessions?: AuthSessionStore;
+}) {
   const query = useRecruiterProfile();
   const update = useUpdateRecruiterProfile();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Capture the callback result once, before the URL is cleared, so it stays visible for this
+  // render while a refresh or back/forward no longer replays it.
+  const [callbackResult] = useState<GoogleOAuthCallbackResult | null>(() =>
+    parseOAuthCallbackResult(searchParams.get('googleOAuth')));
   const submittingRef = useRef(false);
   const initialized = useRef(false);
-  const [form, setForm] = useState<ProfileForm>({fullName: '', title: '', bio: '', avatarUrl: ''});
+  const [form, setForm] = useState<ProfileForm>({fullName: '', title: '', bio: ''});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pageError, setPageError] = useState('');
   const [saved, setSaved] = useState('');
 
+  // The page carries no legitimate query parameters; drop whatever arrived so the OAuth
+  // notice cannot be re-read on refresh. Unknown params are never rendered or forwarded.
+  useEffect(() => {
+    if (searchParams.toString()) setSearchParams({}, {replace: true});
+  }, [searchParams, setSearchParams]);
+
   useEffect(() => {
     if (query.data && !initialized.current) {
-      setForm({
-        fullName: query.data.fullName,
-        title: query.data.title,
-        bio: query.data.bio ?? '',
-        avatarUrl: query.data.avatarUrl ?? '',
-      });
+      setForm({fullName: query.data.fullName, title: query.data.title, bio: query.data.bio ?? ''});
       initialized.current = true;
     }
   }, [query.data]);
 
-  if (query.isLoading) return <LoadingState label="Loading your profile…"/>;
-  if (query.isError || !query.data) return <ErrorState onRetry={() => query.refetch()}/>;
+  const header = <>
+    <PageHeader title="Recruiter Profile" subtitle="Manage the profile shown to your hiring team."/>
+    {callbackResult && (
+      <div className={`oauth-banner ${RESULT_COPY[callbackResult].tone}`} role="status">
+        {RESULT_COPY[callbackResult].message}
+      </div>
+    )}
+  </>;
+
+  if (query.isLoading) return <>{header}<LoadingState label="Loading your profile…"/></>;
+  if (query.isError || !query.data) return <>{header}<ErrorState onRetry={() => query.refetch()}/></>;
   const profile = query.data;
 
   const set = <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => {
@@ -50,7 +82,6 @@ export function ProfilePage() {
     if (!form.title.trim()) next.title = 'Title is required.';
     else if (form.title.trim().length > 100) next.title = 'Title must not exceed 100 characters.';
     if (form.bio.length > 1000) next.bio = 'Bio must not exceed 1000 characters.';
-    if (form.avatarUrl.trim().length > 500) next.avatarUrl = 'Avatar URL must not exceed 500 characters.';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -66,14 +97,8 @@ export function ProfilePage() {
         fullName: form.fullName.trim(),
         title: form.title.trim(),
         bio: form.bio.trim() ? form.bio.trim() : null,
-        avatarUrl: form.avatarUrl.trim() ? form.avatarUrl.trim() : null,
       });
-      setForm({
-        fullName: updated.fullName,
-        title: updated.title,
-        bio: updated.bio ?? '',
-        avatarUrl: updated.avatarUrl ?? '',
-      });
+      setForm({fullName: updated.fullName, title: updated.title, bio: updated.bio ?? ''});
       setSaved('Profile saved');
     } catch (caught) {
       const presented = presentProfileError(caught);
@@ -84,8 +109,10 @@ export function ProfilePage() {
     }
   };
 
+  const onAvatarChanged = (avatarUrl: string | null) => sessions.updateAvatarUrl(avatarUrl);
+
   return <>
-    <PageHeader title="Recruiter Profile" subtitle="Manage the profile shown to your hiring team."/>
+    {header}
     {saved && <div className="autosave" role="status">{saved}</div>}
     {pageError && <div className="state-card error" role="alert"><span>{pageError}</span></div>}
     <div className="profile-layout">
@@ -103,33 +130,122 @@ export function ProfilePage() {
           <dt>Company</dt><dd>{profile.company.name}</dd>
           <dt>Registered</dt><dd>{formatDate(profile.createdAt)}</dd>
         </dl>
+        <AvatarSection profile={profile} onAvatarChanged={onAvatarChanged}/>
       </section>
-      <form className="panel form-section profile-form" onSubmit={submit} noValidate aria-busy={update.isPending}>
-        <h2>Edit profile</h2>
-        <label>FULL NAME
-          <input value={form.fullName} onChange={event => set('fullName', event.target.value)} maxLength={100}/>
-          {errors.fullName && <em>{errors.fullName}</em>}
-        </label>
-        <label>TITLE
-          <input value={form.title} onChange={event => set('title', event.target.value)} maxLength={100}/>
-          {errors.title && <em>{errors.title}</em>}
-        </label>
-        <label>BIO
-          <textarea rows={5} value={form.bio} onChange={event => set('bio', event.target.value)} maxLength={1000}/>
-          {errors.bio && <em>{errors.bio}</em>}
-        </label>
-        <label>AVATAR URL
-          <input value={form.avatarUrl} onChange={event => set('avatarUrl', event.target.value)} maxLength={500} placeholder="https://example.com/avatar.png"/>
-          {errors.avatarUrl && <em>{errors.avatarUrl}</em>}
-        </label>
-        <div className="actions">
-          <button type="submit" className="button primary" disabled={update.isPending}>
-            {update.isPending ? 'Saving…' : 'Save profile'}
-          </button>
-        </div>
-      </form>
+      <div className="profile-main">
+        <form className="panel form-section profile-form" onSubmit={submit} noValidate aria-busy={update.isPending}>
+          <h2>Edit profile</h2>
+          <label>FULL NAME
+            <input value={form.fullName} onChange={event => set('fullName', event.target.value)} maxLength={100}/>
+            {errors.fullName && <em>{errors.fullName}</em>}
+          </label>
+          <label>TITLE
+            <input value={form.title} onChange={event => set('title', event.target.value)} maxLength={100}/>
+            {errors.title && <em>{errors.title}</em>}
+          </label>
+          <label>BIO
+            <textarea rows={5} value={form.bio} onChange={event => set('bio', event.target.value)} maxLength={1000}/>
+            {errors.bio && <em>{errors.bio}</em>}
+          </label>
+          <div className="actions">
+            <button type="submit" className="button primary" disabled={update.isPending}>
+              {update.isPending ? 'Saving…' : 'Save profile'}
+            </button>
+          </div>
+        </form>
+        <GoogleConnectionSection redirect={redirect}/>
+      </div>
     </div>
   </>;
+}
+
+function AvatarSection({profile, onAvatarChanged}: {
+  profile: RecruiterProfileDetail;
+  onAvatarChanged: (avatarUrl: string | null) => void;
+}) {
+  const upload = useUploadAvatar();
+  const remove = useDeleteAvatar();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [message, setMessage] = useState<{tone: 'success' | 'error'; text: string} | null>(null);
+
+  // Release the browser object URL whenever the preview changes or the section unmounts,
+  // so a selected image never leaks an object URL.
+  useEffect(() => {
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+  }, [previewUrl]);
+
+  const choose = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = '';
+    setMessage(null);
+    if (!file) return;
+    const problem = validateAvatarFile(file);
+    if (problem) {
+      setMessage({tone: 'error', text: problem});
+      return;
+    }
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const clearSelection = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setSelectedFile(null);
+  };
+
+  const doUpload = async () => {
+    if (!selectedFile) return;
+    setMessage(null);
+    try {
+      const metadata = await upload.mutateAsync(selectedFile);
+      onAvatarChanged(metadata.avatarUrl);
+      clearSelection();
+      setMessage({tone: 'success', text: 'Avatar updated'});
+    } catch (caught) {
+      setMessage({tone: 'error', text: presentAvatarError(caught)});
+    }
+  };
+
+  const doRemove = async () => {
+    setMessage(null);
+    try {
+      await remove.mutateAsync();
+      onAvatarChanged(null);
+      clearSelection();
+      setMessage({tone: 'success', text: 'Avatar removed'});
+    } catch (caught) {
+      setMessage({tone: 'error', text: presentAvatarError(caught)});
+    }
+  };
+
+  const busy = upload.isPending || remove.isPending;
+
+  return <div className="avatar-editor">
+    <div className="section-title">
+      <div><h3>Avatar</h3><small>PNG or JPEG, up to 5 MB.</small></div>
+    </div>
+    {previewUrl && <img className="avatar xl profile-avatar" src={previewUrl} alt="Avatar preview"/>}
+    {message?.tone === 'error'
+      ? <div className="form-error" role="alert">{message.text}</div>
+      : message ? <div className="autosave" role="status">{message.text}</div> : null}
+    <div className="actions">
+      <label className="button secondary">
+        Choose image
+        <input type="file" accept="image/png,image/jpeg" onChange={choose} className="sr-only"/>
+      </label>
+      <button type="button" className="button primary" disabled={busy || !selectedFile} onClick={doUpload}>
+        {upload.isPending ? 'Uploading…' : 'Upload'}
+      </button>
+      {profile.avatarUrl && (
+        <button type="button" className="button danger" disabled={busy} onClick={doRemove}>
+          {remove.isPending ? 'Removing…' : 'Remove'}
+        </button>
+      )}
+    </div>
+  </div>;
 }
 
 function initials(fullName: string) {
@@ -138,6 +254,28 @@ function initials(fullName: string) {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString(undefined, {year: 'numeric', month: 'short', day: 'numeric'});
+}
+
+function validateAvatarFile(file: File): string {
+  if (file.type !== 'image/png' && file.type !== 'image/jpeg') {
+    return 'Please choose a PNG or JPEG image.';
+  }
+  if (file.size > MAX_AVATAR_BYTES) {
+    return 'The image must be 5 MB or smaller.';
+  }
+  return '';
+}
+
+function presentAvatarError(caught: unknown): string {
+  if (!(caught instanceof AuthApiError)) return 'Unable to update your avatar. Please try again.';
+  if (caught.code === 'FILE_TOO_LARGE') return 'The image must be 5 MB or smaller.';
+  if (caught.code === 'VALIDATION_ERROR') {
+    return 'That image could not be used. Please choose a PNG or JPEG under 5 MB.';
+  }
+  if (caught.code === 'NETWORK_ERROR') {
+    return 'Unable to reach the server. Check your connection and try again.';
+  }
+  return 'Unable to update your avatar. Please try again.';
 }
 
 function presentProfileError(caught: unknown): {fieldErrors: Record<string, string>; pageError: string} {

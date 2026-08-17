@@ -30,6 +30,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -39,12 +41,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +56,13 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.window.Dialog
 import com.adproject.candidate.R
 import com.adproject.candidate.core.designsystem.AdBackground
 import com.adproject.candidate.core.designsystem.AdBottomBar
@@ -169,7 +180,9 @@ fun ChatScreen(
     onSelectAttachment: (PendingAttachment) -> Unit,
     onRemoveAttachment: () -> Unit,
     onDownloadAttachment: (Message) -> Unit,
+    onOpenImage: (Message) -> Unit,
     onConsumeDownload: () -> Unit,
+    onCloseImagePreview: () -> Unit,
     onViewJob: (String) -> Unit,
     onViewRecruiter: (String) -> Unit,
 ) {
@@ -187,6 +200,9 @@ fun ChatScreen(
         val event = state.downloadEvent ?: return@LaunchedEffect
         openDownloadedAttachment(context, event)
         onConsumeDownload()
+    }
+    state.imagePreview?.let { preview ->
+        ImagePreviewDialog(preview, onCloseImagePreview)
     }
     Column(Modifier.fillMaxSize().background(AdBackground)) {
         ChatHeader(state.conversation, onBack, onViewRecruiter)
@@ -219,7 +235,15 @@ fun ChatScreen(
                         Text("No messages yet", color = AdMuted, fontSize = 13.sp)
                     }
                 } else {
-                    MessageList(state.messages, state.downloadingMessageId, onDownloadAttachment, Modifier.fillMaxWidth().weight(1f))
+                    MessageList(
+                        messages = state.messages,
+                        downloadingMessageId = state.downloadingMessageId,
+                        thumbnails = state.imageThumbnails,
+                        loadingThumbnails = state.loadingThumbnails,
+                        onOpenImage = onOpenImage,
+                        onDownload = onDownloadAttachment,
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
                 }
             }
         }
@@ -294,7 +318,15 @@ private fun JobContextCard(context: InterviewContext, jobId: String, onViewJob: 
 }
 
 @Composable
-private fun MessageList(messages: List<Message>, downloadingMessageId: String?, onDownload: (Message) -> Unit, modifier: Modifier = Modifier) {
+private fun MessageList(
+    messages: List<Message>,
+    downloadingMessageId: String?,
+    thumbnails: Map<String, ImagePreview>,
+    loadingThumbnails: Set<String>,
+    onOpenImage: (Message) -> Unit,
+    onDownload: (Message) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val listState = rememberLazyListState()
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
@@ -306,13 +338,27 @@ private fun MessageList(messages: List<Message>, downloadingMessageId: String?, 
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         items(messages, key = { it.messageId }) { message ->
-            MessageBubble(message, downloadingMessageId == message.messageId, onDownload)
+            MessageBubble(
+                message = message,
+                downloading = downloadingMessageId == message.messageId,
+                thumbnail = thumbnails[message.messageId],
+                thumbnailLoading = message.messageId in loadingThumbnails,
+                onOpenImage = onOpenImage,
+                onDownload = onDownload,
+            )
         }
     }
 }
 
 @Composable
-private fun MessageBubble(message: Message, downloading: Boolean, onDownload: (Message) -> Unit) {
+private fun MessageBubble(
+    message: Message,
+    downloading: Boolean,
+    thumbnail: ImagePreview?,
+    thumbnailLoading: Boolean,
+    onOpenImage: (Message) -> Unit,
+    onDownload: (Message) -> Unit,
+) {
     val sent = message.senderType == SenderType.CANDIDATE
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (sent) Arrangement.End else Arrangement.Start) {
         Column(
@@ -327,10 +373,62 @@ private fun MessageBubble(message: Message, downloading: Boolean, onDownload: (M
                 Text(message.body, color = if (sent) Color.White else AdText, fontSize = 13.sp, lineHeight = 18.sp)
             }
             message.attachment?.let { attachment ->
-                AttachmentChip(attachment, sent, downloading) { onDownload(message) }
+                if (isPreviewableImage(attachment.contentType)) {
+                    InlineImageAttachment(
+                        attachment = attachment,
+                        sent = sent,
+                        thumbnail = thumbnail,
+                        loading = thumbnailLoading,
+                        onOpen = { onOpenImage(message) },
+                        onFallbackClick = { onDownload(message) },
+                    )
+                } else {
+                    AttachmentChip(attachment, sent, downloading) { onDownload(message) }
+                }
             }
-            Text(formatMessageTime(message.sentAt), color = if (sent) Color(0xFFD4F5F2) else Color(0xFF6B7885), fontSize = 11.sp)
+            Text(formatMessageTime(message.sentAt), color = if (sent) Color.White else Color(0xFFD4F5F2), fontSize = 11.sp)
         }
+    }
+}
+
+@Composable
+private fun InlineImageAttachment(
+    attachment: MessageAttachment,
+    sent: Boolean,
+    thumbnail: ImagePreview?,
+    loading: Boolean,
+    onOpen: () -> Unit,
+    onFallbackClick: () -> Unit,
+) {
+    when {
+        thumbnail != null -> {
+            val bitmap: ImageBitmap? by produceState<ImageBitmap?>(initialValue = null, thumbnail.bytes) {
+                value = withContext(Dispatchers.Default) {
+                    runCatching { BitmapFactory.decodeByteArray(thumbnail.bytes, 0, thumbnail.bytes.size)?.asImageBitmap() }
+                        .getOrNull()
+                }
+            }
+            val decoded = bitmap
+            if (decoded != null) {
+                Image(
+                    bitmap = decoded,
+                    contentDescription = attachment.fileName,
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)
+                        .clip(RoundedCornerShape(10.dp)).clickable(onClick = onOpen),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                AttachmentChip(attachment, sent, downloading = false) { onFallbackClick() }
+            }
+        }
+        loading -> Box(
+            Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(10.dp))
+                .background(if (sent) Color(0x33FFFFFF) else Color(0xFFF0F2F4)),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator(Modifier.size(20.dp), color = AdTeal, strokeWidth = 2.dp)
+        }
+        else -> AttachmentChip(attachment, sent, downloading = false) { onFallbackClick() }
     }
 }
 
@@ -359,6 +457,55 @@ private fun AttachmentChip(attachment: MessageAttachment, sent: Boolean, downloa
                 formatBytes(attachment.sizeBytes),
                 color = if (sent) Color(0xFFD4F5F2) else AdMuted, fontSize = 11.sp,
             )
+        }
+    }
+}
+
+@Composable
+private fun ImagePreviewDialog(preview: ImagePreview, onClose: () -> Unit) {
+    val bitmap: Bitmap? by produceState<Bitmap?>(initialValue = null, preview) {
+        value = withContext(Dispatchers.Default) {
+            runCatching { BitmapFactory.decodeByteArray(preview.bytes, 0, preview.bytes.size) }.getOrNull()
+        }
+    }
+    Dialog(onDismissRequest = onClose) {
+        Surface(shape = RoundedCornerShape(16.dp), color = Color.White, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        preview.fileName,
+                        Modifier.weight(1f), color = AdText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "Close",
+                        Modifier.clickable(onClick = onClose),
+                        color = AdTeal, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                val decoded = bitmap
+                if (decoded != null) {
+                    Box(
+                        Modifier.fillMaxWidth().heightIn(max = 420.dp).clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFF0F2F4)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Image(
+                            decoded.asImageBitmap(),
+                            contentDescription = preview.fileName,
+                            modifier = Modifier.fillMaxWidth(),
+                            contentScale = ContentScale.Fit,
+                        )
+                    }
+                } else {
+                    Box(
+                        Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("This image could not be displayed.", color = AdMuted, fontSize = 13.sp)
+                    }
+                }
+            }
         }
     }
 }
