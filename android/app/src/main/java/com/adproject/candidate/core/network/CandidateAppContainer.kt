@@ -12,6 +12,7 @@ import com.adproject.candidate.data.api.RealCandidateJobRepository
 import com.adproject.candidate.data.api.CandidateProfileHttpApi
 import com.adproject.candidate.data.api.CandidateResumeHttpApi
 import com.adproject.candidate.data.api.RealCandidateProfileRepository
+import com.adproject.candidate.data.api.RealCandidateAvatarRepository
 import com.adproject.candidate.data.api.RealCandidateResumeRepository
 import com.adproject.candidate.data.api.CandidateApplicationHttpApi
 import com.adproject.candidate.data.api.RealCandidateApplicationRepository
@@ -21,6 +22,8 @@ import com.adproject.candidate.data.api.CandidateRecommendationHttpApi
 import com.adproject.candidate.data.api.RealCandidateRecommendationRepository
 import com.adproject.candidate.data.api.CandidatePublicProfileHttpApi
 import com.adproject.candidate.data.api.RealCandidatePublicProfileRepository
+import com.adproject.candidate.feature.community.CommunityHttpApi
+import com.adproject.candidate.feature.community.RealCommunityRepository
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import java.security.KeyStore
@@ -80,6 +83,7 @@ class CandidateAppContainer(context: Context) {
         moshi,
     )
     val candidateProfileRepository = RealCandidateProfileRepository(authenticatedRetrofit.create(CandidateProfileHttpApi::class.java), moshi)
+    val candidateAvatarRepository = RealCandidateAvatarRepository(authenticatedRetrofit.create(CandidateProfileHttpApi::class.java), moshi)
     val candidateResumeRepository = RealCandidateResumeRepository(authenticatedRetrofit.create(CandidateResumeHttpApi::class.java), moshi)
     val candidateApplicationRepository = RealCandidateApplicationRepository(
         authenticatedRetrofit.create(CandidateApplicationHttpApi::class.java), moshi,
@@ -92,6 +96,9 @@ class CandidateAppContainer(context: Context) {
     )
     val candidatePublicProfileRepository = RealCandidatePublicProfileRepository(
         authenticatedRetrofit.create(CandidatePublicProfileHttpApi::class.java), moshi,
+    )
+    val communityRepository = RealCommunityRepository(
+        authenticatedRetrofit.create(CommunityHttpApi::class.java), moshi,
     )
 
     private fun buildPinnedSslContext(context: Context): Pair<X509TrustManager, SSLSocketFactory> {

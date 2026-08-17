@@ -17,10 +17,11 @@ export class ConversationHttpClient {
     private readonly uuid: () => string = randomUuid,
   ) {}
 
-  async listConversations(): Promise<ConversationListResult> {
+  async listConversations(applicationId?: string): Promise<ConversationListResult> {
     const search = new URLSearchParams();
     search.set('page', '1');
     search.set('pageSize', '100');
+    if (applicationId) search.set('applicationId', applicationId);
     const payload = await this.client.requestWithAuth<unknown>(`${apiPaths.conversations}?${search}`);
     return parseConversationList(payload);
   }

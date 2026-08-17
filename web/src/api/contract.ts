@@ -25,7 +25,8 @@ export const apiPaths = {
   moderationDecision: (caseId: string) => `/admin/moderation/cases/${caseId}/decision`,
   auditEvents: '/admin/audit-events',
   me: '/recruiter/me',
-    recruiterProfile: '/recruiter/profile',
+  avatar: '/profile/avatar',
+  recruiterProfile: '/recruiter/profile',
   company: '/recruiter/company',
   dashboard: '/recruiter/dashboard',
   jobs: '/recruiter/jobs',
@@ -33,6 +34,7 @@ export const apiPaths = {
   publishJob: (jobId: string) => `/recruiter/jobs/${jobId}/publish`,
   jobStatus: (jobId: string) => `/recruiter/jobs/${jobId}/status`,
   applications: '/recruiter/applications',
+  applicantRecommendations: (jobId: string) => `/recruiter/jobs/${jobId}/applicant-recommendations`,
   application: (applicationId: string) => `/recruiter/applications/${applicationId}`,
   transitions: (applicationId: string) => `/recruiter/applications/${applicationId}/transitions`,
   owner: (applicationId: string) => `/recruiter/applications/${applicationId}/owner`,
@@ -51,6 +53,10 @@ export const apiPaths = {
   googleOAuthAuthorize: '/recruiter/google-oauth/authorize',
   googleOAuthStatus: '/recruiter/google-oauth/status',
   googleOAuth: '/recruiter/google-oauth',
+  communityPosts: '/community/posts',
+  communityPost: (postId: string) => `/community/posts/${postId}`,
+  communityLike: (postId: string) => `/community/posts/${postId}/like`,
+  communityComments: (postId: string) => `/community/posts/${postId}/comments`,
 } as const;
 
 export function readData<T>(response: DataEnvelope<T>): T { return response.data }

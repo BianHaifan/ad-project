@@ -47,6 +47,12 @@ describe('ConversationHttpClient', () => {
     expect(requestWithAuth).toHaveBeenCalledWith('/recruiter/conversations?page=1&pageSize=100');
   });
 
+  it('passes applicationId as a URL-encoded query parameter for exact lookup', async () => {
+    const {client, requestWithAuth} = setup({data: [], meta: {page: 1, pageSize: 100, total: 0, hasNext: false}});
+    await client.listConversations('app-1');
+    expect(requestWithAuth).toHaveBeenCalledWith('/recruiter/conversations?page=1&pageSize=100&applicationId=app-1');
+  });
+
   it('accepts an empty list with a null last message', async () => {
     const {client} = setup({data: [{...summary, lastMessage: null, unreadCount: 0}],
       meta: {page: 1, pageSize: 100, total: 1, hasNext: false}});

@@ -30,6 +30,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/logout").authenticated()
                         .requestMatchers("/api/v1/recruiter/google-oauth/callback").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("PLATFORM_ADMIN")
+                        .requestMatchers("/api/v1/avatars/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, exception) -> errorWriter.write(request, response,

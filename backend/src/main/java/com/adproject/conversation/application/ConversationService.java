@@ -156,10 +156,16 @@ public class ConversationService {
     // ---- Recruiter endpoints ----
 
     @Transactional(readOnly = true)
-    public ListResponse listRecruiter(AuthenticatedUser principal, String q, boolean unreadOnly, int page, int pageSize) {
+    public ListResponse listRecruiter(AuthenticatedUser principal, String q, boolean unreadOnly, int page, int pageSize,
+                                      String applicationId) {
         String companyId = requireCompany(principal);
+        String application = optionalUuid(applicationId, "applicationId");
         Specification<ConversationEntity> specification = (root, query, cb) ->
                 cb.equal(root.get("companyId"), companyId);
+        if (application != null) {
+            specification = specification.and((root, query, cb) ->
+                    cb.equal(root.get("applicationId"), application));
+        }
         if (q != null && !q.isBlank()) {
             String value = "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
             specification = specification.and((root, query, cb) -> {
@@ -645,6 +651,13 @@ public class ConversationService {
 
     private static SenderType senderType(UserRole role) {
         return role == UserRole.CANDIDATE ? SenderType.CANDIDATE : SenderType.RECRUITER;
+    }
+
+    private static String optionalUuid(String value, String field) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return requireUuid(value, field);
     }
 
     private static String requireUuid(String value, String field) {

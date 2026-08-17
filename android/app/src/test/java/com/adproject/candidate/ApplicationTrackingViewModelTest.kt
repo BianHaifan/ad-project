@@ -101,6 +101,7 @@ class ApplicationTrackingViewModelTest {
     @Test fun terminalStatesCannotWithdrawAndFailureNeverChangesLocalState() = runTest(main.dispatcher) {
         assertFalse(ApplicationDetailViewModel.canWithdraw(ApplicationStatus.REJECTED))
         assertFalse(ApplicationDetailViewModel.canWithdraw(ApplicationStatus.WITHDRAWN))
+        assertFalse(ApplicationDetailViewModel.canWithdraw(ApplicationStatus.OFFERED))
         assertTrue(ApplicationDetailViewModel.canWithdraw(ApplicationStatus.INTERVIEW))
         val repository = TrackingRepository(
             detailResults = mutableListOf(ApiResult.Success(detail())),

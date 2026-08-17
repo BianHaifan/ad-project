@@ -39,8 +39,9 @@ public class RecruiterConversationController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false, defaultValue = "false") boolean unreadOnly,
             @RequestParam(defaultValue = "1") @Min(1) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int pageSize) {
-        return service.listRecruiter(user, q, unreadOnly, page, pageSize);
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int pageSize,
+            @RequestParam(required = false) String applicationId) {
+        return service.listRecruiter(user, q, unreadOnly, page, pageSize, applicationId);
     }
 
     @GetMapping("/{conversationId}")

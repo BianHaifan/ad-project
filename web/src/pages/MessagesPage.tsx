@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type ChangeEvent, type FormEvent} from 'react';
+import {useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {
   useConversation, useConversations, useDownloadAttachment, useMarkConversationRead, useMessages,
@@ -14,6 +14,61 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isPreviewableImage(contentType: string): boolean {
+  return contentType === 'image/png' || contentType === 'image/jpeg';
+}
+
+function MessageImageAttachment({conversationId, message, onDownload}: {
+  conversationId: string;
+  message: Message;
+  onDownload: () => void;
+}) {
+  const attachment = message.attachment!;
+  const preview = useDownloadAttachment();
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    preview.mutate({id: conversationId, messageId: message.messageId}, {
+      onSuccess: blob => { if (!cancelled) setObjectUrl(URL.createObjectURL(blob)); },
+      onError: () => { if (!cancelled) setFailed(true); },
+    });
+    return () => { cancelled = true; };
+    // Stable deps: only re-download when the message identity changes, not on every poll re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, message.messageId]);
+
+  useEffect(() => () => { if (objectUrl) URL.revokeObjectURL(objectUrl); }, [objectUrl]);
+
+  if (failed) {
+    return (
+      <div className="message-image-fallback">
+        <small>Image preview unavailable.</small>
+        <button type="button" className="message-attachment" onClick={onDownload}>
+          <span>📎 {attachment.fileName}</span>
+          <small>{formatBytes(attachment.sizeBytes)}</small>
+        </button>
+      </div>
+    );
+  }
+
+  if (!objectUrl) {
+    return <div className="message-image-loading" aria-label="Loading image preview">Loading image…</div>;
+  }
+
+  return (
+    <img className="message-image" src={objectUrl} alt={attachment.fileName}
+      onError={() => { setFailed(true); setObjectUrl(null); }}/>
+  );
+}
+
+function ComposerImagePreview({file}: {file: File}) {
+  const objectUrl = useMemo(() => URL.createObjectURL(file), [file]);
+  useEffect(() => () => URL.revokeObjectURL(objectUrl), [objectUrl]);
+  return <img className="composer-image" src={objectUrl} alt={file.name}/>;
 }
 
 export function MessagesPage() {
@@ -138,14 +193,17 @@ export function MessagesPage() {
                 : messageList.map(message => (
                   <div key={message.messageId} className={`message ${message.senderType.toLowerCase()}`}>
                     {message.body && <span>{message.body}</span>}
-                    {message.attachment && (
+                    {message.attachment && (isPreviewableImage(message.attachment.contentType) ? (
+                      <MessageImageAttachment conversationId={activeId} message={message}
+                        onDownload={() => onDownload(message)}/>
+                    ) : (
                       <button type="button" className="message-attachment"
                         disabled={download.isPending}
                         onClick={() => onDownload(message)}>
                         <span>📎 {message.attachment.fileName}</span>
                         <small>{formatBytes(message.attachment.sizeBytes)}</small>
                       </button>
-                    )}
+                    ))}
                     {message.senderType !== 'SYSTEM' &&
                       <small>{new Date(message.sentAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</small>}
                   </div>
@@ -154,7 +212,10 @@ export function MessagesPage() {
             <form className="message-composer" onSubmit={submit}>
               {attachment && (
                 <div className="attachment-preview">
-                  <span className="file-name">📎 {attachment.name} · {formatBytes(attachment.size)}</span>
+                  <span className="composer-file">
+                    {isPreviewableImage(attachment.type) && <ComposerImagePreview file={attachment}/>}
+                    <span className="file-name">📎 {attachment.name} · {formatBytes(attachment.size)}</span>
+                  </span>
                   <button type="button" className="text-button" aria-label="Remove attachment"
                     onClick={() => setAttachment(null)}>Remove</button>
                 </div>

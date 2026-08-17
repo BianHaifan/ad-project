@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {createMemoryRouter, RouterProvider} from 'react-router-dom';
-import {afterEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {AuthApiError} from '../api/authClient';
 import {recruiterRepository} from '../api/repository';
 import type {ConversationDetail, ConversationSummary, Message} from '../models/recruiter';
@@ -19,6 +19,11 @@ const candidateMessage: Message = {
 
 const recruiterMessage: Message = {
   ...candidateMessage, messageId: 'msg-2', body: 'Thanks for applying', senderType: 'RECRUITER', clientMessageId: 'client-10',
+};
+
+const imageMessage: Message = {
+  ...candidateMessage, messageId: 'msg-img', body: '',
+  attachment: {attachmentId: 'att-img', fileName: 'photo.png', sizeBytes: 42, contentType: 'image/png'},
 };
 
 const summary: ConversationSummary = {
@@ -53,6 +58,10 @@ function mockConversation() {
 }
 
 describe('MessagesPage', () => {
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => 'blob:mock-url') as typeof URL.createObjectURL;
+    URL.revokeObjectURL = vi.fn(() => {}) as typeof URL.revokeObjectURL;
+  });
   afterEach(() => {cleanup(); vi.restoreAllMocks();});
 
   it('renders list, header and messages using only backend unread data', async () => {
@@ -136,5 +145,74 @@ describe('MessagesPage', () => {
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith('conv-1', 'hello'));
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not be sent/i);
     expect(screen.getByPlaceholderText('Write a message…')).toHaveValue('hello');
+  });
+
+  it('downloads an image attachment via the repository and renders a preview', async () => {
+    vi.spyOn(recruiterRepository, 'listConversations').mockResolvedValue({data: [summary], meta: listMeta});
+    vi.spyOn(recruiterRepository, 'getConversation').mockResolvedValue(detail);
+    vi.spyOn(recruiterRepository, 'listMessages').mockResolvedValue({data: [imageMessage], meta: messageMeta});
+    const download = vi.spyOn(recruiterRepository, 'downloadAttachment')
+      .mockResolvedValue(new Blob(['abc'], {type: 'image/png'}));
+    renderMessages('/recruiter/messages/conv-1');
+    await waitFor(() => expect(download).toHaveBeenCalledWith('conv-1', 'msg-img'));
+    const img = await screen.findByRole('img', {name: 'photo.png'});
+    expect(img).toHaveAttribute('src', 'blob:mock-url');
+  });
+
+  it('keeps the original download flow for non-image attachments', async () => {
+    vi.spyOn(recruiterRepository, 'listConversations').mockResolvedValue({data: [summary], meta: listMeta});
+    vi.spyOn(recruiterRepository, 'getConversation').mockResolvedValue(detail);
+    const pdfMessage: Message = {
+      ...candidateMessage, messageId: 'msg-pdf', body: '',
+      attachment: {attachmentId: 'att-pdf', fileName: 'resume.pdf', sizeBytes: 1024, contentType: 'application/pdf'},
+    };
+    vi.spyOn(recruiterRepository, 'listMessages').mockResolvedValue({data: [pdfMessage], meta: messageMeta});
+    const download = vi.spyOn(recruiterRepository, 'downloadAttachment')
+      .mockResolvedValue(new Blob(['pdf'], {type: 'application/pdf'}));
+    renderMessages('/recruiter/messages/conv-1');
+    const button = await screen.findByRole('button', {name: /resume\.pdf/});
+    expect(screen.queryByRole('img', {name: 'resume.pdf'})).not.toBeInTheDocument();
+    expect(download).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    await waitFor(() => expect(download).toHaveBeenCalledWith('conv-1', 'msg-pdf'));
+  });
+
+  it('shows a safe fallback and keeps the download entry when an image fails to load', async () => {
+    vi.spyOn(recruiterRepository, 'listConversations').mockResolvedValue({data: [summary], meta: listMeta});
+    vi.spyOn(recruiterRepository, 'getConversation').mockResolvedValue(detail);
+    vi.spyOn(recruiterRepository, 'listMessages').mockResolvedValue({data: [imageMessage], meta: messageMeta});
+    vi.spyOn(recruiterRepository, 'downloadAttachment')
+      .mockRejectedValue(new AuthApiError(0, 'NETWORK_ERROR', 'private detail'));
+    renderMessages('/recruiter/messages/conv-1');
+    expect(await screen.findByText('Image preview unavailable.')).toBeInTheDocument();
+    expect(screen.queryByText('private detail')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /photo\.png/})).toBeInTheDocument();
+  });
+
+  it('revokes the object URL when the image preview unmounts', async () => {
+    vi.spyOn(recruiterRepository, 'listConversations').mockResolvedValue({data: [summary], meta: listMeta});
+    vi.spyOn(recruiterRepository, 'getConversation').mockResolvedValue(detail);
+    vi.spyOn(recruiterRepository, 'listMessages').mockResolvedValue({data: [imageMessage], meta: messageMeta});
+    vi.spyOn(recruiterRepository, 'downloadAttachment')
+      .mockResolvedValue(new Blob(['abc'], {type: 'image/png'}));
+    const {unmount} = renderMessages('/recruiter/messages/conv-1');
+    await screen.findByRole('img', {name: 'photo.png'});
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    unmount();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+  });
+
+  it('shows a local thumbnail for a selected image and revokes it on remove', async () => {
+    vi.spyOn(recruiterRepository, 'listConversations')
+      .mockResolvedValue({data: [{...summary, unreadCount: 0, lastMessage: recruiterMessage}], meta: listMeta});
+    vi.spyOn(recruiterRepository, 'getConversation').mockResolvedValue(detail);
+    vi.spyOn(recruiterRepository, 'listMessages').mockResolvedValue({data: [recruiterMessage], meta: messageMeta});
+    renderMessages('/recruiter/messages/conv-1');
+    await screen.findAllByText('Yan Bohao');
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, {target: {files: [new File(['x'], 'photo.png', {type: 'image/png'})]}});
+    expect(await screen.findByAltText('photo.png')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Remove attachment'}));
+    await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url'));
   });
 });

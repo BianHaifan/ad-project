@@ -41,8 +41,9 @@ data class PageMeta(val page: Int, val pageSize: Int, val total: Int, val hasNex
 data class CursorMeta(val nextCursor: String?, val hasMore: Boolean)
 
 enum class UserRole { CANDIDATE, RECRUITER, ADMIN }
-enum class ApplicationStatus { APPLIED, IN_REVIEW, INTERVIEW, REJECTED, WITHDRAWN }
-enum class CandidateJobApplicationState { NOT_APPLIED, APPLIED, IN_REVIEW, INTERVIEW, REJECTED, WITHDRAWN }
+enum class Gender { MALE, FEMALE, OTHER, PREFER_NOT_TO_SAY }
+enum class ApplicationStatus { APPLIED, IN_REVIEW, INTERVIEW, OFFERED, REJECTED, WITHDRAWN }
+enum class CandidateJobApplicationState { NOT_APPLIED, APPLIED, IN_REVIEW, INTERVIEW, OFFERED, REJECTED, WITHDRAWN }
 enum class ApplicationListFilter { ACTIVE, INTERVIEW, ARCHIVED }
 enum class JobStatus { DRAFT, ACTIVE, PAUSED, CLOSED }
 enum class InterviewStatus { SCHEDULED, COMPLETED, CANCELLED }
@@ -134,6 +135,7 @@ data class CandidateJob(
     val updatedAt: String,
     val matchScore: Int?,
     val recruiter: RecruiterContact?,
+    val isSaved: Boolean? = null,
 )
 
 data class CandidateJobDetail(
@@ -360,13 +362,28 @@ data class WithdrawApplicationRequest(val reason: String, val expectedVersion: I
 data class CandidateStats(val chatCount: Int, val applicationCount: Int, val interviewCount: Int, val savedJobCount: Int)
 data class CandidateProfileDto(
     val userId: String, val fullName: String, val email: String, val headline: String, val avatarUrl: String?,
-    val location: String, val stats: CandidateStats, val version: Int, val createdAt: String, val updatedAt: String,
+    val location: String, val age: Int? = null, val gender: Gender? = null, val phone: String? = null, val birthplace: String? = null,
+    val stats: CandidateStats, val version: Int, val createdAt: String, val updatedAt: String,
 )
-data class UpdateProfileRequest(val fullName: String? = null, val headline: String? = null,
-                                val location: String? = null, val expectedVersion: Int)
+// fullName/location are required and always sent non-null; age/gender/phone/birthplace are
+// nullable and Moshi serializes a null value, which the backend treats as "clear this field".
+data class UpdateProfileRequest(
+    val fullName: String? = null,
+    val headline: String? = null,
+    val location: String? = null,
+    val age: Int? = null,
+    val gender: Gender? = null,
+    val phone: String? = null,
+    val birthplace: String? = null,
+    val expectedVersion: Int,
+)
+data class AvatarMetadata(val userId: String, val avatarUrl: String?, val contentType: String?,
+                          val sizeBytes: Long, val updatedAt: String?)
 data class SaveResumeRequest(
-    val fullName: String, val age: Int, val location: String, val headline: String, val summary: String,
-    val experiences: List<Experience>, val expectedVersion: Int, val skills: List<String> = emptyList(),
+    val summary: String,
+    val experiences: List<Experience>,
+    val expectedVersion: Int,
+    val skills: List<String> = emptyList(),
 )
 
 data class JobPreference(
@@ -410,6 +427,7 @@ data class RecommendedJob(
     val matchScore: Int,
     val rank: Int,
     val matchAnalysis: MatchAnalysis,
+    val isSaved: Boolean? = null,
 )
 
 data class RecommendationMeta(
@@ -419,7 +437,10 @@ data class RecommendationMeta(
     val modelStatus: String,
     val inferenceMs: Int,
     val generatedAt: String,
-    val limit: Int,
+    val page: Int,
+    val pageSize: Int,
+    val total: Int,
+    val hasNext: Boolean,
 )
 
 data class RecommendationEnvelope(

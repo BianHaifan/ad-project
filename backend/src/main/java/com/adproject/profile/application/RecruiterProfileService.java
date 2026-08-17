@@ -28,7 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class RecruiterProfileService {
     private static final int TITLE_MAX = 100;
     private static final int BIO_MAX = 1000;
-    private static final int AVATAR_URL_MAX = 500;
 
     private final UserRepository userRepository;
     private final RecruiterProfileRepository profileRepository;
@@ -75,16 +74,13 @@ public class RecruiterProfileService {
         }
 
         if (profile != null && !request.isFullNamePresent() && !request.isTitlePresent()
-                && !request.isBioPresent() && !request.isAvatarUrlPresent()) {
+                && !request.isBioPresent()) {
             return response(user, company, profile);
         }
 
         Instant now = DatabaseTimePrecision.micros(clock.instant());
         if (request.isFullNamePresent()) {
             user.updateFullName(request.getFullName().trim(), now);
-        }
-        if (request.isAvatarUrlPresent()) {
-            user.updateAvatarUrl(normalizeAvatarUrl(request.getAvatarUrl()), now);
         }
 
         if (profile == null) {
@@ -154,10 +150,6 @@ public class RecruiterProfileService {
         if (request.isBioPresent() && request.getBio() != null && request.getBio().length() > BIO_MAX) {
             errors.put("bio", "must not exceed 1000 characters");
         }
-        if (request.isAvatarUrlPresent() && request.getAvatarUrl() != null
-                && request.getAvatarUrl().length() > AVATAR_URL_MAX) {
-            errors.put("avatarUrl", "must not exceed 500 characters");
-        }
         return errors;
     }
 
@@ -166,13 +158,6 @@ public class RecruiterProfileService {
             return null;
         }
         return bio.trim();
-    }
-
-    private static String normalizeAvatarUrl(String avatarUrl) {
-        if (avatarUrl == null || avatarUrl.isBlank()) {
-            return null;
-        }
-        return avatarUrl.trim();
     }
 
     private static void requireRecruiter(AuthenticatedUser principal) {

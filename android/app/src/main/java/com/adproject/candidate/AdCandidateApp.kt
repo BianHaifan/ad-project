@@ -33,16 +33,18 @@ import com.adproject.candidate.feature.auth.SignInScreen
 import com.adproject.candidate.feature.auth.AuthViewModel
 import com.adproject.candidate.feature.jobs.JobDetailScreen
 import com.adproject.candidate.feature.jobs.JobFeedScreen
-import com.adproject.candidate.feature.jobs.LearningScreen
+import com.adproject.candidate.feature.jobs.SavedJobsScreen
 import com.adproject.candidate.feature.jobs.JobFeedViewModel
 import com.adproject.candidate.feature.jobs.JobDetailViewModel
+import com.adproject.candidate.feature.jobs.SavedJobsViewModel
 import com.adproject.candidate.feature.messages.MessagesScreen
 import com.adproject.candidate.feature.messages.ChatScreen
 import com.adproject.candidate.feature.messages.MessagesViewModel
 import com.adproject.candidate.feature.messages.ChatViewModel
 import com.adproject.candidate.core.network.CandidateAppContainer
 import com.adproject.candidate.feature.profile.RealProfileScreen
-import com.adproject.candidate.feature.profile.RealResumeScreen
+import com.adproject.candidate.feature.profile.RealProfileEditScreen
+import com.adproject.candidate.feature.profile.RealResumeEditScreen
 import com.adproject.candidate.feature.profile.CandidateProfileViewModel
 import com.adproject.candidate.feature.profile.CandidateResumeViewModel
 import com.adproject.candidate.feature.profile.JobPreferenceViewModel
@@ -51,6 +53,10 @@ import com.adproject.candidate.feature.profile.RecruiterPublicProfileScreen
 import com.adproject.candidate.feature.profile.CompanyPublicProfileScreen
 import com.adproject.candidate.feature.profile.RecruiterPublicProfileViewModel
 import com.adproject.candidate.feature.profile.CompanyPublicProfileViewModel
+import com.adproject.candidate.feature.community.CommunityScreen
+import com.adproject.candidate.feature.community.CommunityViewModel
+import com.adproject.candidate.feature.community.CommunityDetailScreen
+import com.adproject.candidate.feature.community.CommunityDetailViewModel
 import com.adproject.candidate.data.api.CandidateRepository
 import com.adproject.candidate.data.api.FakeCandidateRepository
 
@@ -58,19 +64,22 @@ private object Route {
     const val SignIn = "sign-in"
     const val CreateAccount = "create-account"
     const val Jobs = "jobs"
-    const val Learning = "learning"
     const val Messages = "messages"
     const val ChatDetail = "chat-detail/{conversationId}"
     const val Profile = "profile"
+    const val ProfileEdit = "profile/edit"
+    const val ResumeEdit = "resume/edit"
     const val Applications = "applications"
     const val ApplicationDetail = "application-detail/{applicationId}"
     const val JobDetail = "job-detail/{jobId}"
     const val Apply = "apply/{jobId}"
     const val Submitted = "submitted/{jobId}"
-    const val ResumeEdit = "resume-edit"
     const val JobPreferences = "job-preferences"
+    const val SavedJobs = "saved-jobs"
     const val RecruiterProfile = "recruiter/{recruiterId}"
     const val CompanyProfile = "company/{companyId}"
+    const val Community = "community"
+    const val CommunityDetail = "community/{postId}"
 
     fun jobDetail(id: String) = "job-detail/$id"
     fun chatDetail(id: String) = "chat-detail/$id"
@@ -79,6 +88,7 @@ private object Route {
     fun applicationDetail(id: String) = "application-detail/$id"
     fun recruiterProfile(id: String) = "recruiter/$id"
     fun companyProfile(id: String) = "company/$id"
+    fun communityDetail(id: String) = "community/$id"
 }
 
 /**
@@ -123,6 +133,17 @@ fun AdCandidateApp(
         container.candidateJobRepository, container.candidateProfileRepository,
         container.candidateResumeRepository, container.candidateApplicationRepository,
     ))
+    // Shared across the Me page and its dedicated edit destinations so profile/resume state and
+    // the application grouping totals persist while navigating between them.
+    val profileViewModel: CandidateProfileViewModel = viewModel(
+        factory = CandidateProfileViewModel.factory(container.candidateProfileRepository, container.candidateAvatarRepository),
+    )
+    val resumeViewModel: CandidateResumeViewModel = viewModel(
+        factory = CandidateResumeViewModel.factory(container.candidateResumeRepository),
+    )
+    val applicationListViewModel: ApplicationListViewModel = viewModel(
+        factory = ApplicationListViewModel.factory(container.candidateApplicationRepository),
+    )
     val sessionActive by container.sessionManager.sessionActive.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { container.sessionManager.load() }
@@ -141,7 +162,7 @@ fun AdCandidateApp(
     fun openTab(tab: MainTab) {
         val route = when (tab) {
             MainTab.Jobs -> Route.Jobs
-            MainTab.Learn -> Route.Learning
+            MainTab.Community -> Route.Community
             MainTab.Messages -> Route.Messages
             MainTab.Me -> Route.Profile
         }
@@ -199,15 +220,20 @@ fun AdCandidateApp(
                     state = state,
                     onQuery = jobsViewModel::updateQuery,
                     onSearch = jobsViewModel::search,
-                    onRecommended = jobsViewModel::showRecommended,
                     onEmploymentType = jobsViewModel::selectEmploymentType,
+                    onWorkplaceType = jobsViewModel::selectWorkplaceType,
+                    onLocation = jobsViewModel::selectLocation,
+                    onMinimumSalary = jobsViewModel::selectMinimumSalary,
+                    onClearFilters = jobsViewModel::clearFilters,
+                    onToggleSave = jobsViewModel::toggleSave,
                     onRefresh = jobsViewModel::refresh,
                     onRetry = jobsViewModel::retry,
+                    onLoadMore = jobsViewModel::loadMore,
+                    onRetryLoadMore = jobsViewModel::retryLoadMore,
                     onTab = ::openTab,
                     onJob = { navController.navigate(Route.jobDetail(it)) },
                 )
             }
-            composable(Route.Learning) { LearningScreen(fakeCandidateFeatures.getLearning(), ::openTab) }
             composable(Route.Messages) {
                 val messagesViewModel: MessagesViewModel = viewModel(
                     factory = MessagesViewModel.factory(container.candidateConversationRepository),
@@ -245,44 +271,108 @@ fun AdCandidateApp(
                     onSelectAttachment = chatViewModel::selectAttachment,
                     onRemoveAttachment = chatViewModel::removeAttachment,
                     onDownloadAttachment = chatViewModel::download,
+                    onOpenImage = chatViewModel::openImage,
                     onConsumeDownload = chatViewModel::consumeDownload,
+                    onCloseImagePreview = chatViewModel::closeImagePreview,
                     onViewJob = { navController.navigate(Route.jobDetail(it)) },
                     onViewRecruiter = { navController.navigate(Route.recruiterProfile(it)) },
                 )
             }
             composable(Route.Profile) {
-                val profileViewModel: CandidateProfileViewModel = viewModel(factory = CandidateProfileViewModel.factory(container.candidateProfileRepository))
                 val state by profileViewModel.state.collectAsStateWithLifecycle()
+                val resumeState by resumeViewModel.state.collectAsStateWithLifecycle()
+                val applicationsState by applicationListViewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(Unit) { applicationListViewModel.load() }
                 RealProfileScreen(
                     state = state,
+                    resumeState = resumeState,
+                    counts = applicationsState.counts,
                     onRetry = profileViewModel::load,
-                    onEdit = profileViewModel::edit,
-                    onSave = profileViewModel::save,
-                    onResume = { navController.navigate(Route.ResumeEdit) },
-                    onApplications = { navController.navigate(Route.Applications) },
-                    onPreferences = { navController.navigate(Route.JobPreferences) },
+                    onOpenProfile = {
+                        profileViewModel.clearSaved()
+                        navController.navigate(Route.ProfileEdit)
+                    },
+                    onOpenApplications = { navController.navigate(Route.Applications) },
+                    onOpenResume = {
+                        resumeViewModel.clearSaved()
+                        navController.navigate(Route.ResumeEdit)
+                    },
+                    onOpenPreferences = { navController.navigate(Route.JobPreferences) },
+                    onOpenSavedJobs = { navController.navigate(Route.SavedJobs) },
                     onLogout = authViewModel::logout,
                     onTab = ::openTab,
                 )
             }
-            composable(Route.Applications) { entry ->
-                val applicationsViewModel: ApplicationListViewModel = viewModel(
-                    factory = ApplicationListViewModel.factory(container.candidateApplicationRepository),
+            composable(Route.ProfileEdit) {
+                val state by profileViewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(state.saved) { if (state.saved) navigateBack(Route.Profile) }
+                RealProfileEditScreen(
+                    state = state,
+                    onBack = { navigateBack(Route.Profile) },
+                    onRetry = profileViewModel::load,
+                    onSave = profileViewModel::save,
+                    onSelectAvatar = profileViewModel::selectAvatar,
+                    onUploadAvatar = profileViewModel::uploadAvatar,
+                    onDeleteAvatar = profileViewModel::deleteAvatar,
+                    onCancelAvatar = profileViewModel::cancelAvatar,
+                    onAvatarTooLarge = profileViewModel::rejectAvatarTooLarge,
                 )
-                val state by applicationsViewModel.state.collectAsStateWithLifecycle()
+            }
+            composable(Route.Community) {
+                val communityViewModel: CommunityViewModel = viewModel(
+                    factory = CommunityViewModel.factory(container.communityRepository),
+                )
+                val state by communityViewModel.state.collectAsStateWithLifecycle()
+                CommunityScreen(
+                    state = state,
+                    onTab = ::openTab,
+                    onDraft = communityViewModel::updateDraft,
+                    onPublish = communityViewModel::publish,
+                    onRefresh = communityViewModel::refresh,
+                    onRetry = communityViewModel::retry,
+                    onLoadMore = communityViewModel::loadMore,
+                    onPost = { navController.navigate(Route.communityDetail(it)) },
+                )
+            }
+            composable(Route.CommunityDetail) { entry ->
+                val postId = requireNotNull(entry.arguments?.getString("postId"))
+                val detailViewModel: CommunityDetailViewModel = viewModel(
+                    key = "community-$postId",
+                    factory = CommunityDetailViewModel.factory(postId, container.communityRepository),
+                )
+                val state by detailViewModel.state.collectAsStateWithLifecycle()
+                CommunityDetailScreen(
+                    state = state, onBack = { navigateBack(Route.Community) }, onRetry = detailViewModel::retry,
+                    onToggleLike = detailViewModel::toggleLike, onComment = detailViewModel::updateComment,
+                    onPublishComment = detailViewModel::publishComment, onLoadMore = detailViewModel::loadMore,
+                    onRetryComments = detailViewModel::retryComments,
+                )
+            }
+            composable(Route.ResumeEdit) {
+                val state by resumeViewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(state.saved) { if (state.saved) navigateBack(Route.Profile) }
+                RealResumeEditScreen(
+                    state = state,
+                    onBack = { navigateBack(Route.Profile) },
+                    onRetry = resumeViewModel::load,
+                    onSave = resumeViewModel::save,
+                )
+            }
+            composable(Route.Applications) { entry ->
+                val state by applicationListViewModel.state.collectAsStateWithLifecycle()
                 val refreshKey by entry.savedStateHandle.getStateFlow("applications-refresh", 0L)
                     .collectAsStateWithLifecycle()
                 LaunchedEffect(refreshKey) {
-                    if (refreshKey == 0L) applicationsViewModel.load() else applicationsViewModel.refresh()
+                    if (refreshKey == 0L) applicationListViewModel.load() else applicationListViewModel.refresh()
                 }
                 RealMyApplicationsScreen(
                     state = state,
                     onTab = ::openTab,
                     onBack = { navigateBack(Route.Profile) },
-                    onRefresh = applicationsViewModel::refresh,
-                    onRetry = applicationsViewModel::retry,
-                    onFilter = applicationsViewModel::selectFilter,
-                    onLoadMore = applicationsViewModel::loadMore,
+                    onRefresh = applicationListViewModel::refresh,
+                    onRetry = applicationListViewModel::retry,
+                    onFilter = applicationListViewModel::selectFilter,
+                    onLoadMore = applicationListViewModel::loadMore,
                     onApplication = { navController.navigate(Route.applicationDetail(it)) },
                 )
             }
@@ -321,6 +411,7 @@ fun AdCandidateApp(
                     onApply = { navController.navigate(Route.apply(it)) },
                     onViewCompany = { navController.navigate(Route.companyProfile(it)) },
                     onViewRecruiter = { navController.navigate(Route.recruiterProfile(it)) },
+                    onToggleSave = detailViewModel::toggleSave,
                 )
             }
             composable(Route.RecruiterProfile) { entry ->
@@ -360,7 +451,7 @@ fun AdCandidateApp(
                     state = state,
                     onBack = { navigateBack(Route.jobDetail(jobId)) },
                     onRetry = applicationViewModel::retryLoad,
-                    onCreateResume = { navController.navigate(Route.ResumeEdit) },
+                    onCreateResume = { navController.navigate(Route.Profile) },
                     onShareProfile = applicationViewModel::setShareProfile,
                     onSubmit = applicationViewModel::submit,
                 )
@@ -380,22 +471,6 @@ fun AdCandidateApp(
                     },
                 )
             }
-            composable(Route.ResumeEdit) {
-                val resumeViewModel: CandidateResumeViewModel = viewModel(factory = CandidateResumeViewModel.factory(container.candidateResumeRepository))
-                val state by resumeViewModel.state.collectAsStateWithLifecycle()
-                LaunchedEffect(state.saved) {
-                    if (state.saved) {
-                        if (applicationViewModel.state.value.jobId != null) applicationViewModel.retryLoad()
-                        navigateBack(Route.Profile)
-                    }
-                }
-                RealResumeScreen(
-                    state = state,
-                    onBack = { navigateBack(Route.Profile) },
-                    onRetry = resumeViewModel::load,
-                    onSave = resumeViewModel::save,
-                )
-            }
             composable(Route.JobPreferences) {
                 val preferenceViewModel: JobPreferenceViewModel = viewModel(
                     factory = JobPreferenceViewModel.factory(container.candidateRecommendationRepository),
@@ -406,6 +481,22 @@ fun AdCandidateApp(
                     onRetry = preferenceViewModel::load,
                     onBack = { navigateBack(Route.Profile) },
                     onSave = preferenceViewModel::save,
+                )
+            }
+            composable(Route.SavedJobs) {
+                val savedJobsViewModel: SavedJobsViewModel = viewModel(
+                    factory = SavedJobsViewModel.factory(container.candidateJobRepository),
+                )
+                val state by savedJobsViewModel.state.collectAsStateWithLifecycle()
+                SavedJobsScreen(
+                    state = state,
+                    onBack = { navigateBack(Route.Profile) },
+                    onRetry = savedJobsViewModel::retry,
+                    onRefresh = savedJobsViewModel::refresh,
+                    onLoadMore = savedJobsViewModel::loadMore,
+                    onRetryLoadMore = savedJobsViewModel::retryLoadMore,
+                    onJob = { navController.navigate(Route.jobDetail(it)) },
+                    onUnsave = savedJobsViewModel::unsave,
                 )
             }
         }

@@ -33,7 +33,8 @@ public final class CandidateJobResponses {
             Instant createdAt,
             Instant updatedAt,
             Integer matchScore,
-            RecruiterContact recruiter
+            RecruiterContact recruiter,
+            boolean isSaved
     ) {}
     public record CandidateJobDetail(
             String jobId,

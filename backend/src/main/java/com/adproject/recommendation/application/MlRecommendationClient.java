@@ -51,8 +51,26 @@ public class MlRecommendationClient {
         return response;
     }
 
+    public MlResponse recommendCandidates(MlJob job, List<MlCandidate> candidates, int limit) {
+        if (!properties.isEnabled()) {
+            throw new IllegalStateException("ML recommendation service is disabled");
+        }
+        MlResponse response = restClient.post()
+                .uri("/internal/v1/recommend/candidates")
+                .body(new RecommendCandidatesRequest(job, candidates, limit))
+                .retrieve()
+                .body(MlResponse.class);
+        if (response == null || response.items() == null) {
+            throw new IllegalStateException("ML recommendation service returned an empty response");
+        }
+        return response;
+    }
+
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record RecommendJobsRequest(MlCandidate candidate, List<MlJob> jobs, int limit) {}
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record RecommendCandidatesRequest(MlJob job, List<MlCandidate> candidates, int limit) {}
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record MlCandidate(

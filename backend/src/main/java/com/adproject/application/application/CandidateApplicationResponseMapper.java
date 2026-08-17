@@ -86,7 +86,8 @@ public class CandidateApplicationResponseMapper {
     }
 
     private List<ApplicationDtos.NextStep> nextSteps(ApplicationEntity application, CompanyEntity company) {
-        if (application.getStatus() == com.adproject.application.domain.ApplicationStatus.REJECTED
+        if (application.getStatus() == com.adproject.application.domain.ApplicationStatus.OFFERED
+                || application.getStatus() == com.adproject.application.domain.ApplicationStatus.REJECTED
                 || application.getStatus() == com.adproject.application.domain.ApplicationStatus.WITHDRAWN) {
             return List.of();
         }

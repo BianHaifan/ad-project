@@ -9,6 +9,8 @@ import {AdminUsersPage} from '../pages/AdminUsersPage';
 import {ApplicationDetailPage} from '../pages/ApplicationDetailPage';
 import {ApplicationsPage} from '../pages/ApplicationsPage';
 import {AuthPage} from '../pages/AuthPage';
+import {CommunityDetailPage} from '../pages/CommunityDetailPage';
+import {CommunityPage} from '../pages/CommunityPage';
 import {DashboardPage} from '../pages/DashboardPage';
 import {GoogleOAuthPage} from '../pages/GoogleOAuthPage';
 import {JobDetailPage} from '../pages/JobDetailPage';
@@ -34,6 +36,8 @@ export const router = createBrowserRouter([
     {path: 'applications/:applicationId/review', element: <ResumeReviewPage/>},
     {path: 'messages', element: <MessagesPage/>},
     {path: 'messages/:conversationId', element: <MessagesPage/>},
+    {path: 'community', element: <CommunityPage/>},
+    {path: 'community/:postId', element: <CommunityDetailPage/>},
     {path: 'google-oauth', element: <GoogleOAuthPage/>},
     {path: 'profile', element: <ProfilePage/>},
   ]},

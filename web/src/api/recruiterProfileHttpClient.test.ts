@@ -30,11 +30,11 @@ describe('RecruiterProfileHttpClient', () => {
   it('updates only editable profile fields through PATCH', async () => {
     const updated = {...profile, title: 'VP Talent', fullName: 'Mia Chen Updated'};
     const {client, requestWithAuth} = setup({data: updated});
-    await expect(client.updateProfile({fullName: 'Mia Chen Updated', title: 'VP Talent', bio: null, avatarUrl: null}))
+    await expect(client.updateProfile({fullName: 'Mia Chen Updated', title: 'VP Talent', bio: null}))
       .resolves.toEqual(updated);
     const [, init] = requestWithAuth.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe('PATCH');
-    expect(JSON.parse(String(init.body))).toEqual({fullName: 'Mia Chen Updated', title: 'VP Talent', bio: null, avatarUrl: null});
+    expect(JSON.parse(String(init.body))).toEqual({fullName: 'Mia Chen Updated', title: 'VP Talent', bio: null});
   });
 
   it('rejects malformed profile responses', async () => {

@@ -2,9 +2,10 @@ import type {AuthClient} from './authClient';
 import {authClient, AuthApiError} from './authClient';
 import {apiPaths} from './contract';
 import type {
-  ApplicationStatus, AuditEvent, CreateInterviewRequest, Interview, InterviewMode, InterviewStatus,
-  MeetingProvider, MeetingSyncStatus, RecruiterApplicationCounts, RecruiterApplicationDetail,
-  RecruiterApplicationListMeta, RecruiterApplicationListResult, RecruiterApplicationSummary,
+  ApplicantCandidateSummary, ApplicantMatchAnalysis, ApplicationStatus, AuditEvent, CreateInterviewRequest,
+  Interview, InterviewMode, InterviewStatus, MatchAnalysis, MeetingProvider, MeetingSyncStatus, RecruiterApplicationCounts,
+  RecruiterApplicationDetail, RecruiterApplicationListMeta, RecruiterApplicationListResult,
+  RecruiterApplicationSummary, RecommendedApplicant, RecommendedApplicantListResult, RecommendationMeta,
   UpdateInterviewRequest,
 } from '../models/recruiter';
 import type {ListApplicationsParams, RecruiterTransitionStatus} from './recruiterRepository';
@@ -27,6 +28,16 @@ export class ApplicationHttpClient {
   async getApplication(applicationId: string): Promise<RecruiterApplicationDetail> {
     const payload = await this.client.requestWithAuth<unknown>(apiPaths.application(encodeURIComponent(applicationId)));
     return parseDetailEnvelope(payload);
+  }
+
+  async listApplicantRecommendations(jobId: string,
+                                    params: {page?: number; pageSize?: number} = {}): Promise<RecommendedApplicantListResult> {
+    const search = new URLSearchParams();
+    search.set('page', String(params.page ?? 1));
+    search.set('pageSize', String(params.pageSize ?? 20));
+    const payload = await this.client.requestWithAuth<unknown>(
+      `${apiPaths.applicantRecommendations(encodeURIComponent(jobId))}?${search}`);
+    return parseRecommendationList(payload);
   }
 
   async updateApplicationStatus(applicationId: string, status: RecruiterTransitionStatus, reason: string,
@@ -60,6 +71,50 @@ function parseList(payload: unknown): RecruiterApplicationListResult {
   return {data: payload.data.map(parseSummary), meta: payload.meta};
 }
 
+function parseRecommendationList(payload: unknown): RecommendedApplicantListResult {
+  if (!isRecord(payload) || !Array.isArray(payload.data) || !isRecommendationMeta(payload.meta)) {
+    throw unexpectedResponse();
+  }
+  return {data: payload.data.map(parseRecommendedApplicant), meta: payload.meta};
+}
+
+function parseRecommendedApplicant(value: unknown): RecommendedApplicant {
+  if (!isRecord(value) || typeof value.applicationId !== 'string' || !isApplicantCandidate(value.candidate) ||
+      !isStatus(value.status) || typeof value.appliedAt !== 'string' || typeof value.matchScore !== 'number' ||
+      typeof value.rank !== 'number' || !isApplicantMatchAnalysis(value.matchAnalysis)) throw unexpectedResponse();
+  return value as unknown as RecommendedApplicant;
+}
+
+function isApplicantCandidate(value: unknown): value is ApplicantCandidateSummary {
+  return isRecord(value) && typeof value.candidateId === 'string' && typeof value.fullName === 'string' &&
+    (value.headline === null || typeof value.headline === 'string') &&
+    (value.avatarUrl === null || typeof value.avatarUrl === 'string') &&
+    (value.location === null || typeof value.location === 'string');
+}
+
+function isApplicantMatchAnalysis(value: unknown): value is ApplicantMatchAnalysis {
+  return isRecord(value) && isStringArray(value.strongMatches) && isStringArray(value.gaps) &&
+    isStringArray(value.evidence);
+}
+
+function isMatchAnalysis(value: unknown): value is MatchAnalysis {
+  return isRecord(value) && typeof value.score === 'number' && isStringArray(value.evidence) &&
+    isStringArray(value.strongMatches) && isStringArray(value.gaps) &&
+    typeof value.modelVersion === 'string' && typeof value.generatedAt === 'string';
+}
+
+function isRecommendationMeta(value: unknown): value is RecommendationMeta {
+  return isRecord(value) && typeof value.source === 'string' && typeof value.modelVersion === 'string' &&
+    typeof value.featureVersion === 'string' && typeof value.modelStatus === 'string' &&
+    typeof value.inferenceMs === 'number' && typeof value.generatedAt === 'string' &&
+    typeof value.page === 'number' && typeof value.pageSize === 'number' && typeof value.total === 'number' &&
+    typeof value.hasNext === 'boolean';
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === 'string');
+}
+
 function parseDetailEnvelope(payload: unknown): RecruiterApplicationDetail {
   if (!isRecord(payload) || !isRecord(payload.data)) throw unexpectedResponse();
   return parseDetail(payload.data);
@@ -78,7 +133,7 @@ function parseDetail(value: unknown): RecruiterApplicationDetail {
   const summary = parseSummary(value);
   if (!isRecord(value) || !isRecord(value.resumeSnapshot) || !Array.isArray(value.resumeSnapshot.experiences) ||
       !Array.isArray(value.timeline) || !Array.isArray(value.notes) ||
-      !(value.matchAnalysis === null || isRecord(value.matchAnalysis)) ||
+      !(value.matchAnalysis === null || isMatchAnalysis(value.matchAnalysis)) ||
       !(value.interview === null || isRecord(value.interview))) throw unexpectedResponse();
   value.timeline.forEach(parseAuditEvent);
   return {...value, ...summary} as unknown as RecruiterApplicationDetail;
@@ -105,7 +160,7 @@ function isMeta(value: unknown): value is RecruiterApplicationListMeta {
 
 function isCounts(value: unknown): value is RecruiterApplicationCounts {
   return isRecord(value) && typeof value.applied === 'number' && typeof value.inReview === 'number' &&
-    typeof value.interview === 'number' && typeof value.rejected === 'number';
+    typeof value.interview === 'number' && typeof value.offered === 'number' && typeof value.rejected === 'number';
 }
 
 function parseInterviewEnvelope(payload: unknown): Interview {
@@ -142,7 +197,7 @@ function isMeetingSyncStatus(value: unknown): value is MeetingSyncStatus {
 }
 
 function isStatus(value: unknown): value is ApplicationStatus {
-  return value === 'APPLIED' || value === 'IN_REVIEW' || value === 'INTERVIEW' ||
+  return value === 'APPLIED' || value === 'IN_REVIEW' || value === 'INTERVIEW' || value === 'OFFERED' ||
     value === 'REJECTED' || value === 'WITHDRAWN';
 }
 

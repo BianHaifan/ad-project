@@ -9,6 +9,7 @@ import com.adproject.candidate.data.contract.CandidateJob
 import com.adproject.candidate.data.contract.EmploymentType
 import com.adproject.candidate.data.contract.MatchAnalysis
 import com.adproject.candidate.data.contract.RecommendedJob
+import com.adproject.candidate.data.contract.WorkplaceType
 import com.adproject.candidate.data.model.Job
 import com.adproject.candidate.data.model.JobDetailData
 import com.adproject.candidate.data.model.JobFeedData
@@ -26,57 +27,175 @@ data class JobFeedUiState(
     val message: String? = null,
     val query: String = "",
     val employmentType: EmploymentType? = null,
-    val recommended: Boolean = true,
+    val workplaceType: WorkplaceType? = null,
+    val location: String? = null,
+    val minimumSalary: Long? = null,
+    val page: Int = 1,
+    val hasNext: Boolean = false,
+    val total: Int = 0,
+    val loadingMore: Boolean = false,
+    val loadMoreError: Boolean = false,
+    val savingJobs: Set<String> = emptySet(),
+    val saveError: String? = null,
 )
 
 class JobFeedViewModel(private val repository: CandidateJobRepository) : ViewModel() {
     private val mutableState = MutableStateFlow(JobFeedUiState())
     val state: StateFlow<JobFeedUiState> = mutableState.asStateFlow()
 
+    private var generation = 0
+
     init { load() }
 
     fun updateQuery(value: String) = mutableState.update { it.copy(query = value) }
+
     fun selectEmploymentType(value: EmploymentType?) {
-        mutableState.update { it.copy(employmentType = value, recommended = false) }
+        mutableState.update { it.copy(employmentType = value) }
         load()
     }
-    fun search() {
-        mutableState.update { it.copy(recommended = false) }
+
+    fun selectWorkplaceType(value: WorkplaceType?) {
+        mutableState.update { it.copy(workplaceType = value) }
         load()
     }
-    fun showRecommended() {
-        mutableState.update { it.copy(recommended = true, employmentType = null, query = "") }
+
+    fun selectLocation(value: String?) {
+        mutableState.update { it.copy(location = value) }
         load()
     }
+
+    fun selectMinimumSalary(value: Long?) {
+        mutableState.update { it.copy(minimumSalary = value) }
+        load()
+    }
+
+    fun clearFilters() {
+        mutableState.update {
+            it.copy(employmentType = null, workplaceType = null, location = null, minimumSalary = null)
+        }
+        load()
+    }
+
+    fun toggleSave(jobId: String) {
+        val snapshot = mutableState.value
+        val job = snapshot.data?.jobs?.firstOrNull { it.jobId == jobId } ?: return
+        if (jobId in snapshot.savingJobs) return
+        val targetSaved = !job.isSaved
+        mutableState.update { state ->
+            state.copy(
+                data = state.data?.copy(jobs = state.data.jobs.map {
+                    if (it.jobId == jobId) it.copy(isSaved = targetSaved) else it
+                }),
+                savingJobs = state.savingJobs + jobId,
+                saveError = null,
+            )
+        }
+        viewModelScope.launch {
+            val result = if (targetSaved) repository.saveJob(jobId) else repository.unsaveJob(jobId)
+            mutableState.update { state ->
+                when (result) {
+                    is ApiResult.Success -> state.copy(savingJobs = state.savingJobs - jobId)
+                    is ApiResult.Failure -> state.copy(
+                        data = state.data?.copy(jobs = state.data.jobs.map {
+                            if (it.jobId == jobId) it.copy(isSaved = !targetSaved) else it
+                        }),
+                        savingJobs = state.savingJobs - jobId,
+                        saveError = result.message,
+                    )
+                }
+            }
+        }
+    }
+
+    fun search() = load()
     fun retry() = load()
     fun refresh() = load(refreshing = true)
 
-    private fun load(refreshing: Boolean = false) {
+    fun loadMore() {
+        val snapshot = mutableState.value
+        if (snapshot.loading || snapshot.refreshing || snapshot.loadingMore || snapshot.loadMoreError) return
+        if (!snapshot.hasNext || snapshot.data == null) return
+        loadPage(snapshot.page + 1, append = true)
+    }
+
+    fun retryLoadMore() {
+        val snapshot = mutableState.value
+        if (snapshot.loading || snapshot.refreshing || snapshot.loadingMore) return
+        if (!snapshot.hasNext || snapshot.data == null) return
+        loadPage(snapshot.page + 1, append = true)
+    }
+
+    private fun load(refreshing: Boolean = false) = loadPage(page = 1, append = false, refreshing = refreshing)
+
+    private fun loadPage(page: Int, append: Boolean, refreshing: Boolean = false) {
+        if (!append) generation++
+        val myGeneration = generation
+        val query = mutableState.value.query
+        val employmentType = mutableState.value.employmentType
+        val workplaceType = mutableState.value.workplaceType
+        val location = mutableState.value.location
+        val minimumSalary = mutableState.value.minimumSalary
         viewModelScope.launch {
-            mutableState.update { it.copy(loading = it.data == null && !refreshing, refreshing = refreshing, message = null) }
-            val snapshot = mutableState.value
-            if (snapshot.recommended) {
-                when (val result = repository.recommendations()) {
-                    is ApiResult.Success -> mutableState.update {
-                        it.copy(loading = false, refreshing = false,
-                            data = JobFeedData("Search job titles", result.value.data.map(::toUiJob),
-                                result.value.meta.source, result.value.meta.modelVersion), message = null)
-                    }
-                    is ApiResult.Failure -> mutableState.update {
-                        it.copy(loading = false, refreshing = false,
-                            message = if (result.code == "RESUME_REQUIRED")
-                                "Create your resume to receive personalized recommendations."
-                            else result.message)
+            if (append) {
+                mutableState.update { it.copy(loadingMore = true, loadMoreError = false) }
+            } else {
+                mutableState.update {
+                    it.copy(
+                        loading = it.data == null && !refreshing,
+                        refreshing = refreshing,
+                        loadingMore = false,
+                        loadMoreError = false,
+                        message = null,
+                    )
+                }
+            }
+            when (val result = repository.recommendations(query, employmentType, workplaceType, location,
+                minimumSalary, page, PAGE_SIZE)) {
+                is ApiResult.Success -> {
+                    if (myGeneration != generation) return@launch
+                    val envelope = result.value
+                    val newJobs = envelope.data.map(::toUiJob)
+                    mutableState.update { current ->
+                        val merged = if (append) {
+                            val seen = current.data?.jobs.orEmpty().map { it.jobId }.toMutableSet()
+                            current.data?.jobs.orEmpty() + newJobs.filter { seen.add(it.jobId) }
+                        } else {
+                            newJobs
+                        }
+                        current.copy(
+                            loading = false,
+                            refreshing = false,
+                            loadingMore = false,
+                            loadMoreError = false,
+                            message = null,
+                            data = JobFeedData(
+                                "Search recommended jobs",
+                                merged,
+                                envelope.meta.source,
+                                envelope.meta.modelVersion,
+                            ),
+                            page = page,
+                            hasNext = envelope.meta.hasNext,
+                            total = envelope.meta.total,
+                        )
                     }
                 }
-            } else {
-                when (val result = repository.jobs(snapshot.query, snapshot.employmentType)) {
-                    is ApiResult.Success -> mutableState.update {
-                        it.copy(loading = false, refreshing = false,
-                            data = JobFeedData("Search job titles", result.value.jobs.map(::toUiJob)), message = null)
-                    }
-                    is ApiResult.Failure -> mutableState.update {
-                        it.copy(loading = false, refreshing = false, message = result.message)
+                is ApiResult.Failure -> {
+                    if (myGeneration != generation) return@launch
+                    mutableState.update { current ->
+                        if (append) {
+                            current.copy(loadingMore = false, loadMoreError = true)
+                        } else {
+                            current.copy(
+                                loading = false,
+                                refreshing = false,
+                                loadingMore = false,
+                                loadMoreError = false,
+                                message = if (result.code == "RESUME_REQUIRED")
+                                    "Create your resume to receive personalized recommendations."
+                                else result.message,
+                            )
+                        }
                     }
                 }
             }
@@ -84,6 +203,8 @@ class JobFeedViewModel(private val repository: CandidateJobRepository) : ViewMod
     }
 
     companion object {
+        private const val PAGE_SIZE = 10
+
         fun factory(repository: CandidateJobRepository): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T = JobFeedViewModel(repository) as T
@@ -96,6 +217,9 @@ data class JobDetailUiState(
     val data: JobDetailData? = null,
     val message: String? = null,
     val notFound: Boolean = false,
+    val isSaved: Boolean = false,
+    val saving: Boolean = false,
+    val saveError: String? = null,
 )
 
 class JobDetailViewModel(
@@ -108,14 +232,36 @@ class JobDetailViewModel(
     init { load() }
     fun retry() = load()
 
+    fun toggleSave() {
+        val snapshot = mutableState.value
+        val jobId = snapshot.data?.job?.jobId ?: return
+        if (snapshot.saving) return
+        val targetSaved = !snapshot.isSaved
+        mutableState.update { it.copy(isSaved = targetSaved, saving = true, saveError = null) }
+        viewModelScope.launch {
+            val result = if (targetSaved) repository.saveJob(jobId) else repository.unsaveJob(jobId)
+            mutableState.update { state ->
+                when (result) {
+                    is ApiResult.Success -> state.copy(saving = false)
+                    is ApiResult.Failure -> state.copy(
+                        isSaved = !targetSaved, saving = false, saveError = result.message,
+                    )
+                }
+            }
+        }
+    }
+
     private fun load() {
         viewModelScope.launch {
             mutableState.value = JobDetailUiState(loading = true)
             when (val result = repository.job(jobId)) {
                 is ApiResult.Success -> {
                     val detail = result.value
-                    mutableState.value = JobDetailUiState(data = toUiDetail(detail.job,
-                        detail.matchAnalysis, detail.applicationState), loading = false)
+                    mutableState.value = JobDetailUiState(
+                        data = toUiDetail(detail.job, detail.matchAnalysis, detail.applicationState),
+                        loading = false,
+                        isSaved = detail.isSaved,
+                    )
                 }
                 is ApiResult.Failure -> mutableState.value = JobDetailUiState(
                     loading = false, message = result.message, notFound = result.statusCode == 404,
@@ -133,6 +279,140 @@ class JobDetailViewModel(
     }
 }
 
+data class SavedJobsUiState(
+    val loading: Boolean = true,
+    val refreshing: Boolean = false,
+    val jobs: List<Job> = emptyList(),
+    val message: String? = null,
+    val page: Int = 1,
+    val hasNext: Boolean = false,
+    val total: Int = 0,
+    val loadingMore: Boolean = false,
+    val loadMoreError: Boolean = false,
+    val savingJobs: Set<String> = emptySet(),
+    val saveError: String? = null,
+)
+
+class SavedJobsViewModel(private val repository: CandidateJobRepository) : ViewModel() {
+    private val mutableState = MutableStateFlow(SavedJobsUiState())
+    val state: StateFlow<SavedJobsUiState> = mutableState.asStateFlow()
+
+    private var generation = 0
+
+    init { load() }
+    fun retry() = load()
+    fun refresh() = load(refreshing = true)
+
+    fun loadMore() {
+        val snapshot = mutableState.value
+        if (snapshot.loading || snapshot.refreshing || snapshot.loadingMore || snapshot.loadMoreError) return
+        if (!snapshot.hasNext) return
+        loadPage(snapshot.page + 1, append = true)
+    }
+
+    fun retryLoadMore() {
+        val snapshot = mutableState.value
+        if (snapshot.loading || snapshot.refreshing || snapshot.loadingMore) return
+        if (!snapshot.hasNext) return
+        loadPage(snapshot.page + 1, append = true)
+    }
+
+    fun unsave(jobId: String) {
+        val snapshot = mutableState.value
+        if (jobId in snapshot.savingJobs) return
+        val original = snapshot.jobs.firstOrNull { it.jobId == jobId } ?: return
+        val originalIndex = snapshot.jobs.indexOf(original)
+        mutableState.update { state ->
+            state.copy(
+                jobs = state.jobs.filter { it.jobId != jobId },
+                savingJobs = state.savingJobs + jobId,
+                saveError = null,
+            )
+        }
+        viewModelScope.launch {
+            when (val result = repository.unsaveJob(jobId)) {
+                is ApiResult.Success -> mutableState.update { it.copy(savingJobs = it.savingJobs - jobId) }
+                is ApiResult.Failure -> mutableState.update { state ->
+                    val restored = state.jobs.toMutableList()
+                    restored.add(originalIndex.coerceAtMost(restored.size), original)
+                    state.copy(
+                        jobs = restored,
+                        savingJobs = state.savingJobs - jobId,
+                        saveError = result.message,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun load(refreshing: Boolean = false) = loadPage(page = 1, append = false, refreshing = refreshing)
+
+    private fun loadPage(page: Int, append: Boolean, refreshing: Boolean = false) {
+        if (!append) generation++
+        val myGeneration = generation
+        viewModelScope.launch {
+            if (append) {
+                mutableState.update { it.copy(loadingMore = true, loadMoreError = false) }
+            } else {
+                mutableState.update {
+                    it.copy(
+                        loading = it.jobs.isEmpty() && !refreshing,
+                        refreshing = refreshing,
+                        loadingMore = false,
+                        loadMoreError = false,
+                        message = null,
+                    )
+                }
+            }
+            when (val result = repository.savedJobs(page, PAGE_SIZE)) {
+                is ApiResult.Success -> {
+                    if (myGeneration != generation) return@launch
+                    val pageJobs = result.value.jobs.map(::toUiJob)
+                    mutableState.update { current ->
+                        val merged = if (append) {
+                            val seen = current.jobs.map { it.jobId }.toMutableSet()
+                            current.jobs + pageJobs.filter { seen.add(it.jobId) }
+                        } else pageJobs
+                        current.copy(
+                            loading = false,
+                            refreshing = false,
+                            loadingMore = false,
+                            loadMoreError = false,
+                            message = null,
+                            jobs = merged,
+                            page = page,
+                            hasNext = result.value.meta.hasNext,
+                            total = result.value.meta.total,
+                        )
+                    }
+                }
+                is ApiResult.Failure -> {
+                    if (myGeneration != generation) return@launch
+                    mutableState.update { current ->
+                        if (append) {
+                            current.copy(loadingMore = false, loadMoreError = true)
+                        } else {
+                            current.copy(
+                                loading = false, refreshing = false, loadingMore = false,
+                                loadMoreError = false, message = result.message,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    companion object {
+        private const val PAGE_SIZE = 20
+
+        fun factory(repository: CandidateJobRepository): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = SavedJobsViewModel(repository) as T
+        }
+    }
+}
+
 private fun toUiJob(job: CandidateJob) = Job(
     jobId = job.jobId,
     title = job.title,
@@ -144,6 +424,7 @@ private fun toUiJob(job: CandidateJob) = Job(
     match = job.matchScore,
     recruiter = job.recruiter?.let { RecruiterContact(it.recruiterId, it.fullName, it.title) },
     companyId = job.company.companyId,
+    isSaved = job.isSaved ?: false,
 )
 
 private fun toUiJob(job: RecommendedJob) = Job(
@@ -157,6 +438,7 @@ private fun toUiJob(job: RecommendedJob) = Job(
     match = job.matchScore,
     recruiter = null,
     companyId = job.companyId,
+    isSaved = job.isSaved ?: false,
 )
 
 private fun toUiDetail(job: CandidateJob, analysis: MatchAnalysis?,

@@ -4,8 +4,12 @@ import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.company.infrastructure.CompanyEntity;
 import com.adproject.company.infrastructure.CompanyRepository;
+import com.adproject.job.domain.EmploymentType;
 import com.adproject.job.domain.JobStatus;
 import com.adproject.job.domain.Visibility;
+import com.adproject.job.domain.WorkplaceType;
+import com.adproject.job.infrastructure.CandidateSavedJobEntity;
+import com.adproject.job.infrastructure.CandidateSavedJobRepository;
 import com.adproject.job.infrastructure.JobEntity;
 import com.adproject.job.infrastructure.JobRepository;
 import com.adproject.recommendation.api.RecommendationDtos.MatchAnalysis;
@@ -53,11 +57,13 @@ public class CandidateRecommendationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(CandidateRecommendationService.class);
     private static final TypeReference<List<String>> STRINGS = new TypeReference<>() {};
     private static final Pattern REQUIRED_YEARS = Pattern.compile("(?i)\\b(\\d{1,2})\\+?\\s+years?\\b");
+    private static final int MAX_RANKED = 100;
 
     private final ResumeRepository resumes;
     private final CandidateJobPreferenceRepository preferences;
     private final JobRepository jobs;
     private final CompanyRepository companies;
+    private final CandidateSavedJobRepository savedJobs;
     private final MlRecommendationClient mlClient;
     private final RecommendationSnapshotService snapshots;
     private final RecommendationProperties properties;
@@ -69,6 +75,7 @@ public class CandidateRecommendationService {
             CandidateJobPreferenceRepository preferences,
             JobRepository jobs,
             CompanyRepository companies,
+            CandidateSavedJobRepository savedJobs,
             MlRecommendationClient mlClient,
             RecommendationSnapshotService snapshots,
             RecommendationProperties properties,
@@ -78,6 +85,7 @@ public class CandidateRecommendationService {
         this.preferences = preferences;
         this.jobs = jobs;
         this.companies = companies;
+        this.savedJobs = savedJobs;
         this.mlClient = mlClient;
         this.snapshots = snapshots;
         this.properties = properties;
@@ -85,21 +93,45 @@ public class CandidateRecommendationService {
         this.clock = clock;
     }
 
-    public RecommendedJobResponse recommendJobs(AuthenticatedUser principal, int limit) {
+    public RecommendedJobResponse recommendJobs(AuthenticatedUser principal, String q,
+                                               EmploymentType employmentType, WorkplaceType workplaceType,
+                                               String location, Long minimumSalary, int page, int pageSize) {
         CandidateJobPreferenceService.requireCandidate(principal);
         Input input = loadInput(principal.userId());
-        if (input.jobs().isEmpty()) {
+        List<JobEntity> filtered = input.jobs().stream()
+                .filter(job -> matchesQuery(job, q))
+                .filter(job -> employmentType == null || job.getEmploymentType() == employmentType)
+                .filter(job -> workplaceType == null || job.getWorkplaceType() == workplaceType)
+                .filter(job -> location == null || location.isBlank()
+                        || matchesLocation(job.getLocation(), location))
+                .filter(job -> minimumSalary == null || job.getSalaryMax() >= minimumSalary)
+                .toList();
+        if (filtered.isEmpty()) {
             return new RecommendedJobResponse(List.of(), new RecommendationMeta(
-                    "NONE", "none", "none", "NOT_APPLICABLE", 0, clock.instant(), limit));
+                    "NONE", "none", "none", "NOT_APPLICABLE", 0, clock.instant(),
+                    page, pageSize, 0, false));
         }
+
+        int total = Math.min(filtered.size(), MAX_RANKED);
+        long offset = (long) (page - 1) * pageSize;
+        if (offset >= total) {
+            return new RecommendedJobResponse(List.of(), new RecommendationMeta(
+                    "NONE", "none", "none", "NOT_APPLICABLE", 0, clock.instant(),
+                    page, pageSize, total, false));
+        }
+        int start = (int) offset;
+
+        Input rankedInput = new Input(input.resume(), input.preference(), input.preferenceVersion(),
+                filtered, input.companies());
+        int requestLimit = Math.min(start + pageSize + 1, total);
 
         Result result;
         try {
-            result = fromModel(input, limit);
+            result = fromModel(rankedInput, requestLimit);
         } catch (RuntimeException exception) {
             LOGGER.warn("Recommendation model unavailable; using deterministic fallback ({})",
                     exception.getClass().getSimpleName());
-            result = fallback(input, limit);
+            result = fallback(rankedInput, requestLimit);
         }
 
         snapshots.save(principal.userId(), input.resume().getVersion(), input.preferenceVersion(),
@@ -107,16 +139,23 @@ public class CandidateRecommendationService {
                 result.values().stream().map(value ->
                         new SnapshotInput(value.job(), value.score(), value.analysis())).toList());
 
+        Set<String> savedIds = savedJobs.findByCandidateIdAndJobIdIn(principal.userId(),
+                        filtered.stream().map(JobEntity::getId).toList())
+                .stream().map(CandidateSavedJobEntity::getJobId)
+                .collect(Collectors.toSet());
+        List<ScoredJob> ranked = result.values();
+        int toIndex = Math.min(start + pageSize, ranked.size());
         List<RecommendedJob> data = new ArrayList<>();
-        for (int index = 0; index < result.values().size(); index++) {
-            ScoredJob value = result.values().get(index);
+        for (int index = start; index < toIndex; index++) {
+            ScoredJob value = ranked.get(index);
             CompanyEntity company = input.companies().get(value.job().getCompanyId());
-            data.add(toDto(value, company, index + 1));
+            data.add(toDto(value, company, index + 1, savedIds.contains(value.job().getId())));
         }
         return new RecommendedJobResponse(data, new RecommendationMeta(
                 result.source(), result.modelVersion(), result.featureVersion(),
                 result.source().equals("MODEL") ? "ACTIVE" : "DEGRADED",
-                result.inferenceMs(), result.generatedAt(), limit));
+                result.inferenceMs(), result.generatedAt(), page, pageSize, total,
+                start + pageSize < ranked.size()));
     }
 
     @Transactional(readOnly = true)
@@ -243,13 +282,13 @@ public class CandidateRecommendationService {
                 entity.getSalaryCurrency().name(), entity.getSalaryPeriod().name());
     }
 
-    private RecommendedJob toDto(ScoredJob value, CompanyEntity company, int rank) {
+    private RecommendedJob toDto(ScoredJob value, CompanyEntity company, int rank, boolean saved) {
         JobEntity job = value.job();
         return new RecommendedJob(job.getId(), job.getTitle(), company.getId(), company.getName(),
                 job.getLocation(), job.getEmploymentType(), job.getWorkplaceType(),
                 job.getSalaryMin(), job.getSalaryMax(), job.getSalaryCurrency(), job.getSalaryPeriod(),
                 job.getDescription(), readStrings(job.getSkillsJson()), value.score(), rank,
-                value.analysis());
+                value.analysis(), saved);
     }
 
     private List<String> readStrings(String value) {
@@ -272,6 +311,21 @@ public class CandidateRecommendationService {
         String a = left.toLowerCase(Locale.ROOT);
         String b = right.toLowerCase(Locale.ROOT);
         return a.contains(b) || b.contains(a);
+    }
+
+    private static boolean matchesQuery(JobEntity job, String q) {
+        if (q == null || q.isBlank()) {
+            return true;
+        }
+        String title = job.getTitle();
+        return title != null && title.toLowerCase(Locale.ROOT).contains(q.trim().toLowerCase(Locale.ROOT));
+    }
+
+    private static boolean matchesLocation(String jobLocation, String query) {
+        if (jobLocation == null) {
+            return false;
+        }
+        return jobLocation.toLowerCase(Locale.ROOT).contains(query.trim().toLowerCase(Locale.ROOT));
     }
 
     private static Double requiredYears(String text) {

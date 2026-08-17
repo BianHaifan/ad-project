@@ -49,6 +49,7 @@ describe('AppShell', () => {
 
     expect(screen.getByText('Real Recruiter')).toBeInTheDocument();
     expect(screen.getByText('Real Company')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Community'})).toHaveAttribute('href', '/recruiter/community');
     await act(async () => {
       await expect(client.requestWithAuth('/protected')).rejects.toMatchObject({code: 'SESSION_EXPIRED'});
     });
@@ -77,6 +78,52 @@ describe('AppShell', () => {
       ], {initialEntries: ['/recruiter/dashboard']});
       render(<RouterProvider router={router}/>);
       expect(screen.getByRole('link', {name: /Real Recruiter/})).toHaveAttribute('href', '/recruiter/profile');
+    });
+
+    it('falls back to initials and no longer renders an Integrations nav link', () => {
+      const sessions = new AuthSessionStore(new MemoryStorage(), new MemoryStorage());
+      sessions.save({
+        accessToken: 'access-nav', refreshToken: 'refresh-nav',
+        accessTokenExpiresAt: 10_000, refreshTokenExpiresAt: 20_000, remember: false,
+        user: {
+          userId: 'user-1', role: 'RECRUITER', fullName: 'Real Recruiter', email: 'real@example.com', avatarUrl: null,
+          permissions: [],
+          company: {companyId: 'company-1', name: 'Real Company'},
+          createdAt: '2026-08-10T01:00:00Z', updatedAt: '2026-08-10T01:00:00Z',
+        },
+      });
+      const router = createMemoryRouter([
+        {path: '/recruiter', element: <AppShell sessions={sessions}/>, children: [
+          {path: 'dashboard', element: <div>Dashboard content</div>},
+        ]},
+      ], {initialEntries: ['/recruiter/dashboard']});
+      render(<RouterProvider router={router}/>);
+      expect(screen.queryByRole('link', {name: 'Integrations'})).not.toBeInTheDocument();
+      expect(screen.getByText('R')).toBeInTheDocument();
+      expect(document.querySelector('header img.avatar')).not.toBeInTheDocument();
+    });
+
+    it('renders the avatar image in the top nav when the session has one', () => {
+      const sessions = new AuthSessionStore(new MemoryStorage(), new MemoryStorage());
+      sessions.save({
+        accessToken: 'access-avatar', refreshToken: 'refresh-avatar',
+        accessTokenExpiresAt: 10_000, refreshTokenExpiresAt: 20_000, remember: false,
+        user: {
+          userId: 'user-1', role: 'RECRUITER', fullName: 'Real Recruiter', email: 'real@example.com',
+          avatarUrl: '/api/v1/avatars/user-1',
+          permissions: [],
+          company: {companyId: 'company-1', name: 'Real Company'},
+          createdAt: '2026-08-10T01:00:00Z', updatedAt: '2026-08-10T01:00:00Z',
+        },
+      });
+      const router = createMemoryRouter([
+        {path: '/recruiter', element: <AppShell sessions={sessions}/>, children: [
+          {path: 'dashboard', element: <div>Dashboard content</div>},
+        ]},
+      ], {initialEntries: ['/recruiter/dashboard']});
+      render(<RouterProvider router={router}/>);
+      const img = document.querySelector('header img.avatar') as HTMLImageElement;
+      expect(img).toHaveAttribute('src', '/api/v1/avatars/user-1');
     });
 
 });

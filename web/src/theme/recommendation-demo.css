@@ -19,3 +19,33 @@
   text-transform: uppercase;
   letter-spacing: .04em;
 }
+
+.rank-panel { margin-top: 16px; }
+.rank-table .table-head, .rank-table .table-row {
+  grid-template-columns: .55fr 1.5fr .85fr .75fr .8fr 1.1fr .55fr;
+}
+.fit-score {
+  display: inline-flex;
+  width: max-content;
+  background: #dff7f5;
+  color: #008b8d;
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.rank-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #dff7f5;
+  color: #008b8d;
+  font-weight: 800;
+  font-size: 11px;
+}
+.match-line { color: #008b8d; }
+.gap-line { color: #b43737; }
+.meta-note { font-size: 11px; color: #7b8491; margin: -2px 0 10px; }
