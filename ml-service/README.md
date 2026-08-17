@@ -133,3 +133,6 @@ recruiter APIs. The tool never writes MySQL directly, records resumable local pr
 jobs already imported. Start with `--dry-run`, then provide the recruiter password through the
 `AD_IMPORT_PASSWORD` environment variable. See the complete Chinese walkthrough in
 [IMPORT_TEST_JOBS.zh-CN.md](IMPORT_TEST_JOBS.zh-CN.md).
+
+For server deployment, data-transfer scope, remote imports, and production inference checks, see
+[SERVER_DATA_IMPORT_AND_INFERENCE.zh-CN.md](SERVER_DATA_IMPORT_AND_INFERENCE.zh-CN.md).
