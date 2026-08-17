@@ -32,6 +32,7 @@ describe('AppShell', () => {
       accessTokenExpiresAt: 10_000, refreshTokenExpiresAt: 20_000, remember: false,
       user: {
         userId: 'user-1', role: 'RECRUITER', fullName: 'Real Recruiter', email: 'real@example.com', avatarUrl: null,
+        permissions: [],
         company: {companyId: 'company-1', name: 'Real Company'},
         createdAt: '2026-08-10T01:00:00Z', updatedAt: '2026-08-10T01:00:00Z',
       },
@@ -64,6 +65,7 @@ describe('AppShell', () => {
         accessTokenExpiresAt: 10_000, refreshTokenExpiresAt: 20_000, remember: false,
         user: {
           userId: 'user-1', role: 'RECRUITER', fullName: 'Real Recruiter', email: 'real@example.com', avatarUrl: null,
+          permissions: [],
           company: {companyId: 'company-1', name: 'Real Company'},
           createdAt: '2026-08-10T01:00:00Z', updatedAt: '2026-08-10T01:00:00Z',
         },
@@ -85,6 +87,7 @@ describe('AppShell', () => {
         accessTokenExpiresAt: 10_000, refreshTokenExpiresAt: 20_000, remember: false,
         user: {
           userId: 'user-1', role: 'RECRUITER', fullName: 'Real Recruiter', email: 'real@example.com', avatarUrl: null,
+          permissions: [],
           company: {companyId: 'company-1', name: 'Real Company'},
           createdAt: '2026-08-10T01:00:00Z', updatedAt: '2026-08-10T01:00:00Z',
         },
@@ -108,6 +111,7 @@ describe('AppShell', () => {
         user: {
           userId: 'user-1', role: 'RECRUITER', fullName: 'Real Recruiter', email: 'real@example.com',
           avatarUrl: '/api/v1/avatars/user-1',
+          permissions: [],
           company: {companyId: 'company-1', name: 'Real Company'},
           createdAt: '2026-08-10T01:00:00Z', updatedAt: '2026-08-10T01:00:00Z',
         },

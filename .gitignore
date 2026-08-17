@@ -29,6 +29,7 @@ datasets/*.parquet
 ml-service/data/raw/
 ml-service/data/processed/
 ml-service/data/annotations/*.csv
+ml-service/data/imports/
 ml-service/artifacts/*
 !ml-service/artifacts/active/
 ml-service/artifacts/active/*

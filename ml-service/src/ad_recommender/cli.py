@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 from dataclasses import asdict, replace
 from pathlib import Path
 
 import uvicorn
 
+from ad_recommender.backend_import import BackendImportError, BackendJobImporter, select_import_jobs
 from ad_recommender.data import (
     download_resume_dataset,
     load_jobs,
@@ -83,6 +85,20 @@ def main() -> None:
     retrieve.add_argument("--top-k", type=int, default=300)
     retrieve.add_argument("--batch-size", type=int, default=64)
     retrieve.add_argument("--max-features", type=int, default=60_000)
+
+    import_jobs = subparsers.add_parser("import-jobs")
+    import_jobs.add_argument("--jobs", type=Path, required=True)
+    import_jobs.add_argument("--backend-url", default="http://127.0.0.1:8080")
+    import_jobs.add_argument("--email")
+    import_jobs.add_argument("--password-env", default="AD_IMPORT_PASSWORD")
+    import_jobs.add_argument("--access-token-env", default="AD_IMPORT_ACCESS_TOKEN")
+    import_jobs.add_argument(
+        "--state-file", type=Path, default=Path("data/imports/company-jobs.json")
+    )
+    import_jobs.add_argument("--limit", type=int, default=20)
+    import_jobs.add_argument("--seed", type=int, default=42)
+    import_jobs.add_argument("--dry-run", action="store_true")
+    import_jobs.add_argument("--no-publish", action="store_true")
 
     serve = subparsers.add_parser("serve")
     serve.add_argument("--host", default="127.0.0.1")
@@ -192,6 +208,51 @@ def main() -> None:
             encoding="utf-8",
         )
         print(f"Saved {final_model.manifest.model_version} to {args.artifact_dir}")
+    elif args.command == "import-jobs":
+        try:
+            jobs = select_import_jobs(load_jobs(args.jobs), args.limit, args.seed)
+        except (FileNotFoundError, ValueError) as error:
+            parser.error(str(error))
+        if args.dry_run:
+            print(
+                json.dumps(
+                    [
+                        {
+                            "sourceJobId": job.entity_id,
+                            "title": job.title,
+                            "employmentType": job.employment_type,
+                            "workplaceType": job.workplace_type,
+                            "location": job.location,
+                        }
+                        for job in jobs
+                    ],
+                    indent=2,
+                )
+            )
+            return
+        access_token = os.getenv(args.access_token_env, "").strip()
+        importer = BackendJobImporter(args.backend_url, args.state_file)
+        try:
+            if not access_token:
+                password = os.getenv(args.password_env, "")
+                if not args.email or not password:
+                    message = (
+                        f"set {args.access_token_env}, or provide --email and "
+                        f"set {args.password_env}"
+                    )
+                    parser.error(
+                        message
+                    )
+                access_token = importer.login(args.email, password)
+            result = importer.import_jobs(
+                jobs,
+                access_token,
+                args.jobs,
+                publish=not args.no_publish,
+            )
+        except BackendImportError as error:
+            parser.error(str(error))
+        print(json.dumps(asdict(result), indent=2, default=str))
     else:
         uvicorn.run("ad_recommender.api:app", host=args.host, port=args.port, reload=args.reload)
 

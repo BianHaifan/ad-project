@@ -182,6 +182,7 @@ describe('ProfilePage', () => {
       accessToken: 'a', refreshToken: 'r', accessTokenExpiresAt: 10_000, refreshTokenExpiresAt: 20_000, remember: false,
       user: {
         userId: 'rec-1', role: 'RECRUITER', fullName: 'Mia Chen', email: 'mia@example.com', avatarUrl: null,
+        permissions: [],
         company: {companyId: 'company-1', name: 'Moonshot AI'},
         createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-08-11T00:00:00Z',
       },
