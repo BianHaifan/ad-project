@@ -54,6 +54,10 @@ import com.adproject.candidate.feature.profile.RecruiterPublicProfileScreen
 import com.adproject.candidate.feature.profile.CompanyPublicProfileScreen
 import com.adproject.candidate.feature.profile.RecruiterPublicProfileViewModel
 import com.adproject.candidate.feature.profile.CompanyPublicProfileViewModel
+import com.adproject.candidate.feature.community.CommunityScreen
+import com.adproject.candidate.feature.community.CommunityViewModel
+import com.adproject.candidate.feature.community.CommunityDetailScreen
+import com.adproject.candidate.feature.community.CommunityDetailViewModel
 import com.adproject.candidate.data.api.CandidateRepository
 import com.adproject.candidate.data.api.FakeCandidateRepository
 
@@ -76,6 +80,8 @@ private object Route {
     const val SavedJobs = "saved-jobs"
     const val RecruiterProfile = "recruiter/{recruiterId}"
     const val CompanyProfile = "company/{companyId}"
+    const val Community = "community"
+    const val CommunityDetail = "community/{postId}"
 
     fun jobDetail(id: String) = "job-detail/$id"
     fun chatDetail(id: String) = "chat-detail/$id"
@@ -84,6 +90,7 @@ private object Route {
     fun applicationDetail(id: String) = "application-detail/$id"
     fun recruiterProfile(id: String) = "recruiter/$id"
     fun companyProfile(id: String) = "company/$id"
+    fun communityDetail(id: String) = "community/$id"
 }
 
 /**
@@ -295,6 +302,7 @@ fun AdCandidateApp(
                     },
                     onOpenPreferences = { navController.navigate(Route.JobPreferences) },
                     onOpenSavedJobs = { navController.navigate(Route.SavedJobs) },
+                    onCommunity = { navController.navigate(Route.Community) },
                     onLogout = authViewModel::logout,
                     onTab = ::openTab,
                 )
@@ -312,6 +320,36 @@ fun AdCandidateApp(
                     onDeleteAvatar = profileViewModel::deleteAvatar,
                     onCancelAvatar = profileViewModel::cancelAvatar,
                     onAvatarTooLarge = profileViewModel::rejectAvatarTooLarge,
+                )
+            }
+            composable(Route.Community) {
+                val communityViewModel: CommunityViewModel = viewModel(
+                    factory = CommunityViewModel.factory(container.communityRepository),
+                )
+                val state by communityViewModel.state.collectAsStateWithLifecycle()
+                CommunityScreen(
+                    state = state,
+                    onBack = { navigateBack(Route.Profile) },
+                    onDraft = communityViewModel::updateDraft,
+                    onPublish = communityViewModel::publish,
+                    onRefresh = communityViewModel::refresh,
+                    onRetry = communityViewModel::retry,
+                    onLoadMore = communityViewModel::loadMore,
+                    onPost = { navController.navigate(Route.communityDetail(it)) },
+                )
+            }
+            composable(Route.CommunityDetail) { entry ->
+                val postId = requireNotNull(entry.arguments?.getString("postId"))
+                val detailViewModel: CommunityDetailViewModel = viewModel(
+                    key = "community-$postId",
+                    factory = CommunityDetailViewModel.factory(postId, container.communityRepository),
+                )
+                val state by detailViewModel.state.collectAsStateWithLifecycle()
+                CommunityDetailScreen(
+                    state = state, onBack = { navigateBack(Route.Community) }, onRetry = detailViewModel::retry,
+                    onToggleLike = detailViewModel::toggleLike, onComment = detailViewModel::updateComment,
+                    onPublishComment = detailViewModel::publishComment, onLoadMore = detailViewModel::loadMore,
+                    onRetryComments = detailViewModel::retryComments,
                 )
             }
             composable(Route.ResumeEdit) {

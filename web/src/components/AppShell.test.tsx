@@ -48,6 +48,7 @@ describe('AppShell', () => {
 
     expect(screen.getByText('Real Recruiter')).toBeInTheDocument();
     expect(screen.getByText('Real Company')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Community'})).toHaveAttribute('href', '/recruiter/community');
     await act(async () => {
       await expect(client.requestWithAuth('/protected')).rejects.toMatchObject({code: 'SESSION_EXPIRED'});
     });

@@ -11,8 +11,8 @@ export const apiPaths = {
   refresh: '/auth/refresh',
   logout: '/auth/logout',
   me: '/recruiter/me',
-    avatar: '/profile/avatar',
-    recruiterProfile: '/recruiter/profile',
+  avatar: '/profile/avatar',
+  recruiterProfile: '/recruiter/profile',
   company: '/recruiter/company',
   dashboard: '/recruiter/dashboard',
   jobs: '/recruiter/jobs',
@@ -39,6 +39,10 @@ export const apiPaths = {
   googleOAuthAuthorize: '/recruiter/google-oauth/authorize',
   googleOAuthStatus: '/recruiter/google-oauth/status',
   googleOAuth: '/recruiter/google-oauth',
+  communityPosts: '/community/posts',
+  communityPost: (postId: string) => `/community/posts/${postId}`,
+  communityLike: (postId: string) => `/community/posts/${postId}/like`,
+  communityComments: (postId: string) => `/community/posts/${postId}/comments`,
 } as const;
 
 export function readData<T>(response: DataEnvelope<T>): T { return response.data }

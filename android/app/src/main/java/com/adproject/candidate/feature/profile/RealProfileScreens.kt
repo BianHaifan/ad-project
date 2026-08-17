@@ -70,6 +70,7 @@ fun RealProfileScreen(
     onOpenResume: () -> Unit,
     onOpenPreferences: () -> Unit,
     onOpenSavedJobs: () -> Unit,
+    onCommunity: () -> Unit,
     onLogout: () -> Unit,
     onTab: (MainTab) -> Unit,
 ) {
@@ -92,6 +93,7 @@ fun RealProfileScreen(
                     onOpenResume = onOpenResume,
                     onOpenPreferences = onOpenPreferences,
                     onOpenSavedJobs = onOpenSavedJobs,
+                    onCommunity = onCommunity,
                     onLogout = onLogout,
                 )
             }
@@ -125,6 +127,7 @@ private fun MeContent(
     onOpenResume: () -> Unit,
     onOpenPreferences: () -> Unit,
     onOpenSavedJobs: () -> Unit,
+    onCommunity: () -> Unit,
     onLogout: () -> Unit,
 ) {
     val data = state.data ?: return
@@ -141,6 +144,9 @@ private fun MeContent(
         }
         AdCard(Modifier.fillMaxWidth()) {
             ActionRow("Job preferences", "Tune titles, locations and salary", onOpenPreferences)
+        }
+        AdCard(Modifier.fillMaxWidth()) {
+            ActionRow("Community", "Posts from candidates and recruiters", onCommunity)
         }
         SignOutCard(onLogout)
         Spacer(Modifier.height(4.dp))
