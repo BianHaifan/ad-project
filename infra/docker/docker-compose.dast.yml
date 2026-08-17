@@ -12,8 +12,23 @@ services:
       DB_USERNAME: adproject
       DB_PASSWORD: ${DB_PASSWORD:-adproject}
       JWT_SECRET: ${JWT_SECRET:-}
+      ML_ENABLED: ${ML_ENABLED:-true}
+      ML_INTERNAL_TOKEN: ${ML_INTERNAL_TOKEN:-}
     ports:
       - "8080:8080"
+
+  ml:
+    image: adproject-ml:dast
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.ml
+    environment:
+      ML_INTERNAL_TOKEN: ${ML_INTERNAL_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/internal/v1/health', timeout=3).status == 200 else sys.exit(1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   web:
     image: adproject-web:dast
