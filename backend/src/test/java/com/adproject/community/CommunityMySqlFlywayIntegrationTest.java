@@ -42,9 +42,11 @@ class CommunityMySqlFlywayIntegrationTest {
 
     @Test
     void v14MigratesEmptyMySqlAndMatchesTheCompleteCommunitySchema() {
+        // Community migration is V14, but V18-V21 (avatars, contact/gender, age, saved jobs) follow it,
+        // so the latest applied migration is now V21.
         assertThat(jdbcTemplate.queryForObject(
                 "select version from flyway_schema_history where success = 1 order by installed_rank desc limit 1",
-                String.class)).isEqualTo("14");
+                String.class)).isEqualTo("21");
         assertThat(tableNames()).containsExactlyInAnyOrder(
                 "community_posts", "community_post_likes", "community_comments");
 
