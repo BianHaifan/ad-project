@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.adproject.candidate.R
 
-enum class MainTab(val label: String) { Jobs("Jobs"), Learn("Learn"), Messages("Messages"), Me("Me") }
+enum class MainTab(val label: String) { Jobs("Jobs"), Community("Community"), Messages("Messages"), Me("Me") }
 
 @Composable
 fun FigmaSvg(@RawRes resource: Int, contentDescription: String?, modifier: Modifier = Modifier) {
@@ -145,7 +145,7 @@ fun Logo(size: Int = 56) {
 fun AdBottomBar(selected: MainTab, onSelected: (MainTab) -> Unit) {
     val icons = mapOf(
         MainTab.Jobs to (R.raw.nav_jobs to R.raw.nav_jobs_inactive),
-        MainTab.Learn to (R.raw.nav_learning to R.raw.nav_learning_inactive),
+        MainTab.Community to (R.raw.nav_community to R.raw.nav_community_inactive),
         MainTab.Messages to (R.raw.nav_messages to R.raw.nav_messages_inactive),
         MainTab.Me to (R.raw.nav_profile to R.raw.nav_jobs_inactive),
     )

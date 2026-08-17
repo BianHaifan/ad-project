@@ -30,12 +30,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.adproject.candidate.core.designsystem.AdBackground
+import com.adproject.candidate.core.designsystem.AdBottomBar
 import com.adproject.candidate.core.designsystem.AdCard
 import com.adproject.candidate.core.designsystem.AdMuted
 import com.adproject.candidate.core.designsystem.AdTeal
 import com.adproject.candidate.core.designsystem.AdTealSoft
 import com.adproject.candidate.core.designsystem.AdText
 import com.adproject.candidate.core.designsystem.AdTopBar
+import com.adproject.candidate.core.designsystem.MainTab
 import com.adproject.candidate.core.designsystem.PrimaryButton
 import com.adproject.candidate.core.designsystem.SecondaryButton
 import java.time.Instant
@@ -53,7 +55,7 @@ fun communityScreenMode(state: CommunityUiState) = when {
 @Composable
 fun CommunityScreen(
     state: CommunityUiState,
-    onBack: () -> Unit,
+    onTab: (MainTab) -> Unit,
     onDraft: (String) -> Unit,
     onPublish: () -> Unit,
     onRefresh: () -> Unit,
@@ -62,9 +64,11 @@ fun CommunityScreen(
     onPost: (String) -> Unit,
 ) {
     val length = state.draft.codePointCount(0, state.draft.length)
-    Scaffold(containerColor = AdBackground, topBar = {
-        AdTopBar("Community", onBack)
-    }) { padding ->
+    Scaffold(
+        containerColor = AdBackground,
+        topBar = { AdTopBar("Community") },
+        bottomBar = { AdBottomBar(MainTab.Community, onTab) },
+    ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 AdCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
