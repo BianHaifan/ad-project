@@ -125,3 +125,11 @@ retrieved pairs. It is explicitly a teacher-agreement audit, not a human blind t
 conda run -n ad-project-ml ruff check .
 conda run -n ad-project-ml pytest
 ```
+
+## Import raw jobs for end-to-end testing
+
+Use `ad-recommender import-jobs` to select raw jobs and send them through the real Spring Boot
+recruiter APIs. The tool never writes MySQL directly, records resumable local progress, and skips
+jobs already imported. Start with `--dry-run`, then provide the recruiter password through the
+`AD_IMPORT_PASSWORD` environment variable. See the complete Chinese walkthrough in
+[IMPORT_TEST_JOBS.zh-CN.md](IMPORT_TEST_JOBS.zh-CN.md).
