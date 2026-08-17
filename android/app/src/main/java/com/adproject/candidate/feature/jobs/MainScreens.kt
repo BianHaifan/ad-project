@@ -66,7 +66,6 @@ import com.adproject.candidate.data.contract.WorkplaceType
 import com.adproject.candidate.data.model.CandidateProfile
 import com.adproject.candidate.data.model.Job
 import com.adproject.candidate.data.model.JobFeedData
-import com.adproject.candidate.data.model.LearningData
 import com.adproject.candidate.data.model.ProfileTool
 import com.adproject.candidate.feature.profile.COMMON_LOCATIONS
 import com.adproject.candidate.feature.profile.SALARY_OPTIONS
@@ -395,29 +394,6 @@ private fun filterChipColors() = FilterChipDefaults.filterChipColors(
 
 private fun EmploymentType.label(): String = name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
 private fun WorkplaceType.label(): String = name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
-
-@Composable
-fun LearningScreen(data: LearningData, onTab: (MainTab) -> Unit) {
-    Scaffold(bottomBar = { AdBottomBar(MainTab.Learn, onTab) }, containerColor = AdBackground) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Learning", Modifier.fillMaxWidth(), color = Color(0xFF0E1114), fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(72.dp))
-            AdCard(Modifier.fillMaxWidth().height(320.dp)) {
-                Column(Modifier.fillMaxSize().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Box(Modifier.size(72.dp).clip(CircleShape).background(AdTealSoft), contentAlignment = Alignment.Center) {
-                        Text("L", color = AdTeal, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    TagChip(data.badge, accent = true)
-                    Spacer(Modifier.height(14.dp))
-                    Text(data.title, color = AdText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(26.dp))
-                    Text(data.description, color = Color(0xFF6B7885), fontSize = 13.sp, lineHeight = 19.sp)
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun ProfileScreen(data: CandidateProfile, onTab: (MainTab) -> Unit, onApplications: () -> Unit,

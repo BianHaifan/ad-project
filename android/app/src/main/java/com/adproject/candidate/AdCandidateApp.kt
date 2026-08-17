@@ -33,7 +33,6 @@ import com.adproject.candidate.feature.auth.SignInScreen
 import com.adproject.candidate.feature.auth.AuthViewModel
 import com.adproject.candidate.feature.jobs.JobDetailScreen
 import com.adproject.candidate.feature.jobs.JobFeedScreen
-import com.adproject.candidate.feature.jobs.LearningScreen
 import com.adproject.candidate.feature.jobs.SavedJobsScreen
 import com.adproject.candidate.feature.jobs.JobFeedViewModel
 import com.adproject.candidate.feature.jobs.JobDetailViewModel
@@ -65,7 +64,6 @@ private object Route {
     const val SignIn = "sign-in"
     const val CreateAccount = "create-account"
     const val Jobs = "jobs"
-    const val Learning = "learning"
     const val Messages = "messages"
     const val ChatDetail = "chat-detail/{conversationId}"
     const val Profile = "profile"
@@ -164,7 +162,7 @@ fun AdCandidateApp(
     fun openTab(tab: MainTab) {
         val route = when (tab) {
             MainTab.Jobs -> Route.Jobs
-            MainTab.Learn -> Route.Learning
+            MainTab.Community -> Route.Community
             MainTab.Messages -> Route.Messages
             MainTab.Me -> Route.Profile
         }
@@ -236,7 +234,6 @@ fun AdCandidateApp(
                     onJob = { navController.navigate(Route.jobDetail(it)) },
                 )
             }
-            composable(Route.Learning) { LearningScreen(fakeCandidateFeatures.getLearning(), ::openTab) }
             composable(Route.Messages) {
                 val messagesViewModel: MessagesViewModel = viewModel(
                     factory = MessagesViewModel.factory(container.candidateConversationRepository),
@@ -302,7 +299,6 @@ fun AdCandidateApp(
                     },
                     onOpenPreferences = { navController.navigate(Route.JobPreferences) },
                     onOpenSavedJobs = { navController.navigate(Route.SavedJobs) },
-                    onCommunity = { navController.navigate(Route.Community) },
                     onLogout = authViewModel::logout,
                     onTab = ::openTab,
                 )
@@ -329,7 +325,7 @@ fun AdCandidateApp(
                 val state by communityViewModel.state.collectAsStateWithLifecycle()
                 CommunityScreen(
                     state = state,
-                    onBack = { navigateBack(Route.Profile) },
+                    onTab = ::openTab,
                     onDraft = communityViewModel::updateDraft,
                     onPublish = communityViewModel::publish,
                     onRefresh = communityViewModel::refresh,
