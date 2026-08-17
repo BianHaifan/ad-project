@@ -8,6 +8,7 @@ on:
 env:
   IMAGE_BACKEND: adproject-backend:latest
   IMAGE_WEB: adproject-web:latest
+  IMAGE_ML: adproject-ml:latest
 
 jobs:
   build-images:
@@ -33,9 +34,17 @@ jobs:
           load: true
           tags: ${{ env.IMAGE_WEB }}
 
+      - name: Build ML image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.ml
+          load: true
+          tags: ${{ env.IMAGE_ML }}
+
       - name: Export images to tar
         run: |
-          docker save -o /tmp/images.tar ${{ env.IMAGE_BACKEND }} ${{ env.IMAGE_WEB }}
+          docker save -o /tmp/images.tar ${{ env.IMAGE_BACKEND }} ${{ env.IMAGE_WEB }} ${{ env.IMAGE_ML }}
           ls -lh /tmp/images.tar
 
       - name: Upload image tar

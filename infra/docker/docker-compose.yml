@@ -25,9 +25,25 @@ services:
       DB_USERNAME: adproject
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      ML_ENABLED: ${ML_ENABLED:-true}
+      ML_BASE_URL: http://ml:8000
+      ML_INTERNAL_TOKEN: ${ML_INTERNAL_TOKEN}
     depends_on:
       mysql:
         condition: service_healthy
+    networks: [internal]
+
+  ml:
+    image: adproject-ml:latest
+    restart: unless-stopped
+    environment:
+      ML_INTERNAL_TOKEN: ${ML_INTERNAL_TOKEN}
+      ML_MODEL_PATH: /app/ml-service/artifacts/active/model.joblib
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/internal/v1/health', timeout=3).status == 200 else sys.exit(1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks: [internal]
 
   web:

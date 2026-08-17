@@ -44,6 +44,11 @@
         src: ../docker/Dockerfile.web
         dest: "{{ compose_dir }}/Dockerfile.web"
 
+    - name: Copy Dockerfile.ml
+      ansible.builtin.copy:
+        src: ../docker/Dockerfile.ml
+        dest: "{{ compose_dir }}/Dockerfile.ml"
+
     - name: Copy nginx.conf
       ansible.builtin.copy:
         src: ../docker/nginx.conf
@@ -70,6 +75,7 @@
         db_root_password: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
         db_password: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
         jwt_secret: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=64') }}"
+        ml_internal_token: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=64') }}"
       when: not env_stat.stat.exists
 
     - name: Write .env (only when missing, keeps existing secrets)
@@ -78,6 +84,18 @@
         dest: "{{ compose_dir }}/.env"
         mode: "0600"
       when: not env_stat.stat.exists
+
+    - name: Generate ML token when adding it to an existing .env
+      ansible.builtin.set_fact:
+        ml_internal_token: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=64') }}"
+      when: env_stat.stat.exists
+
+    - name: Ensure ML_INTERNAL_TOKEN exists in existing .env
+      ansible.builtin.lineinfile:
+        path: "{{ compose_dir }}/.env"
+        regexp: "^ML_INTERNAL_TOKEN="
+        line: "ML_INTERNAL_TOKEN={{ ml_internal_token }}"
+      when: env_stat.stat.exists
 
     - name: Ensure .env is owned by ubuntu so the deploy user can read it
       ansible.builtin.file:
