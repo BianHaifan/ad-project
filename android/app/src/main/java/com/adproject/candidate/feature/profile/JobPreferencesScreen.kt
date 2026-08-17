@@ -2,19 +2,17 @@ package com.adproject.candidate.feature.profile
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -66,28 +64,24 @@ class JobPreferenceViewModel(
     }
 
     fun save(
-        titlesText: String,
-        locationsText: String,
+        titles: List<String>,
+        locations: List<String>,
         workplaces: Set<WorkplaceType>,
         employments: Set<EmploymentType>,
-        minimumSalaryText: String,
+        minimumSalary: Long?,
     ) {
         val current = mutable.value
         if (current.submitting || current.data == null) return
-        val titles = splitValues(titlesText)
-        val locations = splitValues(locationsText)
-        val minimumSalary = minimumSalaryText.trim().takeIf(String::isNotEmpty)?.toLongOrNull()
+        val normalizedTitles = titles.map(String::trim).filter(String::isNotEmpty).distinct()
+        val normalizedLocations = locations.map(String::trim).filter(String::isNotEmpty).distinct()
         val errors = buildMap {
-            if (titles.size > 20) put("desiredTitles", "Use at most 20 titles")
-            if (titles.any { it.length > 200 }) {
+            if (normalizedTitles.size > 20) put("desiredTitles", "Use at most 20 titles")
+            if (normalizedTitles.any { it.length > 200 }) {
                 put("desiredTitles", "Each title must be at most 200 characters")
             }
-            if (locations.size > 20) put("preferredLocations", "Use at most 20 locations")
-            if (locations.any { it.length > 200 }) {
+            if (normalizedLocations.size > 20) put("preferredLocations", "Use at most 20 locations")
+            if (normalizedLocations.any { it.length > 200 }) {
                 put("preferredLocations", "Each location must be at most 200 characters")
-            }
-            if (minimumSalaryText.isNotBlank() && (minimumSalary == null || minimumSalary < 0)) {
-                put("minimumSalary", "Enter a non-negative whole number")
             }
         }
         if (errors.isNotEmpty()) {
@@ -96,7 +90,7 @@ class JobPreferenceViewModel(
         }
         mutable.update { it.copy(submitting = true, message = null, fieldErrors = emptyMap()) }
         viewModelScope.launch {
-            val request = SaveJobPreferenceRequest(titles, locations, workplaces.toList(),
+            val request = SaveJobPreferenceRequest(normalizedTitles, normalizedLocations, workplaces.toList(),
                 employments.toList(), minimumSalary, expectedVersion = current.data.version)
             when (val result = repository.savePreferences(request)) {
                 is ApiResult.Success -> mutable.value = JobPreferenceUiState(
@@ -119,7 +113,7 @@ fun JobPreferencesScreen(
     state: JobPreferenceUiState,
     onRetry: () -> Unit,
     onBack: () -> Unit,
-    onSave: (String, String, Set<WorkplaceType>, Set<EmploymentType>, String) -> Unit,
+    onSave: (List<String>, List<String>, Set<WorkplaceType>, Set<EmploymentType>, Long?) -> Unit,
 ) {
     if (state.loading) {
         Column(Modifier.fillMaxSize().padding(32.dp)) { CircularProgressIndicator() }
@@ -134,52 +128,116 @@ fun JobPreferencesScreen(
         }
         return
     }
-    var titles by remember(data) { mutableStateOf(data.desiredTitles.joinToString(", ")) }
-    var locations by remember(data) { mutableStateOf(data.preferredLocations.joinToString(", ")) }
-    var minimumSalary by remember(data) { mutableStateOf(data.minimumSalary?.toString().orEmpty()) }
+    val titles = remember(data) { mutableStateListOf<String>().apply { addAll(data.desiredTitles) } }
+    val locations = remember(data) { mutableStateListOf<String>().apply { addAll(data.preferredLocations) } }
+    var minimumSalary by remember(data) { mutableStateOf(data.minimumSalary) }
     var workplaces by remember(data) { mutableStateOf(data.workplaceTypes.toSet()) }
     var employments by remember(data) { mutableStateOf(data.employmentTypes.toSet()) }
+    var showTitles by remember { mutableStateOf(false) }
+    var showLocations by remember { mutableStateOf(false) }
+    var showWorkplaces by remember { mutableStateOf(false) }
+    var showEmployments by remember { mutableStateOf(false) }
+    var showSalary by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Job preferences", style = MaterialTheme.typography.headlineSmall)
         Text("These fields become structured features for job matching.")
-        OutlinedTextField(titles, { titles = it }, Modifier.fillMaxWidth(),
-            label = { Text("Desired titles, comma separated") },
-            isError = "desiredTitles" in state.fieldErrors)
-        OutlinedTextField(locations, { locations = it }, Modifier.fillMaxWidth(),
-            label = { Text("Preferred locations, comma separated") },
-            isError = "preferredLocations" in state.fieldErrors)
-        Text("Workplace type", style = MaterialTheme.typography.titleMedium)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            WorkplaceType.entries.forEach { type -> FilterChip(
-                selected = type in workplaces,
-                onClick = { workplaces = workplaces.toggle(type) },
-                label = { Text(type.name.replace('_', ' ')) },
-            ) }
-        }
-        Text("Employment type", style = MaterialTheme.typography.titleMedium)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            EmploymentType.entries.forEach { type -> FilterChip(
-                selected = type in employments,
-                onClick = { employments = employments.toggle(type) },
-                label = { Text(type.name.replace('_', ' ')) },
-            ) }
-        }
-        OutlinedTextField(minimumSalary, { minimumSalary = it }, Modifier.fillMaxWidth(),
-            label = { Text("Minimum monthly salary (SGD)") },
-            isError = "minimumSalary" in state.fieldErrors)
+        SelectorField(
+            label = "Desired titles",
+            value = titles.joinToString(", ").ifBlank { null },
+            placeholder = "Select titles",
+            isError = "desiredTitles" in state.fieldErrors,
+            errorText = state.fieldErrors["desiredTitles"],
+            onClick = { showTitles = true },
+        )
+        SelectorField(
+            label = "Preferred locations",
+            value = locations.joinToString(", ").ifBlank { null },
+            placeholder = "Select locations",
+            isError = "preferredLocations" in state.fieldErrors,
+            errorText = state.fieldErrors["preferredLocations"],
+            onClick = { showLocations = true },
+        )
+        SelectorField(
+            label = "Workplace type",
+            value = workplaces.joinToString(", ") { it.name.replace('_', ' ') }.ifBlank { null },
+            placeholder = "None selected",
+            onClick = { showWorkplaces = true },
+        )
+        SelectorField(
+            label = "Employment type",
+            value = employments.joinToString(", ") { it.name.replace('_', ' ') }.ifBlank { null },
+            placeholder = "None selected",
+            onClick = { showEmployments = true },
+        )
+        SelectorField(
+            label = "Minimum monthly salary (SGD)",
+            value = minimumSalary?.let(::formatSalary),
+            placeholder = "Not specified",
+            onClick = { showSalary = true },
+        )
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (state.saved) Text("Preferences saved. Refresh Recommended jobs to recalculate matches.")
         PrimaryButton(if (state.submitting) "Saving..." else "Save preferences",
-            { onSave(titles, locations, workplaces, employments, minimumSalary) },
+            { onSave(titles.toList(), locations.toList(), workplaces, employments, minimumSalary) },
             Modifier.fillMaxWidth(), enabled = !state.submitting)
         SecondaryButton("Back", onBack, Modifier.fillMaxWidth())
     }
+
+    if (showTitles) {
+        SearchableMultiSelectSheet(
+            title = "Desired titles",
+            options = COMMON_JOB_TITLES,
+            initialSelected = titles.toList(),
+            searchPlaceholder = "Search titles",
+            addPlaceholder = "Add a title",
+            onConfirm = { result -> titles.clear(); titles.addAll(result); showTitles = false },
+            onDismiss = { showTitles = false },
+        )
+    }
+    if (showLocations) {
+        SearchableMultiSelectSheet(
+            title = "Preferred locations",
+            options = COMMON_LOCATIONS,
+            initialSelected = locations.toList(),
+            searchPlaceholder = "Search locations",
+            addPlaceholder = "Add a location",
+            onConfirm = { result -> locations.clear(); locations.addAll(result); showLocations = false },
+            onDismiss = { showLocations = false },
+        )
+    }
+    if (showWorkplaces) {
+        EnumMultiSelectSheet(
+            title = "Workplace type",
+            options = WorkplaceType.entries,
+            optionLabel = { it.name.replace('_', ' ') },
+            initialSelected = workplaces,
+            onConfirm = { workplaces = it; showWorkplaces = false },
+            onDismiss = { showWorkplaces = false },
+        )
+    }
+    if (showEmployments) {
+        EnumMultiSelectSheet(
+            title = "Employment type",
+            options = EmploymentType.entries,
+            optionLabel = { it.name.replace('_', ' ') },
+            initialSelected = employments,
+            onConfirm = { employments = it; showEmployments = false },
+            onDismiss = { showEmployments = false },
+        )
+    }
+    if (showSalary) {
+        NumberWheelSheet(
+            title = "Minimum monthly salary (SGD)",
+            values = SALARY_OPTIONS,
+            labelOf = ::formatSalary,
+            initialValue = minimumSalary,
+            clearLabel = "Not specified",
+            onConfirm = { minimumSalary = it; showSalary = false },
+            onDismiss = { showSalary = false },
+        )
+    }
 }
 
-private fun splitValues(value: String): List<String> = value.split(',')
-    .map(String::trim).filter(String::isNotEmpty).distinct()
-
-private fun <T> Set<T>.toggle(value: T): Set<T> =
-    if (value in this) this - value else this + value
+private fun formatSalary(value: Long): String = "S$%,d".format(value)

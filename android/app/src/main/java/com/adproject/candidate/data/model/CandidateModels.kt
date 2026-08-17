@@ -19,6 +19,7 @@ data class Job(
     val match: Int?,
     val recruiter: RecruiterContact?,
     val companyId: String,
+    val isSaved: Boolean = false,
 )
 
 data class RecruiterContact(val recruiterId: String, val fullName: String, val title: String)

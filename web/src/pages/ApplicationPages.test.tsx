@@ -1,12 +1,12 @@
 import '@testing-library/jest-dom/vitest';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {createMemoryRouter, RouterProvider} from 'react-router-dom';
-import {afterEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {AuthApiError} from '../api/authClient';
 import {recruiterRepository} from '../api/repository';
 import {applications} from '../mocks/data';
-import type {GoogleConnection} from '../models/recruiter';
+import type {ApplicationStatus, GoogleConnection} from '../models/recruiter';
 import {ApplicationDetailPage} from './ApplicationDetailPage';
 import {ApplicationsPage} from './ApplicationsPage';
 
@@ -21,7 +21,7 @@ const summary = {applicationId: detail.applicationId, jobId: detail.jobId, statu
   appliedAt: detail.appliedAt, updatedAt: detail.updatedAt, version: detail.version, candidate: detail.candidate,
   jobTitle: detail.jobTitle, matchScore: null, owner: null};
 const meta = {page: 1, pageSize: 20, total: 1, hasNext: false,
-  counts: {applied: 1, inReview: 0, interview: 0, rejected: 0}};
+  counts: {applied: 1, inReview: 0, interview: 0, offered: 0, rejected: 0}};
 
 function renderRoute(path: string, routes: {path: string; element: React.ReactNode}[]) {
   const client = new QueryClient({defaultOptions: {queries: {retry: false}, mutations: {retry: false}}});
@@ -35,7 +35,15 @@ function assertPrecedes(before: HTMLElement, after: HTMLElement) {
   expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 }
 
+// Outcome node label mirrors ProgressRail's terminal-status rendering.
+const outcomeLabel = (status: ApplicationStatus) => status === 'OFFERED' ? 'Offer made'
+  : status === 'REJECTED' ? 'Rejected' : status === 'WITHDRAWN' ? 'Withdrawn' : 'Outcome';
+
 describe('real recruiter application pages', () => {
+  beforeEach(() => {
+    vi.spyOn(recruiterRepository, 'listConversations')
+      .mockResolvedValue({data: [], meta: {page: 1, pageSize: 100, total: 0, hasNext: false}});
+  });
   afterEach(() => {cleanup(); vi.restoreAllMocks();});
 
   it('renders the real list without inventing match or owner data', async () => {
@@ -46,15 +54,23 @@ describe('real recruiter application pages', () => {
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
     expect(screen.queryByText(detail.jobId)).not.toBeInTheDocument();
     expect(screen.getByText('Unassigned')).toBeInTheDocument();
-    expect(screen.queryByText('0% match')).not.toBeInTheDocument();
+    expect(screen.getByText('AI fit score')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: /Create job/i})).not.toBeInTheDocument();
     expect(screen.getByRole('button', {name: `View application for ${detail.candidate.fullName}`})).toBeInTheDocument();
     expect(list).toHaveBeenCalledWith({status: undefined, q: '', page: 1, pageSize: 20, sort: 'appliedAt,desc'});
   });
 
+  it('shows the stored AI fit score as a badge when a valid score is present', async () => {
+    vi.spyOn(recruiterRepository, 'listApplications')
+      .mockResolvedValue({data: [{...summary, matchScore: 87}], meta});
+    renderRoute('/recruiter/applications', [{path: '/recruiter/applications', element: <ApplicationsPage/>}]);
+    expect(await screen.findByText('87 / 100')).toBeInTheDocument();
+  });
+
   it('handles empty and safe error list states', async () => {
     vi.spyOn(recruiterRepository, 'listApplications').mockResolvedValue({data: [], meta: {...meta, total: 0,
-      counts: {applied: 0, inReview: 0, interview: 0, rejected: 0}}});
+      counts: {applied: 0, inReview: 0, interview: 0, offered: 0, rejected: 0}}});
     renderRoute('/recruiter/applications', [{path: '/recruiter/applications', element: <ApplicationsPage/>}]);
     expect(await screen.findByText('No applications found')).toBeInTheDocument();
     cleanup(); vi.restoreAllMocks();
@@ -72,7 +88,34 @@ describe('real recruiter application pages', () => {
     expect(screen.queryByText('Match score and analysis are unavailable.')).not.toBeInTheDocument();
     expect(screen.queryByText(detail.applicationId)).not.toBeInTheDocument();
     expect(screen.queryByText(detail.resumeSnapshot.snapshotId)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', {name: /Message|Schedule interview|Download PDF|Save note/})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: /Schedule interview|Download PDF|Save note/})).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', {name: 'Message candidate'})).toBeDisabled();
+    expect(screen.getByText('No conversation with this candidate yet.')).toBeInTheDocument();
+  });
+
+  it('renders the candidate at a glance card with an unavailable fit state without AI analysis', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue(detail);
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    expect(await screen.findByText('Candidate fit')).toBeInTheDocument();
+    expect(screen.getByText('AI analysis unavailable')).toBeInTheDocument();
+    expect(screen.getByText(detail.candidate.email)).toBeInTheDocument();
+    expect(screen.getByText('Applied role')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Open full resume'})).toBeInTheDocument();
+    expect(screen.queryByText(/phone|gender|birthday|date of birth/i)).not.toBeInTheDocument();
+  });
+
+  it('renders the explainable fit breakdown when an analysis exists', async () => {
+    const analyzed = {...detail, matchScore: 87, matchAnalysis: {
+      score: 87, evidence: ['Python / API experience'], strongMatches: ['Python / FastAPI'],
+      gaps: ['Latency optimization evidence'], modelVersion: 'v1.0', generatedAt: '2026-08-09T01:42:00Z'}};
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue(analyzed);
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    expect(await screen.findByText('87 / 100')).toBeInTheDocument();
+    expect(screen.getByText('Python / FastAPI')).toBeInTheDocument();
+    expect(screen.getByText('Latency optimization evidence')).toBeInTheDocument();
+    expect(screen.queryByText('AI analysis unavailable')).not.toBeInTheDocument();
   });
 
   it('requires a reason and submits the server version only once while pending', async () => {
@@ -82,12 +125,12 @@ describe('real recruiter application pages', () => {
     const transition = vi.spyOn(recruiterRepository, 'updateApplicationStatus').mockReturnValue(pending);
     renderRoute(`/recruiter/applications/${detail.applicationId}`,
       [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
-    await screen.findByText('Review decision');
-    const submit = screen.getByRole('button', {name: 'Confirm stage change'});
-    expect(submit).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('NEXT STAGE'), {target: {value: 'IN_REVIEW'}});
+    await screen.findByText('Application progress');
+    fireEvent.click(screen.getByRole('button', {name: 'Start review'}));
+    const submit = screen.getByRole('button', {name: 'Confirm start review'});
     expect(submit).toBeDisabled();
     fireEvent.change(screen.getByLabelText('DECISION REASON'), {target: {value: ' Strong evidence '}});
+    expect(submit).toBeEnabled();
     fireEvent.click(submit);
     await waitFor(() => expect(transition).toHaveBeenCalledWith(detail.applicationId, 'IN_REVIEW',
       ' Strong evidence ', detail.version));
@@ -111,7 +154,7 @@ describe('real recruiter application pages', () => {
     const create = vi.spyOn(recruiterRepository, 'createInterview').mockResolvedValue(interview);
     renderRoute(`/recruiter/applications/${detail.applicationId}`,
       [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
-    await screen.findByText('Review decision');
+    await screen.findByText('Application progress');
     fireEvent.click(screen.getByRole('button', {name: 'Schedule interview'}));
     expect(await screen.findByRole('heading', {name: 'Schedule interview'})).toBeInTheDocument();
     expect(screen.getByText('Your browser timezone: Asia/Singapore')).toBeInTheDocument();
@@ -181,7 +224,7 @@ describe('real recruiter application pages', () => {
     await screen.findByRole('heading', {name: 'Interview'});
     expect(screen.getByText('12 Marina Blvd, Singapore')).toBeInTheDocument();
     expect(screen.queryByRole('link', {name: '12 Marina Blvd, Singapore'})).not.toBeInTheDocument();
-    expect(screen.getByText('Location')).toBeInTheDocument();
+    expect(screen.getAllByText('Location').length).toBeGreaterThan(0);
   });
 
   it('renders a phone contact as plain text without a URL prefix', async () => {
@@ -200,7 +243,7 @@ describe('real recruiter application pages', () => {
     vi.spyOn(recruiterRepository, 'getGoogleConnection').mockResolvedValue(disconnected);
     renderRoute(`/recruiter/applications/${detail.applicationId}`,
       [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
-    await screen.findByText('Review decision');
+    await screen.findByText('Application progress');
     fireEvent.click(screen.getByRole('button', {name: 'Schedule interview'}));
     await screen.findByRole('heading', {name: 'Schedule interview'});
     // Online is the default and shows the Google Meet explanation, never a link input or provider selector.
@@ -245,7 +288,7 @@ describe('real recruiter application pages', () => {
     const create = vi.spyOn(recruiterRepository, 'createInterview').mockResolvedValue(googleMeetReady);
     renderRoute(`/recruiter/applications/${detail.applicationId}`,
       [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
-    await screen.findByText('Review decision');
+    await screen.findByText('Application progress');
     fireEvent.click(screen.getByRole('button', {name: 'Schedule interview'}));
     await screen.findByRole('heading', {name: 'Schedule interview'});
     expect(screen.getByText(/meeting link and Calendar invitation will be created automatically/)).toBeInTheDocument();
@@ -268,7 +311,7 @@ describe('real recruiter application pages', () => {
     vi.spyOn(recruiterRepository, 'getGoogleConnection').mockResolvedValue(conn);
     renderRoute(`/recruiter/applications/${detail.applicationId}`,
       [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
-    await screen.findByText('Review decision');
+    await screen.findByText('Application progress');
     fireEvent.click(screen.getByRole('button', {name: 'Schedule interview'}));
     await screen.findByRole('heading', {name: 'Schedule interview'});
     expect(screen.getByRole('link', {name: linkName})).toBeInTheDocument();
@@ -355,7 +398,7 @@ describe('real recruiter application pages', () => {
       .mockRejectedValue(new AuthApiError(409, code, 'private detail'));
     renderRoute(`/recruiter/applications/${detail.applicationId}`,
       [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
-    await screen.findByText('Review decision');
+    await screen.findByText('Application progress');
     fireEvent.click(screen.getByRole('button', {name: 'Schedule interview'}));
     await screen.findByRole('heading', {name: 'Schedule interview'});
     fireEvent.change(screen.getByLabelText('Date and time'), {target: {value: '2026-08-20T09:00'}});
@@ -378,6 +421,122 @@ describe('real recruiter application pages', () => {
     expect(await screen.findByText(/sync is already in progress/)).toBeInTheDocument();
     expect(screen.queryByText('private detail')).not.toBeInTheDocument();
   });
+
+  it.each<[ApplicationStatus, string[], string[]]>([
+    ['APPLIED', ['Start review', 'Reject'], ['Schedule interview', 'Reject application', 'Make offer']],
+    ['IN_REVIEW', ['Schedule interview', 'Reject'], ['Start review', 'Reject application', 'Make offer']],
+    ['INTERVIEW', ['Make offer', 'Reject application'], ['Start review', 'Schedule interview', 'Reject']],
+    ['OFFERED', [], ['Start review', 'Schedule interview', 'Reject', 'Reject application', 'Make offer']],
+    ['REJECTED', [], ['Start review', 'Schedule interview', 'Reject', 'Reject application', 'Make offer']],
+    ['WITHDRAWN', [], ['Start review', 'Schedule interview', 'Reject', 'Reject application', 'Make offer']],
+  ])('renders %s progress and context actions', async (status, present, absent) => {
+    const app = status === 'INTERVIEW' ? {...detail, status, interview} : {...detail, status};
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue(app);
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByText('Application progress');
+    const rail = screen.getByText('Submitted').closest('ol')!;
+    for (const label of ['Submitted', 'Review', 'Interview']) {
+      expect(within(rail).getByText(label)).toBeInTheDocument();
+    }
+    expect(within(rail).getByText(outcomeLabel(status))).toBeInTheDocument();
+    for (const name of present) expect(screen.getByRole('button', {name})).toBeInTheDocument();
+    for (const name of absent) expect(screen.queryByRole('button', {name})).not.toBeInTheDocument();
+    if (status === 'INTERVIEW') expect(screen.getByRole('heading', {name: 'Interview'})).toBeInTheDocument();
+    if (status === 'OFFERED' || status === 'REJECTED' || status === 'WITHDRAWN') {
+      expect(screen.getByText(/terminal stage/)).toBeInTheDocument();
+    }
+  });
+
+  it('rejects an application only with a reason and disables while submitting', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue(detail);
+    const transition = vi.spyOn(recruiterRepository, 'updateApplicationStatus')
+      .mockResolvedValue({...detail, status: 'REJECTED' as const});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByText('Application progress');
+    fireEvent.click(screen.getByRole('button', {name: 'Reject'}));
+    const confirm = screen.getByRole('button', {name: 'Confirm reject'});
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('DECISION REASON'), {target: {value: 'Not a match'}});
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    await waitFor(() => expect(transition).toHaveBeenCalledWith(detail.applicationId, 'REJECTED',
+      'Not a match', detail.version));
+  });
+
+  it('makes an offer only from interview with a reason and disables while submitting', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue({...detail, status: 'INTERVIEW' as const});
+    const transition = vi.spyOn(recruiterRepository, 'updateApplicationStatus')
+      .mockResolvedValue({...detail, status: 'OFFERED' as const});
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByText('Application progress');
+    fireEvent.click(screen.getByRole('button', {name: 'Make offer'}));
+    const confirm = screen.getByRole('button', {name: 'Confirm offer'});
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('DECISION REASON'), {target: {value: 'Strong candidate'}});
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    await waitFor(() => expect(transition).toHaveBeenCalledWith(detail.applicationId, 'OFFERED',
+      'Strong candidate', detail.version));
+  });
+
+  it('shows the rejection reason in the outcome stage and activity history', async () => {
+    const rejected = {...detail, status: 'REJECTED' as const, timeline: [
+      {eventId: 'e1', actorId: 'cand_001', companyId: 'company_001', fromStatus: null,
+        toStatus: 'APPLIED' as const, occurredAt: '2026-08-09T01:42:00Z', reason: 'Application submitted', requestId: 'r1'},
+      {eventId: 'e2', actorId: 'rec_001', companyId: 'company_001', fromStatus: 'APPLIED' as const,
+        toStatus: 'REJECTED' as const, occurredAt: '2026-08-10T03:00:00Z', reason: 'Not a fit', requestId: 'r2'},
+    ]};
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue(rejected);
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    await screen.findByText('Application progress');
+    expect(screen.getByText(/terminal stage/)).toBeInTheDocument();
+    expect(screen.getAllByText('Not a fit').length).toBeGreaterThan(0);
+  });
+
+  it('navigates to the exact conversation when one exists', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue(detail);
+    vi.mocked(recruiterRepository.listConversations)
+      .mockResolvedValue({data: [conversation], meta: {page: 1, pageSize: 100, total: 1, hasNext: false}});
+    const {router} = renderRoute(`/recruiter/applications/${detail.applicationId}`, [
+      {path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>},
+      {path: '/recruiter/messages/:conversationId', element: <div>conversation view</div>},
+    ]);
+    fireEvent.click(await screen.findByRole('button', {name: 'Message candidate'}));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/recruiter/messages/conv-1'));
+    expect(recruiterRepository.listConversations).toHaveBeenCalledWith(detail.applicationId);
+  });
+
+  it('shows a disabled neutral state when no conversation exists', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue(detail);
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    expect(await screen.findByRole('button', {name: 'Message candidate'})).toBeDisabled();
+    expect(screen.getByText('No conversation with this candidate yet.')).toBeInTheDocument();
+  });
+
+  it('shows a disabled loading label while the lookup is pending', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue(detail);
+    vi.mocked(recruiterRepository.listConversations).mockReturnValue(new Promise(() => {}));
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    expect(await screen.findByRole('button', {name: 'Message candidate…'})).toBeDisabled();
+  });
+
+  it('offers a safe retry when the lookup fails', async () => {
+    vi.spyOn(recruiterRepository, 'getApplication').mockResolvedValue(detail);
+    vi.mocked(recruiterRepository.listConversations)
+      .mockRejectedValue(new AuthApiError(0, 'NETWORK_ERROR', 'private detail'));
+    renderRoute(`/recruiter/applications/${detail.applicationId}`,
+      [{path: '/recruiter/applications/:applicationId', element: <ApplicationDetailPage/>}]);
+    const button = await screen.findByRole('button', {name: 'Message candidate'});
+    expect(button).toBeEnabled();
+    expect(screen.getByText(/Could not look up the conversation/)).toBeInTheDocument();
+    expect(screen.queryByText('private detail')).not.toBeInTheDocument();
+  });
 });
 
 const updated = {...detail, status: 'IN_REVIEW' as const, version: 2, updatedAt: '2026-08-12T02:00:00Z'};
@@ -397,3 +556,8 @@ const googleMeetPending = {...interview, meetingProvider: 'GOOGLE_MEET' as const
 const googleMeetFailed = {...googleMeetReady, meetingSyncStatus: 'FAILED' as const};
 const googleMeetFailedNoLink = {...googleMeetFailed, locationOrMeetingUrl: null};
 const googleMeetCancelled = {...googleMeetReady, status: 'CANCELLED' as const, locationOrMeetingUrl: null};
+
+const conversation = {conversationId: 'conv-1', applicationId: detail.applicationId, jobId: detail.jobId,
+  createdAt: '2026-08-09T01:42:00Z', updatedAt: '2026-08-09T02:00:00Z',
+  participant: {userId: 'cand_001', fullName: detail.candidate.fullName, avatarUrl: null, title: null, company: null, online: true},
+  lastMessage: null, unreadCount: 0, jobTitle: detail.jobTitle};

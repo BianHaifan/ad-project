@@ -5,7 +5,7 @@ import java.util.List;
 public enum ApplicationListFilter {
     ACTIVE(List.of(ApplicationStatus.APPLIED, ApplicationStatus.IN_REVIEW)),
     INTERVIEW(List.of(ApplicationStatus.INTERVIEW)),
-    ARCHIVED(List.of(ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN));
+    ARCHIVED(List.of(ApplicationStatus.OFFERED, ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN));
 
     private final List<ApplicationStatus> statuses;
 

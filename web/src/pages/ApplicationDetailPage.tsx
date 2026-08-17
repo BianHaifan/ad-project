@@ -1,23 +1,24 @@
 import {useState, type FormEvent} from 'react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {AuthApiError} from '../api/authClient';
-import {useApplication, useCreateInterview, useGoogleConnection, useUpdateApplication, useUpdateInterview} from '../api/queries';
-import type {ApplicationStatus, CreateInterviewRequest, Interview, InterviewMode, InterviewStatus, MeetingSyncStatus, UpdateInterviewRequest} from '../models/recruiter';
-import type {RecruiterTransitionStatus} from '../api/recruiterRepository';
+import {useApplication, useCreateInterview, useGoogleConnection, useUpdateInterview} from '../api/queries';
+import type {CreateInterviewRequest, InterviewMode, UpdateInterviewRequest} from '../models/recruiter';
 import {ErrorState, LoadingState} from '../components/AsyncState';
 import {StatusBadge} from '../components/StatusBadge';
 import {isValidTimeZone, localToUtcIso, resolvedTimeZone, utcToLocalInput} from '../lib/interviewTime';
+import {ActivityHistory} from './applicationDetail/ActivityHistory';
+import {ActionPanel} from './applicationDetail/ActionPanel';
+import {CandidateAtAGlance} from './applicationDetail/CandidateAtAGlance';
+import {InterviewCard} from './applicationDetail/InterviewCard';
+import {ProgressRail} from './applicationDetail/ProgressRail';
 
 export function ApplicationDetailPage() {
   const {applicationId = ''} = useParams();
   const nav = useNavigate();
   const query = useApplication(applicationId);
-  const update = useUpdateApplication();
   const createInterview = useCreateInterview();
   const updateInterview = useUpdateInterview();
   const connection = useGoogleConnection();
-  const [target, setTarget] = useState<RecruiterTransitionStatus | ''>('');
-  const [reason, setReason] = useState('');
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
@@ -33,11 +34,8 @@ export function ApplicationDetailPage() {
   if (query.isError || !query.data) return <ErrorState onRetry={() => query.refetch()}/>;
   const application = query.data;
   const interview = application.interview;
-  const targets = allowedTargets(application.status);
   const isGoogleMeet = interview?.meetingProvider === 'GOOGLE_MEET';
   const retryingSync = isGoogleMeet && interview?.meetingSyncStatus === 'FAILED';
-  const meetLink = interview ? googleMeetLink(interview) : null;
-  const retainedMeetLink = interview ? retainedGoogleMeetLink(interview) : null;
   const googleConnectNote = (() => {
     if (connection.isLoading) return <small className="muted">Checking Google connection…</small>;
     if (connection.isError || !connection.data) return (
@@ -48,14 +46,6 @@ export function ApplicationDetailPage() {
       ? <small className="muted">Your Google authorization has expired. <Link to="/recruiter/google-oauth">Reconnect Google</Link> to schedule a Google Meet.</small>
       : <small className="muted">Connect Google Calendar to schedule a Google Meet. <Link to="/recruiter/google-oauth">Go to Integrations</Link>.</small>;
   })();
-
-  const submitTransition = (event: FormEvent) => {
-    event.preventDefault();
-    if (!target || !reason.trim()) return;
-    update.mutate({id: application.applicationId, status: target, reason, expectedVersion: application.version}, {
-      onSuccess: () => { setTarget(''); setReason(''); },
-    });
-  };
 
   const openSchedule = () => {
     setInterviewError(null);
@@ -164,90 +154,28 @@ export function ApplicationDetailPage() {
       <p>Applied for {application.jobTitle} on {new Date(application.appliedAt).toLocaleString()}</p>
     </div><div className="actions"><StatusBadge status={application.status}/></div></section>
     <div className="detail-layout"><div className="detail-main">
-      <section className="panel candidate-summary"><span className="avatar xl">{initials(application.candidate.fullName)}</span>
-        <div className="grow"><h2>{application.candidate.fullName}</h2><b>{clean(application.candidate.headline) || 'No headline provided'}</b>
-          <p>{application.candidate.email}{application.candidate.location ? ` · ${application.candidate.location}` : ''}</p></div>
-        <div className="resume-meta"><small>RESUME CAPTURED</small><b>{new Date(application.resumeSnapshot.capturedAt).toLocaleString()}</b></div>
-      </section>
-      {interview && <section className="panel interview-card"><div className="section-title"><div><h2>Interview</h2>
-        <small>Scheduled with this candidate</small></div>
-        <div className="actions">
-          {interview.status === 'SCHEDULED' && interview.meetingProvider === 'GOOGLE_MEET' &&
-            <MeetingSyncBadge status={interview.meetingSyncStatus}/>}
-          <InterviewStatusBadge status={interview.status}/>
-        </div></div>
-        <div className="form-grid">
-          <p><b>When</b><br/>{new Date(interview.scheduledAt).toLocaleString()}</p>
-          <p><b>Timezone</b><br/>{interview.timezone}</p>
-          <p><b>Duration</b><br/>{interview.durationMinutes} minutes</p>
-          <p><b>Mode</b><br/>{modeLabel(interview.mode)}</p>
-        </div>
-        {!isValidTimeZone(interview.timezone) &&
-          <p className="muted">Saved timezone is not recognized; times are shown in your browser timezone.</p>}
-        {interview.meetingProvider === 'GOOGLE_MEET'
-          ? <>
-              {interview.meetingSyncStatus === 'PENDING' &&
-                <p className="muted" role="status">Creating or syncing the Google Meet. The link appears once it is ready.</p>}
-              {interview.meetingSyncStatus === 'FAILED' &&
-                <p className="muted" role="status">Google Meet sync failed. The candidate still sees the original meeting details.</p>}
-              {meetLink &&
-                <p><b>Google Meet</b><br/><a href={meetLink} target="_blank" rel="noreferrer">{meetLink}</a><span className="muted"> · Synced</span></p>}
-              {retainedMeetLink &&
-                <p><b>Existing Google Meet link (unchanged)</b><br/><a href={retainedMeetLink} target="_blank" rel="noreferrer">{retainedMeetLink}</a></p>}
-            </>
-          : interview.locationOrMeetingUrl && <p><b>{locationLabel(interview.mode)}</b><br/>
-              {interview.mode === 'ONLINE' && isHttpUrl(interview.locationOrMeetingUrl)
-                ? <a href={interview.locationOrMeetingUrl} target="_blank" rel="noreferrer">{interview.locationOrMeetingUrl}</a>
-                : <span>{interview.locationOrMeetingUrl}</span>}</p>}
-        {interview.note && <p><b>Note</b><br/>{interview.note}</p>}
-        {interview.status === 'SCHEDULED'
-          ? (interview.meetingProvider === 'GOOGLE_MEET' && interview.meetingSyncStatus === 'PENDING')
-            ? <p className="muted">A Google Meet sync is in progress. Reschedule, complete and cancel are unavailable until it finishes.</p>
-            : <div className="actions">
-                {interview.meetingProvider === 'GOOGLE_MEET' && interview.meetingSyncStatus === 'FAILED'
-                  ? <button className="button soft" disabled={updateInterview.isPending} onClick={openReschedule}>Retry Google Meet</button>
-                  : <button className="button secondary" disabled={updateInterview.isPending} onClick={openReschedule}>Reschedule</button>}
-                <button className="button primary" disabled={updateInterview.isPending} onClick={completeInterview}>Mark completed</button>
-                <button className="button danger" disabled={updateInterview.isPending} onClick={cancelInterview}>Cancel interview</button>
-              </div>
-          : <p className="muted">This interview is {interview.status.toLowerCase()}; no further changes are allowed.</p>}
-        {updateInterview.isError && <small role="alert">The interview could not be updated. Refresh and try again.</small>}
-      </section>}
+      <ProgressRail status={application.status} timeline={application.timeline}/>
+      <ActionPanel application={application} onSchedule={openSchedule}/>
+      {interview && <InterviewCard interview={interview} updatePending={updateInterview.isPending}
+        updateError={updateInterview.isError} onReschedule={openReschedule} onComplete={completeInterview}
+        onCancel={cancelInterview}/>}
+      <ActivityHistory timeline={application.timeline}/>
       <section className="panel resume-snapshot"><div className="section-title"><div><h2>Submitted resume snapshot</h2>
-        <small>Resume submitted with this application</small></div>
-        <button className="button tiny soft" onClick={() => nav(`/recruiter/applications/${application.applicationId}/review`)}>
-          Open full resume</button></div>
+        <small>Resume submitted with this application</small></div></div>
         <h3>Summary</h3><p>{clean(application.resumeSnapshot.summary)}</p><h3>Experience</h3>
         {application.resumeSnapshot.experiences.map(experience => <p key={experience.experienceId ?? `${experience.title}-${experience.company}`}>
           <b>{clean(experience.title)} · {clean(experience.company)}</b><br/>{clean(experience.description)}</p>)}
       </section>
-      <section className="panel timeline"><div className="section-title"><h2>Application timeline</h2>
-        <small>Application activity and recruiter decisions</small></div><div className="timeline-row">
-        {application.timeline.map(event => <div className="done" key={event.eventId}><b>● {event.toStatus && <StatusBadge status={event.toStatus}/>}</b>
-          <small>{new Date(event.occurredAt).toLocaleString()}</small>{event.reason && <small>{event.reason}</small>}</div>)}
-      </div></section>
     </div><aside className="detail-side">
-      {application.matchScore !== null && application.matchAnalysis !== null && <section className="panel fit-card"><div className="section-title"><div><h2>Candidate fit</h2>
-        <small>{application.matchAnalysis.modelVersion} · advisory only</small></div></div><span className="match-badge">{application.matchScore}% match</span>
-        {application.matchAnalysis.evidence.map(evidence => <div className="evidence" key={evidence}><b>{clean(evidence)}</b></div>)}
-        <div><b>Strong matches</b><p>{application.matchAnalysis.strongMatches.map(clean).join(' · ') || 'No strong signals supplied'}</p></div>
-        <div><b>Gaps to review</b><p>{application.matchAnalysis.gaps.map(clean).join(' · ') || 'No gaps supplied'}</p></div>
-      </section>}
-      <section className="panel decision"><div className="section-title"><h2>Review decision</h2>
-        <StatusBadge status={application.status}/></div>
-        {application.status === 'IN_REVIEW' && !interview &&
-          <button className="button primary" onClick={openSchedule}>Schedule interview</button>}
-        {targets.length === 0 ? <p>This application is in a terminal stage. No further Recruiter transition is available.</p> :
-          <form onSubmit={submitTransition} className="decision-form">
-            <label>NEXT STAGE<select value={target} onChange={event => setTarget(transitionStatus(event.target.value) ?? '')}>
-              <option value="">Select a stage</option>{targets.map(status => <option value={status} key={status}>{statusLabel(status)}</option>)}
-            </select></label>
-            <label>DECISION REASON<textarea value={reason} maxLength={500} onChange={event => setReason(event.target.value)}
-              placeholder="Add a reason for this decision"/></label>
-            <button className="button primary" disabled={!target || !reason.trim() || update.isPending}>
-              {update.isPending ? 'Saving decision…' : 'Confirm stage change'}</button>
-            {update.isError && <small role="alert">The stage change could not be saved. Refresh and try again.</small>}
-          </form>}
+      <CandidateAtAGlance application={application}/>
+      <section className="panel fit-card"><div className="section-title"><div><h2>Candidate fit</h2>
+        <small>{application.matchAnalysis ? `${application.matchAnalysis.modelVersion} · advisory only` : 'advisory only'}</small></div>
+        {application.matchAnalysis && <span className="match-badge">{application.matchScore} / 100</span>}</div>
+        {application.matchAnalysis ? <>
+          {application.matchAnalysis.evidence.map(evidence => <div className="evidence" key={evidence}><b>{clean(evidence)}</b></div>)}
+          <div><b>Strong matches</b><p>{application.matchAnalysis.strongMatches.map(clean).join(' · ') || 'No strong signals supplied'}</p></div>
+          <div><b>Gaps to review</b><p>{application.matchAnalysis.gaps.map(clean).join(' · ') || 'No gaps supplied'}</p></div>
+        </> : <div className="glance-empty" role="status">AI analysis unavailable</div>}
       </section>
     </aside></div>
     {scheduleOpen && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="schedule-title">
@@ -316,65 +244,18 @@ export function ApplicationDetailPage() {
   </>;
 }
 
-function InterviewStatusBadge({status}: {status: InterviewStatus}) {
-  return <span className={`badge ${status.toLowerCase()}`}>{interviewStatusLabel(status)}</span>;
-}
-
-function MeetingSyncBadge({status}: {status: MeetingSyncStatus}) {
-  if (status === 'NOT_APPLICABLE') return null;
-  const label = status === 'PENDING' ? 'Syncing' : status === 'READY' ? 'Synced' : 'Sync failed';
-  const className = status === 'PENDING' ? 'sync_pending' : status === 'READY' ? 'sync_ready' : 'sync_failed';
-  return <span className={`badge ${className}`}>{label}</span>;
-}
-
-const isGoogleMeetUrl = (value: string | null): value is string =>
-  !!value && /^https:\/\/meet\.google\.com\//i.test(value);
-
-// The Meet link is only a safe, ready, clickable link when the interview is still
-// scheduled and the backend returned a verified HTTPS meet.google.com URL. Any other
-// combination (PENDING, FAILED, cancelled, completed, or a non-HTTPS link) returns null.
-function googleMeetLink(interview: Interview): string | null {
-  if (interview.meetingProvider !== 'GOOGLE_MEET' || interview.meetingSyncStatus !== 'READY' ||
-      interview.status !== 'SCHEDULED') return null;
-  return isGoogleMeetUrl(interview.locationOrMeetingUrl) ? interview.locationOrMeetingUrl : null;
-}
-
-// A FAILED sync that still holds the previously verified Meet link means an
-// external reschedule/cancel failed and the old link is still valid. The recruiter
-// should still see it, clearly marked as unchanged — never as "synced".
-function retainedGoogleMeetLink(interview: Interview): string | null {
-  if (interview.meetingProvider !== 'GOOGLE_MEET' || interview.meetingSyncStatus !== 'FAILED' ||
-      interview.status !== 'SCHEDULED') return null;
-  return isGoogleMeetUrl(interview.locationOrMeetingUrl) ? interview.locationOrMeetingUrl : null;
-}
-
-const initials = (fullName: string) => fullName.split(' ').map(part => part[0]).join('').slice(0, 2);
 const clean = (value: string | null | undefined) => value?.replaceAll('Â·', '·').replaceAll('Â', '').trim() ?? '';
-const transitionStatus = (value: string): RecruiterTransitionStatus | undefined =>
-  value === 'IN_REVIEW' || value === 'REJECTED' ? value : undefined;
-const allowedTargets = (status: ApplicationStatus): RecruiterTransitionStatus[] => {
-  if (status === 'APPLIED') return ['IN_REVIEW', 'REJECTED'];
-  if (status === 'IN_REVIEW') return ['REJECTED'];
-  if (status === 'INTERVIEW') return ['REJECTED'];
-  return [];
-};
-const statusLabel = (status: RecruiterTransitionStatus) =>
-  status === 'IN_REVIEW' ? 'Move to review' : 'Reject';
-const modeLabel = (mode: InterviewMode) => mode === 'ONLINE' ? 'Online' : mode === 'ONSITE' ? 'On-site' : 'Phone';
-const interviewStatusLabel = (status: InterviewStatus) =>
-  status === 'SCHEDULED' ? 'Scheduled' : status === 'COMPLETED' ? 'Completed' : 'Cancelled';
-const isHttpUrl = (value: string) => /^https?:\/\//i.test(value);
 const validLocation = (mode: InterviewMode, value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return false;
   return mode !== 'ONLINE' || isHttpUrl(trimmed);
 };
+const isHttpUrl = (value: string) => /^https?:\/\//i.test(value);
 const locationField = (mode: InterviewMode) => mode === 'ONLINE'
   ? {label: 'MEETING LINK', placeholder: 'https://meet.example.com/…'}
   : mode === 'ONSITE'
     ? {label: 'LOCATION', placeholder: 'e.g. 12 Marina Blvd, Singapore'}
     : {label: 'PHONE / CONTACT', placeholder: 'e.g. +65 1234 5678'};
-const locationLabel = (mode: InterviewMode) => mode === 'ONLINE' ? 'Meeting link' : mode === 'ONSITE' ? 'Location' : 'Phone / contact';
 // The new-schedule form only exposes on-site/phone detail fields (online is
 // always Google Meet and never accepts a pasted link).
 const scheduleLocationField = (mode: InterviewMode) => mode === 'ONSITE'

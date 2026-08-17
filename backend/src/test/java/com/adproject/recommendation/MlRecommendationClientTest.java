@@ -72,4 +72,56 @@ class MlRecommendationClientTest {
         });
         server.verify();
     }
+
+    @Test
+    void sendsReverseCandidatesRequestAndParsesRankedApplicants() {
+        RecommendationProperties properties = new RecommendationProperties();
+        properties.setBaseUrl("http://ml.test");
+        properties.setInternalToken("private-token");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        MlRecommendationClient client = new MlRecommendationClient(
+                builder.baseUrl(properties.getBaseUrl())
+                        .defaultHeader("X-Internal-Token", properties.getInternalToken()).build(),
+                properties);
+        server.expect(once(), requestTo("http://ml.test/internal/v1/recommend/candidates"))
+                .andExpect(header("X-Internal-Token", "private-token"))
+                .andExpect(jsonPath("$.job.entity_id").value("job-1"))
+                .andExpect(jsonPath("$.job.title").value("Cobol Engineer"))
+                .andExpect(jsonPath("$.candidates[0].entity_id").value("candidate-1"))
+                .andExpect(jsonPath("$.candidates[0].skills[0]").value("Cobol"))
+                .andExpect(jsonPath("$.limit").value(2))
+                .andRespond(withSuccess("""
+                        {
+                          "model_version": "match-hgb-v1",
+                          "feature_version": "pair-features-v1",
+                          "generated_at": "2026-08-12T08:00:00Z",
+                          "inference_ms": 7,
+                          "items": [{
+                            "entity_id": "candidate-1",
+                            "score": 91,
+                            "rank": 1,
+                            "strong_matches": ["Skills matched: 1 of 1"],
+                            "gaps": [],
+                            "evidence": ["cobol"]
+                          }]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        var response = client.recommendCandidates(
+                new MlJob("job-1", "Cobol Engineer", "Build systems", List.of(),
+                        List.of("Cobol"), "Singapore", "HYBRID", "FULL_TIME",
+                        new MlSalary(6000L, 9000L, "SGD", "MONTH"), null),
+                List.of(new MlCandidate("candidate-1", "Cobol systems", "Engineer",
+                        List.of("Cobol"), null, null)),
+                2);
+
+        assertThat(response.modelVersion()).isEqualTo("match-hgb-v1");
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.entityId()).isEqualTo("candidate-1");
+            assertThat(item.score()).isEqualTo(91);
+            assertThat(item.evidence()).containsExactly("cobol");
+        });
+        server.verify();
+    }
 }

@@ -16,6 +16,8 @@ import com.adproject.job.api.CandidateJobResponses.Salary;
 import com.adproject.job.domain.EmploymentType;
 import com.adproject.job.domain.JobStatus;
 import com.adproject.job.domain.Visibility;
+import com.adproject.job.infrastructure.CandidateSavedJobEntity;
+import com.adproject.job.infrastructure.CandidateSavedJobRepository;
 import com.adproject.job.infrastructure.JobEntity;
 import com.adproject.job.infrastructure.JobRepository;
 import com.adproject.recommendation.api.RecommendationDtos.MatchAnalysis;
@@ -31,9 +33,12 @@ import com.adproject.user.infrastructure.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Clock;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -59,6 +64,8 @@ public class CandidateJobQueryService {
     private final ResumeRepository resumes;
     private final UserRepository userRepository;
     private final RecruiterProfileRepository recruiterProfileRepository;
+    private final CandidateSavedJobRepository savedJobs;
+    private final Clock clock;
 
     public CandidateJobQueryService(JobRepository jobRepository, CompanyRepository companyRepository,
                                     ObjectMapper objectMapper,
@@ -67,7 +74,9 @@ public class CandidateJobQueryService {
                                     CandidateJobPreferenceRepository preferences,
                                     ResumeRepository resumes,
                                     UserRepository userRepository,
-                                    RecruiterProfileRepository recruiterProfileRepository) {
+                                    RecruiterProfileRepository recruiterProfileRepository,
+                                    CandidateSavedJobRepository savedJobs,
+                                    Clock clock) {
         this.jobRepository = jobRepository;
         this.companyRepository = companyRepository;
         this.objectMapper = objectMapper;
@@ -77,6 +86,8 @@ public class CandidateJobQueryService {
         this.resumes = resumes;
         this.userRepository = userRepository;
         this.recruiterProfileRepository = recruiterProfileRepository;
+        this.savedJobs = savedJobs;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -99,16 +110,15 @@ public class CandidateJobQueryService {
                 .findAllById(result.getContent().stream().map(JobEntity::getCompanyId).distinct().toList())
                 .stream().collect(Collectors.toMap(CompanyEntity::getId, Function.identity()));
         CurrentVersions versions = currentVersions(currentUser.userId());
-        Map<String, CandidateJobRecommendationEntity> matches = recommendations
-                .findByCandidateIdAndJobIdIn(currentUser.userId(),
+        Map<String, CandidateJobRecommendationEntity> matches =
+                matchMap(currentUser.userId(), result.getContent(), versions);
+        Set<String> savedIds = savedJobs.findByCandidateIdAndJobIdIn(currentUser.userId(),
                         result.getContent().stream().map(JobEntity::getId).toList())
-                .stream().filter(value -> isCurrent(value, versions,
-                        result.getContent().stream().filter(job -> job.getId().equals(value.getJobId()))
-                                .findFirst().orElseThrow()))
-                .collect(Collectors.toMap(CandidateJobRecommendationEntity::getJobId, Function.identity()));
+                .stream().map(CandidateSavedJobEntity::getJobId)
+                .collect(Collectors.toSet());
         List<CandidateJobSummary> data = result.getContent().stream()
                 .map(job -> toSummary(job, requireCompany(companies, job.getCompanyId()),
-                        matches.get(job.getId())))
+                        matches.get(job.getId()), savedIds.contains(job.getId())))
                 .toList();
         return new CandidateJobListResponse(data,
                 new PageMeta(page, pageSize, result.getTotalElements(), result.hasNext()));
@@ -127,7 +137,8 @@ public class CandidateJobQueryService {
         CandidateJobRecommendationEntity recommendation = recommendations
                 .findByCandidateIdAndJobId(currentUser.userId(), job.getId())
                 .filter(value -> isCurrent(value, versions, job)).orElse(null);
-        CandidateJobSummary summary = toSummary(job, company, recommendation);
+        boolean saved = savedJobs.findByCandidateIdAndJobId(currentUser.userId(), job.getId()).isPresent();
+        CandidateJobSummary summary = toSummary(job, company, recommendation, saved);
         String applicationState = applicationStateService.state(currentUser.userId(), job.getId());
         return new CandidateJobDetailResponse(new CandidateJobDetail(
                 summary.jobId(), summary.title(), summary.company(), summary.employmentType(),
@@ -135,7 +146,68 @@ public class CandidateJobQueryService {
                 summary.requirements(), summary.skills(), summary.deadline(), summary.visibility(),
                 summary.status(), summary.publishedAt(), summary.version(), summary.createdAt(),
                 summary.updatedAt(), summary.matchScore(), toRecruiterContact(job),
-                recommendation == null ? null : analysis(recommendation), applicationState, false));
+                recommendation == null ? null : analysis(recommendation), applicationState, saved));
+    }
+
+    @Transactional(readOnly = true)
+    public CandidateJobListResponse savedJobs(AuthenticatedUser currentUser, int page, int pageSize) {
+        requireCandidate(currentUser);
+        List<CandidateSavedJobEntity> saved = savedJobs
+                .findByCandidateIdOrderByCreatedAtDesc(currentUser.userId());
+        Map<String, JobEntity> jobsById = jobRepository.findAllById(
+                        saved.stream().map(CandidateSavedJobEntity::getJobId).distinct().toList())
+                .stream().collect(Collectors.toMap(JobEntity::getId, Function.identity()));
+        List<JobEntity> browsable = saved.stream()
+                .map(CandidateSavedJobEntity::getJobId)
+                .map(jobsById::get)
+                .filter(job -> job.getStatus() == JobStatus.ACTIVE && job.getVisibility() == Visibility.PUBLIC)
+                .toList();
+        Map<String, CompanyEntity> companies = companyRepository
+                .findAllById(browsable.stream().map(JobEntity::getCompanyId).distinct().toList())
+                .stream().collect(Collectors.toMap(CompanyEntity::getId, Function.identity()));
+        CurrentVersions versions = currentVersions(currentUser.userId());
+        Map<String, CandidateJobRecommendationEntity> matches =
+                matchMap(currentUser.userId(), browsable, versions);
+        int total = browsable.size();
+        int from = Math.min((page - 1) * pageSize, total);
+        int to = Math.min(from + pageSize, total);
+        List<CandidateJobSummary> data = browsable.subList(from, to).stream()
+                .map(job -> toSummary(job, requireCompany(companies, job.getCompanyId()),
+                        matches.get(job.getId()), true))
+                .toList();
+        return new CandidateJobListResponse(data,
+                new PageMeta(page, pageSize, total, from + pageSize < total));
+    }
+
+    @Transactional
+    public void save(AuthenticatedUser currentUser, String jobId) {
+        requireCandidate(currentUser);
+        jobRepository.findById(jobId)
+                .filter(found -> found.getStatus() == JobStatus.ACTIVE)
+                .filter(found -> found.getVisibility() == Visibility.PUBLIC)
+                .orElseThrow(CandidateJobQueryService::notFound);
+        if (savedJobs.findByCandidateIdAndJobId(currentUser.userId(), jobId).isPresent()) {
+            return;
+        }
+        savedJobs.save(new CandidateSavedJobEntity(UUID.randomUUID().toString(),
+                currentUser.userId(), jobId, clock.instant()));
+    }
+
+    @Transactional
+    public void unsave(AuthenticatedUser currentUser, String jobId) {
+        requireCandidate(currentUser);
+        savedJobs.deleteByCandidateIdAndJobId(currentUser.userId(), jobId);
+    }
+
+    private Map<String, CandidateJobRecommendationEntity> matchMap(String candidateId,
+                                                                   List<JobEntity> jobs,
+                                                                   CurrentVersions versions) {
+        return recommendations.findByCandidateIdAndJobIdIn(candidateId,
+                        jobs.stream().map(JobEntity::getId).toList())
+                .stream().filter(value -> isCurrent(value, versions,
+                        jobs.stream().filter(job -> job.getId().equals(value.getJobId()))
+                                .findFirst().orElseThrow()))
+                .collect(Collectors.toMap(CandidateJobRecommendationEntity::getJobId, Function.identity()));
     }
 
     private static Specification<JobEntity> visibleToCandidate() {
@@ -145,14 +217,15 @@ public class CandidateJobQueryService {
     }
 
     private CandidateJobSummary toSummary(JobEntity job, CompanyEntity company,
-                                          CandidateJobRecommendationEntity recommendation) {
+                                          CandidateJobRecommendationEntity recommendation,
+                                          boolean saved) {
         return new CandidateJobSummary(job.getId(), job.getTitle(), toCompany(company),
                 job.getEmploymentType().name(), job.getWorkplaceType().name(), job.getLocation(),
                 new Salary(job.getSalaryMin(), job.getSalaryMax(), job.getSalaryCurrency().name(),
                         job.getSalaryPeriod().name()), job.getDescription(), readList(job.getRequirementsJson()),
                 readList(job.getSkillsJson()), job.getDeadline(), job.getVisibility().name(), job.getStatus().name(),
                 job.getPublishedAt(), job.getVersion(), job.getCreatedAt(), job.getUpdatedAt(),
-                recommendation == null ? null : recommendation.getScore(), null);
+                recommendation == null ? null : recommendation.getScore(), null, saved);
     }
 
     private CurrentVersions currentVersions(String candidateId) {

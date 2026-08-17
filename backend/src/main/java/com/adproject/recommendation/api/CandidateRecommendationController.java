@@ -1,6 +1,8 @@
 package com.adproject.recommendation.api;
 
 import com.adproject.common.security.AuthenticatedUser;
+import com.adproject.job.domain.EmploymentType;
+import com.adproject.job.domain.WorkplaceType;
 import com.adproject.recommendation.api.RecommendationDtos.JobPreferenceResponse;
 import com.adproject.recommendation.api.RecommendationDtos.RecommendedJobResponse;
 import com.adproject.recommendation.api.RecommendationDtos.SaveJobPreferenceRequest;
@@ -48,7 +50,14 @@ public class CandidateRecommendationController {
     @GetMapping("/recommendations/jobs")
     RecommendedJobResponse recommendJobs(
             @AuthenticationPrincipal AuthenticatedUser principal,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit) {
-        return recommendationService.recommendJobs(principal, limit);
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) EmploymentType employmentType,
+            @RequestParam(required = false) WorkplaceType workplaceType,
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) @Min(0) Long minimumSalary,
+            @RequestParam(defaultValue = "1") @Min(1) int page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(20) int pageSize) {
+        return recommendationService.recommendJobs(principal, q, employmentType, workplaceType,
+                location, minimumSalary, page, pageSize);
     }
 }

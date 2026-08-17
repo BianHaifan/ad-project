@@ -300,6 +300,7 @@ private fun ApplicationStatus.label() = when (this) {
     ApplicationStatus.APPLIED -> "Applied"
     ApplicationStatus.IN_REVIEW -> "In review"
     ApplicationStatus.INTERVIEW -> "Interview"
+    ApplicationStatus.OFFERED -> "Offer received"
     ApplicationStatus.REJECTED -> "Rejected"
     ApplicationStatus.WITHDRAWN -> "Withdrawn"
 }

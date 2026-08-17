@@ -16,12 +16,12 @@ describe('final API contract helpers', () => {
   });
 
   it('keeps shared enum values constrained at compile time', () => {
-    const applicationStatuses: ApplicationStatus[] = ['APPLIED', 'IN_REVIEW', 'INTERVIEW', 'REJECTED', 'WITHDRAWN'];
+    const applicationStatuses: ApplicationStatus[] = ['APPLIED', 'IN_REVIEW', 'INTERVIEW', 'OFFERED', 'REJECTED', 'WITHDRAWN'];
     const jobStatuses: JobStatus[] = ['DRAFT', 'ACTIVE', 'PAUSED', 'CLOSED'];
     const interviewStatuses: InterviewStatus[] = ['SCHEDULED', 'COMPLETED', 'CANCELLED'];
     const modes: InterviewMode[] = ['ONLINE', 'ONSITE', 'PHONE'];
     const senderTypes: SenderType[] = ['CANDIDATE', 'RECRUITER', 'SYSTEM'];
-    expect(applicationStatuses).toEqual(['APPLIED', 'IN_REVIEW', 'INTERVIEW', 'REJECTED', 'WITHDRAWN']);
+    expect(applicationStatuses).toEqual(['APPLIED', 'IN_REVIEW', 'INTERVIEW', 'OFFERED', 'REJECTED', 'WITHDRAWN']);
     expect(jobStatuses).toEqual(['DRAFT', 'ACTIVE', 'PAUSED', 'CLOSED']);
     expect(interviewStatuses).toEqual(['SCHEDULED', 'COMPLETED', 'CANCELLED']);
     expect(modes).toEqual(['ONLINE', 'ONSITE', 'PHONE']);

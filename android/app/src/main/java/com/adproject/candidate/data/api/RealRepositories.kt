@@ -19,6 +19,7 @@ import com.adproject.candidate.data.contract.CandidateApplication
 import com.adproject.candidate.data.contract.SendMessageRequest
 import com.adproject.candidate.data.contract.SubmitApplicationRequest
 import com.adproject.candidate.data.contract.ApplicationListFilter
+import com.adproject.candidate.data.contract.AvatarMetadata
 import com.adproject.candidate.data.contract.CandidateApplicationPage
 import com.adproject.candidate.data.contract.WithdrawApplicationRequest
 import com.adproject.candidate.data.contract.JobPreference
@@ -26,6 +27,7 @@ import com.adproject.candidate.data.contract.RecommendationEnvelope
 import com.adproject.candidate.data.contract.SaveJobPreferenceRequest
 import com.adproject.candidate.data.contract.CompanyPublicProfile
 import com.adproject.candidate.data.contract.RecruiterPublicProfile
+import com.adproject.candidate.data.contract.WorkplaceType
 import com.squareup.moshi.Moshi
 import java.io.IOException
 import okhttp3.MediaType.Companion.toMediaType
@@ -106,8 +108,18 @@ data class CandidateJobPage(val jobs: List<CandidateJob>, val meta: PageMeta)
 interface CandidateJobRepository {
     suspend fun jobs(q: String?, employmentType: EmploymentType?): ApiResult<CandidateJobPage>
     suspend fun job(jobId: String): ApiResult<CandidateJobDetail>
-    suspend fun recommendations(limit: Int = 20): ApiResult<RecommendationEnvelope> =
-        ApiResult.Failure("Recommendations are not configured for this repository.")
+    suspend fun recommendations(
+        q: String?,
+        employmentType: EmploymentType?,
+        workplaceType: WorkplaceType?,
+        location: String?,
+        minimumSalary: Long?,
+        page: Int = 1,
+        pageSize: Int = 10,
+    ): ApiResult<RecommendationEnvelope>
+    suspend fun saveJob(jobId: String): ApiResult<Unit>
+    suspend fun unsaveJob(jobId: String): ApiResult<Unit>
+    suspend fun savedJobs(page: Int = 1, pageSize: Int = 20): ApiResult<CandidateJobPage>
 }
 
 class RealCandidateJobRepository(
@@ -143,8 +155,17 @@ class RealCandidateJobRepository(
         ApiResult.Failure("Unable to load this job right now.")
     }
 
-    override suspend fun recommendations(limit: Int): ApiResult<RecommendationEnvelope> = try {
-        val response = api.recommendations(limit)
+    override suspend fun recommendations(
+        q: String?,
+        employmentType: EmploymentType?,
+        workplaceType: WorkplaceType?,
+        location: String?,
+        minimumSalary: Long?,
+        page: Int,
+        pageSize: Int,
+    ): ApiResult<RecommendationEnvelope> = try {
+        val response = api.recommendations(q?.trim()?.takeIf { it.isNotEmpty() }, employmentType,
+            workplaceType, location?.trim()?.takeIf { it.isNotEmpty() }, minimumSalary, page, pageSize)
         val body = response.body()
         if (response.isSuccessful && body != null) ApiResult.Success(body)
         else errors.failure(response.code(), response.errorBody()?.string())
@@ -154,10 +175,42 @@ class RealCandidateJobRepository(
         ApiResult.Failure("Unable to load recommendations right now.")
     }
 
+    override suspend fun saveJob(jobId: String): ApiResult<Unit> = try {
+        val response = api.saveJob(jobId)
+        if (response.isSuccessful) ApiResult.Success(Unit)
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to save this job. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to save this job right now.")
+    }
+
+    override suspend fun unsaveJob(jobId: String): ApiResult<Unit> = try {
+        val response = api.unsaveJob(jobId)
+        if (response.isSuccessful) ApiResult.Success(Unit)
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to remove this job. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to remove this job right now.")
+    }
+
+    override suspend fun savedJobs(page: Int, pageSize: Int): ApiResult<CandidateJobPage> = try {
+        val response = api.savedJobs(page, pageSize)
+        val body = response.body()
+        if (response.isSuccessful && body != null) ApiResult.Success(
+            CandidateJobPage(body.data.map(::toCandidateJob), body.meta))
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load your saved jobs. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to load your saved jobs right now.")
+    }
+
     private fun toCandidateJob(job: NetworkCandidateJob) = CandidateJob(
         job.jobId, job.title, job.company, job.employmentType, job.workplaceType, job.location, job.salary,
         job.description, job.requirements, job.skills, job.deadline, job.visibility, job.status, job.publishedAt,
-        job.version, job.createdAt, job.updatedAt, job.matchScore, job.recruiter,
+        job.version, job.createdAt, job.updatedAt, job.matchScore, job.recruiter, job.isSaved,
     )
 }
 
@@ -217,6 +270,46 @@ class RealCandidateProfileRepository(private val api: CandidateProfileHttpApi, m
     override suspend fun update(request: com.adproject.candidate.data.contract.UpdateProfileRequest)=call { api.update(request) }
     private suspend fun call(block:suspend()->retrofit2.Response<com.adproject.candidate.data.contract.DataEnvelope<com.adproject.candidate.data.contract.CandidateProfileDto>>):ApiResult<com.adproject.candidate.data.contract.CandidateProfileDto> = try { val r=block(); val d=r.body()?.data; if(r.isSuccessful&&d!=null) ApiResult.Success(d) else errors.failure(r.code(),r.errorBody()?.string()) } catch(_:IOException){ApiResult.Failure("Unable to load your profile. Check your network and try again.")} catch(_:Exception){ApiResult.Failure("Unable to load your profile right now.")}
 }
+data class AvatarUpload(val fileName: String, val contentType: String, val bytes: ByteArray)
+
+interface CandidateAvatarRepository {
+    suspend fun upload(request: AvatarUpload): ApiResult<AvatarMetadata>
+    suspend fun delete(): ApiResult<Unit>
+}
+
+class RealCandidateAvatarRepository(private val api: CandidateProfileHttpApi, moshi: Moshi) : CandidateAvatarRepository {
+    private val errors = ApiErrorParser(moshi)
+    override suspend fun upload(request: AvatarUpload): ApiResult<AvatarMetadata> = try {
+        val mediaType = request.contentType.toMediaTypeOrNull() ?: "application/octet-stream".toMediaType()
+        val filePart = MultipartBody.Part.createFormData("file", request.fileName, request.bytes.toRequestBody(mediaType))
+        val response = api.uploadAvatar(filePart)
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else {
+            val failure = errors.failure(response.code(), response.errorBody()?.string())
+            when (failure.code) {
+                "FILE_TOO_LARGE" -> failure.copy(message = "This image is larger than 5 MB.")
+                "VALIDATION_ERROR" -> failure.copy(message = "Only PNG or JPEG images are supported.")
+                else -> failure
+            }
+        }
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to upload your avatar. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to upload your avatar right now.")
+    }
+
+    override suspend fun delete(): ApiResult<Unit> = try {
+        val response = api.deleteAvatar()
+        if (response.isSuccessful) ApiResult.Success(Unit)
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to remove your avatar. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Unable to remove your avatar right now.")
+    }
+}
+
 interface CandidateResumeRepository {
     suspend fun get(): ApiResult<com.adproject.candidate.data.contract.Resume>
     suspend fun save(request: com.adproject.candidate.data.contract.SaveResumeRequest): ApiResult<com.adproject.candidate.data.contract.Resume>

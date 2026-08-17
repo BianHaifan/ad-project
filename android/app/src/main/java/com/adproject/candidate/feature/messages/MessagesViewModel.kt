@@ -116,6 +116,12 @@ data class ChatUiState(
     val attachment: PendingAttachment? = null,
     val downloadingMessageId: String? = null,
     val downloadEvent: DownloadEvent? = null,
+    val imagePreview: ImagePreview? = null,
+    // Inline image thumbnails, keyed by message id. Populated once per message and never
+    // re-downloaded on polling; a message whose thumbnail download failed simply keeps the
+    // fallback file chip and can be re-tapped to retry via the full download path.
+    val imageThumbnails: Map<String, ImagePreview> = emptyMap(),
+    val loadingThumbnails: Set<String> = emptySet(),
 )
 
 data class PendingAttachment(
@@ -126,6 +132,12 @@ data class PendingAttachment(
 )
 
 data class DownloadEvent(
+    val fileName: String,
+    val contentType: String,
+    val bytes: ByteArray,
+)
+
+data class ImagePreview(
     val fileName: String,
     val contentType: String,
     val bytes: ByteArray,
@@ -203,6 +215,7 @@ class ChatViewModel(
                         consecutiveFailures = 0
                         val messages = result.value.messages
                         mutableState.update { it.copy(loading = false, messages = messages, message = null) }
+                        ensureImageThumbnails(messages)
                         if (markRead) {
                             messages.lastOrNull()?.messageId?.let { lastId ->
                                 repository.markRead(conversationId, ReadStateRequest(lastId))
@@ -220,6 +233,50 @@ class ChatViewModel(
 
     fun consumeDownload() = mutableState.update { it.copy(downloadEvent = null) }
 
+    fun closeImagePreview() = mutableState.update { it.copy(imagePreview = null) }
+
+    /** Opens an image attachment at full size, reusing an already-loaded thumbnail when present. */
+    fun openImage(message: Message) {
+        val existing = mutableState.value.imageThumbnails[message.messageId]
+        if (existing != null) {
+            mutableState.update { it.copy(imagePreview = existing) }
+        } else {
+            download(message)
+        }
+    }
+
+    /** Starts a background thumbnail download for every image message that isn't already cached. */
+    private fun ensureImageThumbnails(messages: List<Message>) {
+        val current = mutableState.value
+        val toLoad = messages.filter { message ->
+            val attachment = message.attachment
+            attachment != null && isPreviewableImage(attachment.contentType) &&
+                message.messageId !in current.imageThumbnails &&
+                message.messageId !in current.loadingThumbnails
+        }
+        if (toLoad.isEmpty()) return
+        mutableState.update { it.copy(loadingThumbnails = it.loadingThumbnails + toLoad.map { m -> m.messageId }) }
+        toLoad.forEach(::downloadThumbnail)
+    }
+
+    private fun downloadThumbnail(message: Message) {
+        val attachment = message.attachment ?: return
+        viewModelScope.launch {
+            when (val result = repository.downloadAttachment(conversationId, message.messageId)) {
+                is ApiResult.Success -> mutableState.update {
+                    it.copy(
+                        loadingThumbnails = it.loadingThumbnails - message.messageId,
+                        imageThumbnails = it.imageThumbnails + (message.messageId to
+                            ImagePreview(attachment.fileName, result.value.contentType, result.value.bytes)),
+                    )
+                }
+                is ApiResult.Failure -> mutableState.update {
+                    it.copy(loadingThumbnails = it.loadingThumbnails - message.messageId)
+                }
+            }
+        }
+    }
+
     fun download(message: Message) {
         val attachment = message.attachment ?: return
         if (mutableState.value.downloadingMessageId != null) return
@@ -227,10 +284,17 @@ class ChatViewModel(
         viewModelScope.launch {
             when (val result = repository.downloadAttachment(conversationId, message.messageId)) {
                 is ApiResult.Success -> mutableState.update {
-                    it.copy(
-                        downloadingMessageId = null,
-                        downloadEvent = DownloadEvent(attachment.fileName, result.value.contentType, result.value.bytes),
-                    )
+                    if (isPreviewableImage(attachment.contentType)) {
+                        it.copy(
+                            downloadingMessageId = null,
+                            imagePreview = ImagePreview(attachment.fileName, result.value.contentType, result.value.bytes),
+                        )
+                    } else {
+                        it.copy(
+                            downloadingMessageId = null,
+                            downloadEvent = DownloadEvent(attachment.fileName, result.value.contentType, result.value.bytes),
+                        )
+                    }
                 }
                 is ApiResult.Failure -> mutableState.update {
                     it.copy(downloadingMessageId = null, message = result.message)
@@ -280,3 +344,6 @@ class ChatViewModel(
             }
     }
 }
+
+internal fun isPreviewableImage(contentType: String): Boolean =
+    contentType == "image/png" || contentType == "image/jpeg"

@@ -188,6 +188,115 @@ class MessagesViewModelTest {
         assertNull(viewModel.state.value.downloadingMessageId)
         assertEquals("Unable to download this attachment.", viewModel.state.value.message)
     }
+
+    @Test fun imageAttachmentDownloadEntersPreviewState() = runTest(main.dispatcher) {
+        val repository = QueueConversationRepository(
+            detailResults = mutableListOf(ApiResult.Success(detail())),
+            messageResults = mutableListOf(ApiResult.Success(MessageListResult(emptyList(), CursorMeta(null, false)))),
+            downloadResults = mutableListOf(ApiResult.Success(DownloadedAttachment(byteArrayOf(1, 2, 3), "image/png"))),
+        )
+        val viewModel = ChatViewModel("conv-1", repository)
+        advanceUntilIdle()
+        viewModel.download(message("m-img", attachment = attachmentMeta("photo.png", "image/png")))
+        advanceUntilIdle()
+        assertEquals("m-img", repository.downloadCalls.single().second)
+        val preview = viewModel.state.value.imagePreview
+        assertNotNull(preview)
+        assertEquals("photo.png", preview!!.fileName)
+        assertEquals("image/png", preview.contentType)
+        assertTrue(preview.bytes.contentEquals(byteArrayOf(1, 2, 3)))
+        assertNull(viewModel.state.value.downloadEvent)
+    }
+
+    @Test fun imageDownloadFailureShowsMessageWithoutPreview() = runTest(main.dispatcher) {
+        val repository = QueueConversationRepository(
+            detailResults = mutableListOf(ApiResult.Success(detail())),
+            messageResults = mutableListOf(ApiResult.Success(MessageListResult(emptyList(), CursorMeta(null, false)))),
+            downloadResults = mutableListOf(ApiResult.Failure("Unable to download this attachment.")),
+        )
+        val viewModel = ChatViewModel("conv-1", repository)
+        advanceUntilIdle()
+        viewModel.download(message("m-img", attachment = attachmentMeta("photo.png", "image/png")))
+        advanceUntilIdle()
+        assertNull(viewModel.state.value.imagePreview)
+        assertNull(viewModel.state.value.downloadingMessageId)
+        assertEquals("Unable to download this attachment.", viewModel.state.value.message)
+    }
+
+    @Test fun nonImageAttachmentStillEmitsExternalOpenEvent() = runTest(main.dispatcher) {
+        val repository = QueueConversationRepository(
+            detailResults = mutableListOf(ApiResult.Success(detail())),
+            messageResults = mutableListOf(ApiResult.Success(MessageListResult(emptyList(), CursorMeta(null, false)))),
+            downloadResults = mutableListOf(ApiResult.Success(DownloadedAttachment(byteArrayOf(9, 8, 7), "application/pdf"))),
+        )
+        val viewModel = ChatViewModel("conv-1", repository)
+        advanceUntilIdle()
+        viewModel.download(message("m-att", attachment = attachmentMeta("resume.pdf", "application/pdf")))
+        advanceUntilIdle()
+        assertNull(viewModel.state.value.imagePreview)
+        val event = viewModel.state.value.downloadEvent
+        assertNotNull(event)
+        assertEquals("resume.pdf", event!!.fileName)
+        assertEquals("application/pdf", event.contentType)
+    }
+
+    @Test fun closeImagePreviewClearsState() = runTest(main.dispatcher) {
+        val repository = QueueConversationRepository(
+            detailResults = mutableListOf(ApiResult.Success(detail())),
+            messageResults = mutableListOf(ApiResult.Success(MessageListResult(emptyList(), CursorMeta(null, false)))),
+            downloadResults = mutableListOf(ApiResult.Success(DownloadedAttachment(byteArrayOf(1, 2, 3), "image/png"))),
+        )
+        val viewModel = ChatViewModel("conv-1", repository)
+        advanceUntilIdle()
+        viewModel.download(message("m-img", attachment = attachmentMeta("photo.png", "image/png")))
+        advanceUntilIdle()
+        assertNotNull(viewModel.state.value.imagePreview)
+        viewModel.closeImagePreview()
+        assertNull(viewModel.state.value.imagePreview)
+    }
+
+    @Test fun imageThumbnailsDownloadOnceAndOpenImageReusesCache() = runTest(main.dispatcher) {
+        val repository = QueueConversationRepository(
+            detailResults = mutableListOf(ApiResult.Success(detail()), ApiResult.Success(detail())),
+            messageResults = mutableListOf(
+                ApiResult.Success(MessageListResult(listOf(message("m-img", attachment = attachmentMeta("photo.png", "image/png"))), CursorMeta(null, false))),
+                ApiResult.Success(MessageListResult(listOf(message("m-img", attachment = attachmentMeta("photo.png", "image/png"))), CursorMeta(null, false))),
+            ),
+            downloadResults = mutableListOf(ApiResult.Success(DownloadedAttachment(byteArrayOf(1, 2, 3), "image/png"))),
+        )
+        val viewModel = ChatViewModel("conv-1", repository)
+        advanceUntilIdle()
+        assertEquals(1, repository.downloadCalls.size)
+        assertTrue(viewModel.state.value.imageThumbnails.containsKey("m-img"))
+        assertTrue(viewModel.state.value.loadingThumbnails.isEmpty())
+
+        // A subsequent poll (retry) must not re-download an already-loaded thumbnail.
+        viewModel.retry(); advanceUntilIdle()
+        assertEquals(1, repository.downloadCalls.size)
+
+        // Opening the image reuses the cached thumbnail without a second download.
+        viewModel.openImage(message("m-img", attachment = attachmentMeta("photo.png", "image/png")))
+        advanceUntilIdle()
+        assertEquals(1, repository.downloadCalls.size)
+        assertNotNull(viewModel.state.value.imagePreview)
+        assertEquals("photo.png", viewModel.state.value.imagePreview!!.fileName)
+        assertTrue(viewModel.state.value.imagePreview!!.bytes.contentEquals(byteArrayOf(1, 2, 3)))
+    }
+
+    @Test fun imageThumbnailFailureClearsLoadingStateForChipFallback() = runTest(main.dispatcher) {
+        val repository = QueueConversationRepository(
+            detailResults = mutableListOf(ApiResult.Success(detail())),
+            messageResults = mutableListOf(
+                ApiResult.Success(MessageListResult(listOf(message("m-img", attachment = attachmentMeta("photo.png", "image/png"))), CursorMeta(null, false))),
+            ),
+            downloadResults = mutableListOf(ApiResult.Failure("Unable to download this attachment.")),
+        )
+        val viewModel = ChatViewModel("conv-1", repository)
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.imageThumbnails.isEmpty())
+        assertTrue(viewModel.state.value.loadingThumbnails.isEmpty())
+        assertNull(viewModel.state.value.imagePreview)
+    }
 }
 
 private class QueueConversationRepository(
@@ -231,5 +340,5 @@ private fun detail() = ConversationDetail("conv-1", "app-1", "job-1", NOW, NOW, 
 private fun message(id: String, attachment: MessageAttachment? = null) =
     Message(id, "conv-1", "Hello", SenderType.CANDIDATE, NOW, null, DeliveryStatus.SENT, attachment)
 
-private fun attachmentMeta(fileName: String = "resume.pdf") =
-    MessageAttachment("att-1", fileName, 1024L, "application/pdf")
+private fun attachmentMeta(fileName: String = "resume.pdf", contentType: String = "application/pdf") =
+    MessageAttachment("att-1", fileName, 1024L, contentType)

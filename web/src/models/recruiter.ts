@@ -1,6 +1,6 @@
 export type ISODateTime = string;
 export type UserRole = 'CANDIDATE' | 'RECRUITER' | 'ADMIN';
-export type ApplicationStatus = 'APPLIED' | 'IN_REVIEW' | 'INTERVIEW' | 'REJECTED' | 'WITHDRAWN';
+export type ApplicationStatus = 'APPLIED' | 'IN_REVIEW' | 'INTERVIEW' | 'OFFERED' | 'REJECTED' | 'WITHDRAWN';
 export type JobStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED';
 export type InterviewStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
 export type InterviewMode = 'ONLINE' | 'ONSITE' | 'PHONE';
@@ -83,7 +83,6 @@ export interface UpdateRecruiterProfileInput {
   fullName?: string;
   title?: string;
   bio?: string | null;
-  avatarUrl?: string | null;
 }
 
 export interface RecruiterContact {
@@ -171,6 +170,51 @@ export interface MatchAnalysis {
   gaps: string[];
   modelVersion: string;
   generatedAt: ISODateTime;
+}
+
+export interface ApplicantCandidateSummary {
+  candidateId: string;
+  fullName: string;
+  headline: string | null;
+  avatarUrl: string | null;
+  location: string | null;
+}
+
+export interface ApplicantMatchAnalysis {
+  strongMatches: string[];
+  gaps: string[];
+  evidence: string[];
+}
+
+export interface RecommendedApplicant {
+  applicationId: string;
+  candidate: ApplicantCandidateSummary;
+  status: ApplicationStatus;
+  appliedAt: ISODateTime;
+  matchScore: number;
+  rank: number;
+  matchAnalysis: ApplicantMatchAnalysis;
+}
+
+export type RecommendationSource = 'MODEL' | 'FALLBACK' | 'NONE';
+export type RecommendationModelStatus = 'ACTIVE' | 'DEGRADED' | 'NOT_APPLICABLE';
+
+export interface RecommendationMeta {
+  source: RecommendationSource;
+  modelVersion: string;
+  featureVersion: string;
+  modelStatus: RecommendationModelStatus;
+  inferenceMs: number;
+  generatedAt: ISODateTime;
+  page: number;
+  pageSize: number;
+  total: number;
+  hasNext: boolean;
+}
+
+export interface RecommendedApplicantListResult {
+  data: RecommendedApplicant[];
+  meta: RecommendationMeta;
 }
 
 export interface RecruiterNote {
@@ -306,6 +350,7 @@ export interface RecruiterApplicationCounts {
   applied: number;
   inReview: number;
   interview: number;
+  offered: number;
   rejected: number;
 }
 
@@ -351,7 +396,7 @@ export interface UpdateCompanyRequest {
   expectedVersion: number;
 }
 
-export interface ApplicationTransitionRequest { toStatus: 'IN_REVIEW' | 'REJECTED'; reason: string; expectedVersion: number }
+export interface ApplicationTransitionRequest { toStatus: 'IN_REVIEW' | 'OFFERED' | 'REJECTED'; reason: string; expectedVersion: number }
 export interface CreateNoteRequest { body: string }
 export interface CreateInterviewRequest {
   scheduledAt: ISODateTime;
@@ -380,4 +425,12 @@ export interface GoogleConnection {
   connected: boolean;
   status: GoogleConnectionStatus;
   connectedAt: ISODateTime | null;
+}
+
+export interface AvatarMetadata {
+  userId: string;
+  avatarUrl: string;
+  contentType: 'image/png' | 'image/jpeg';
+  sizeBytes: number;
+  updatedAt: ISODateTime;
 }

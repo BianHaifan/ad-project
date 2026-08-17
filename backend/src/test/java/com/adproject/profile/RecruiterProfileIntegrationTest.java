@@ -63,13 +63,13 @@ class RecruiterProfileIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"fullName":"Updated Recruiter","title":"  Head of Engineering  ",
-                                 "bio":"  Builds teams  ","avatarUrl":"https://example.com/avatar.png"}
+                                 "bio":"  Builds teams  "}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.fullName").value("Updated Recruiter"))
                 .andExpect(jsonPath("$.data.title").value("Head of Engineering"))
                 .andExpect(jsonPath("$.data.bio").value("Builds teams"))
-                .andExpect(jsonPath("$.data.avatarUrl").value("https://example.com/avatar.png"))
+                .andExpect(jsonPath("$.data.avatarUrl").value(nullValue()))
                 .andExpect(jsonPath("$.data.email").value(recruiter.user().getEmail()))
                 .andExpect(jsonPath("$.data.company.companyId").value(recruiter.company().getId()));
 
@@ -147,6 +147,13 @@ class RecruiterProfileIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.error.fieldErrors.companyId").exists());
+
+        mvc.perform(patch("/api/v1/recruiter/profile").header("Authorization", bearer(recruiter))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Engineer\",\"avatarUrl\":\"https://example.com/avatar.png\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.error.fieldErrors.avatarUrl").exists());
     }
 
     @Test

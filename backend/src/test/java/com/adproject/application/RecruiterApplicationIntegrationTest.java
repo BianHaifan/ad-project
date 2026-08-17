@@ -9,6 +9,7 @@ import com.adproject.company.domain.*;
 import com.adproject.company.infrastructure.*;
 import com.adproject.job.domain.*;
 import com.adproject.job.infrastructure.*;
+import com.adproject.recommendation.infrastructure.*;
 import com.adproject.resume.infrastructure.*;
 import com.adproject.user.domain.*;
 import com.adproject.user.infrastructure.*;
@@ -29,6 +30,7 @@ class RecruiterApplicationIntegrationTest {
     @Autowired MockMvc mvc; @Autowired JwtService jwt; @Autowired UserRepository users;
     @Autowired CompanyRepository companies; @Autowired CompanyMemberRepository members;
     @Autowired JobRepository jobs; @Autowired ResumeRepository resumes; @Autowired ObjectMapper mapper;
+    @Autowired CandidateJobRecommendationRepository recommendations;
     @Autowired JdbcTemplate jdbc;
 
     @Test void listIsCompanyScopedSearchableFilteredPagedCountedAndStable() throws Exception {
@@ -108,6 +110,73 @@ class RecruiterApplicationIntegrationTest {
                         .header("Authorization", recruiter(fixture)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"toStatus\":\"WITHDRAWN\",\"reason\":\"No\",\"expectedVersion\":3}"))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.requestId").isNotEmpty());
+    }
+
+    @Test void offeredFollowsInterviewIsTerminalAuditedAndGuarded() throws Exception {
+        Fixture fixture = fixture("Offer Candidate"); String id = submit(fixture, job(fixture, "Offer Job"));
+        transition(fixture, id, "OFFERED", 1, 409, "INVALID_APPLICATION_TRANSITION");
+        jdbc.update("update applications set status='INTERVIEW',version=2 where id=?", id);
+        transition(fixture, id, "OFFERED", 2, 201, null);
+        transition(fixture, id, "REJECTED", 3, 409, "INVALID_APPLICATION_TRANSITION");
+        transition(fixture, id, "OFFERED", 2, 409, "VERSION_CONFLICT");
+        mvc.perform(post("/api/v1/recruiter/applications/{id}/transitions", id)
+                        .header("Authorization", candidate(fixture)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"toStatus\":\"OFFERED\",\"reason\":\"No\",\"expectedVersion\":3}"))
+                .andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("select count(*) from application_status_events where application_id=? " +
+                "and to_status='OFFERED' and reason='Reviewed candidate' and request_id is not null",
+                Integer.class, id)).isEqualTo(1);
+        mvc.perform(get("/api/v1/recruiter/applications").header("Authorization", recruiter(fixture)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.meta.counts.offered").value(1));
+        mvc.perform(get("/api/v1/candidate/applications/{id}", id).header("Authorization", candidate(fixture)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("OFFERED"));
+    }
+
+    @Test void validRecommendationScoreIsReturnedInListAndDetail() throws Exception {
+        Fixture fixture = fixture("Scored Candidate");
+        String jobId = job(fixture, "Scored Job");
+        String id = submit(fixture, jobId);
+        recommend(fixture.candidateId(), jobId, 87, 1, 1);
+        mvc.perform(get("/api/v1/recruiter/applications").header("Authorization", recruiter(fixture)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].matchScore").value(87));
+        mvc.perform(get("/api/v1/recruiter/applications/{id}", id).header("Authorization", recruiter(fixture)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.matchScore").value(87))
+                .andExpect(jsonPath("$.data.matchAnalysis.score").value(87))
+                .andExpect(jsonPath("$.data.matchAnalysis.modelVersion").value("model-v1"))
+                .andExpect(jsonPath("$.data.matchAnalysis.strongMatches[0]").value("Go"))
+                .andExpect(jsonPath("$.data.matchAnalysis.gaps[0]").value("No ops"))
+                .andExpect(jsonPath("$.data.matchAnalysis.evidence[0]").value("5y experience"))
+                .andExpect(jsonPath("$.data.matchAnalysis.generatedAt").isNotEmpty());
+    }
+
+    @Test void staleRecommendationScoreIsOmitted() throws Exception {
+        Fixture fixture = fixture("Stale Candidate");
+        String jobId = job(fixture, "Stale Job");
+        String id = submit(fixture, jobId);
+        recommend(fixture.candidateId(), jobId, 91, 2, 1); // resume version drifted since snapshot was generated
+        mvc.perform(get("/api/v1/recruiter/applications").header("Authorization", recruiter(fixture)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].matchScore").isEmpty());
+        mvc.perform(get("/api/v1/recruiter/applications/{id}", id).header("Authorization", recruiter(fixture)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.matchScore").isEmpty())
+                .andExpect(jsonPath("$.data.matchAnalysis").isEmpty());
+    }
+
+    @Test void recommendationDoesNotLeakAcrossCompanies() throws Exception {
+        Fixture owner = fixture("Owner Candidate");
+        String jobId = job(owner, "Owner Job");
+        String id = submit(owner, jobId);
+        recommend(owner.candidateId(), jobId, 88, 1, 1);
+        Fixture other = fixture("Other Recruiter");
+        mvc.perform(get("/api/v1/recruiter/applications/{id}", id).header("Authorization", recruiter(other)))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.requestId").isNotEmpty());
+        mvc.perform(get("/api/v1/recruiter/applications").header("Authorization", recruiter(other)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(0));
+    }
+
+    private void recommend(String candidateId, String jobId, int score, int resumeVersion, int jobVersion) {
+        recommendations.save(new CandidateJobRecommendationEntity(UUID.randomUUID().toString(), candidateId, jobId,
+                score, "MODEL", "model-v1", "feature-v1", "[\"Go\"]", "[\"No ops\"]", "[\"5y experience\"]",
+                resumeVersion, 0, jobVersion, Instant.parse("2026-08-12T01:00:00Z")));
     }
 
     private void transition(Fixture f, String id, String target, int version, int status, String code) throws Exception {
