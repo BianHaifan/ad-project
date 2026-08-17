@@ -13,7 +13,6 @@ import com.adproject.job.infrastructure.JobRepository;
 import com.adproject.profile.infrastructure.CandidateProfileRepository;
 import com.adproject.recommendation.infrastructure.CandidateJobPreferenceEntity;
 import com.adproject.recommendation.infrastructure.CandidateJobPreferenceRepository;
-import com.adproject.recommendation.infrastructure.CandidateJobRecommendationEntity;
 import com.adproject.recommendation.infrastructure.CandidateJobRecommendationRepository;
 import com.adproject.resume.infrastructure.ResumeEntity;
 import com.adproject.resume.infrastructure.ResumeRepository;
