@@ -1,16 +1,15 @@
 package com.adproject.candidate.feature.community
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,8 +33,6 @@ import com.adproject.candidate.core.designsystem.AdText
 import com.adproject.candidate.core.designsystem.AdTopBar
 import com.adproject.candidate.core.designsystem.PrimaryButton
 import com.adproject.candidate.core.designsystem.SecondaryButton
-import com.adproject.candidate.core.designsystem.FigmaSvg
-import com.adproject.candidate.R
 import coil3.compose.AsyncImage
 
 @Composable
@@ -69,16 +66,22 @@ fun CommunityDetailScreen(
                         contentScale = ContentScale.Crop,
                     ) }
                 } }
-                item { SecondaryButton("Message author",onMessageAuthor,Modifier.fillMaxWidth().padding(horizontal=16.dp)) }
                 item {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         state.error?.let { Text(it, color = Color(0xFFB42318), fontSize = 12.sp) }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                            FigmaSvg(if (state.post.likedByCurrentUser) R.raw.hirex_like_active else R.raw.hirex_like_inactive,
-                                if (state.post.likedByCurrentUser) "Unlike post" else "Like post",
-                                Modifier.size(32.dp).clickable(enabled = !state.liking, onClick = onToggleLike))
-                            Text(if (state.liking) " Updating…" else " ${state.post.likeCount}", color = AdTeal,
-                                modifier = Modifier.padding(top = 7.dp))
+                        FlowRow(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            SecondaryButton("Message author", onMessageAuthor)
+                            SecondaryButton(
+                                if (state.liking) "Updating…"
+                                else if (state.post.likedByCurrentUser) "Unlike (${state.post.likeCount})"
+                                else "Like (${state.post.likeCount})",
+                                onToggleLike,
+                                enabled = !state.liking,
+                            )
                         }
                     }
                 }

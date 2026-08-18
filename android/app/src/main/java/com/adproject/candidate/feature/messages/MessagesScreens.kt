@@ -82,6 +82,9 @@ import com.adproject.candidate.data.contract.SenderType
 import com.adproject.candidate.feature.community.CommunityDirectConversation
 import java.io.File
 import java.io.FileOutputStream
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -637,16 +640,24 @@ private fun MessageComposer(
     }
 }
 
-private fun formatConversationTime(value: String): String = runCatching {
-    java.time.OffsetDateTime.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm"))
-}.getOrDefault(value)
+private fun formatConversationTime(value: String): String =
+    formatLocalTimestamp(value, "MMM d, HH:mm")
 
-private fun formatInterviewTime(value: String): String = runCatching {
-    java.time.OffsetDateTime.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMM d · h:mm a"))
-}.getOrDefault(value)
+private fun formatInterviewTime(value: String): String =
+    formatLocalTimestamp(value, "EEEE, MMM d · h:mm a")
 
-private fun formatMessageTime(value: String): String = runCatching {
-    java.time.OffsetDateTime.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+private fun formatMessageTime(value: String): String =
+    formatLocalTimestamp(value, "HH:mm")
+
+internal fun formatLocalTimestamp(
+    value: String,
+    pattern: String,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): String = runCatching {
+    OffsetDateTime.parse(value)
+        .toInstant()
+        .atZone(zoneId)
+        .format(DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH))
 }.getOrDefault(value)
 
 private val ATTACHMENT_MIME_TYPES = arrayOf(
