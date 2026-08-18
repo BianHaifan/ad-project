@@ -4,6 +4,11 @@
   become: true
   vars:
     compose_dir: /opt/adproject/infra/docker
+    google_oauth_client_id: "{{ vault_google_oauth_client_id | default('') }}"
+    google_oauth_client_secret: "{{ vault_google_oauth_client_secret | default('') }}"
+    google_oauth_redirect_uri: "{{ vault_google_oauth_redirect_uri | default('') }}"
+    google_oauth_web_return_uri: "{{ vault_google_oauth_web_return_uri | default('') }}"
+    google_oauth_token_encryption_key: "{{ vault_google_oauth_token_encryption_key | default('') }}"
   tasks:
     - name: Update apt cache
       ansible.builtin.apt:
@@ -76,6 +81,7 @@
         db_password: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
         jwt_secret: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=64') }}"
         ml_internal_token: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=64') }}"
+      no_log: true
       when: not env_stat.stat.exists
 
     - name: Write .env (only when missing, keeps existing secrets)
@@ -83,11 +89,13 @@
         src: templates/docker.env.j2
         dest: "{{ compose_dir }}/.env"
         mode: "0600"
+      no_log: true
       when: not env_stat.stat.exists
 
     - name: Generate ML token when adding it to an existing .env
       ansible.builtin.set_fact:
         ml_internal_token: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=64') }}"
+      no_log: true
       when: env_stat.stat.exists
 
     - name: Ensure ML_INTERNAL_TOKEN exists in existing .env
@@ -95,7 +103,70 @@
         path: "{{ compose_dir }}/.env"
         regexp: "^ML_INTERNAL_TOKEN="
         line: "ML_INTERNAL_TOKEN={{ ml_internal_token }}"
+      no_log: true
       when: env_stat.stat.exists
+
+    - name: Read existing .env content without printing it
+      ansible.builtin.command: cat "{{ compose_dir }}/.env"
+      register: existing_env
+      changed_when: false
+      no_log: true
+      when: env_stat.stat.exists
+
+    - name: Ensure GOOGLE_OAUTH_CLIENT_ID exists in existing .env
+      ansible.builtin.lineinfile:
+        path: "{{ compose_dir }}/.env"
+        regexp: "^GOOGLE_OAUTH_CLIENT_ID="
+        line: "GOOGLE_OAUTH_CLIENT_ID={{ google_oauth_client_id }}"
+      no_log: true
+      when:
+        - env_stat.stat.exists
+        - google_oauth_client_id | length > 0
+        - "'GOOGLE_OAUTH_CLIENT_ID=' not in existing_env.stdout"
+
+    - name: Ensure GOOGLE_OAUTH_CLIENT_SECRET exists in existing .env
+      ansible.builtin.lineinfile:
+        path: "{{ compose_dir }}/.env"
+        regexp: "^GOOGLE_OAUTH_CLIENT_SECRET="
+        line: "GOOGLE_OAUTH_CLIENT_SECRET={{ google_oauth_client_secret }}"
+      no_log: true
+      when:
+        - env_stat.stat.exists
+        - google_oauth_client_secret | length > 0
+        - "'GOOGLE_OAUTH_CLIENT_SECRET=' not in existing_env.stdout"
+
+    - name: Ensure GOOGLE_OAUTH_REDIRECT_URI exists in existing .env
+      ansible.builtin.lineinfile:
+        path: "{{ compose_dir }}/.env"
+        regexp: "^GOOGLE_OAUTH_REDIRECT_URI="
+        line: "GOOGLE_OAUTH_REDIRECT_URI={{ google_oauth_redirect_uri }}"
+      no_log: true
+      when:
+        - env_stat.stat.exists
+        - google_oauth_redirect_uri | length > 0
+        - "'GOOGLE_OAUTH_REDIRECT_URI=' not in existing_env.stdout"
+
+    - name: Ensure GOOGLE_OAUTH_WEB_RETURN_URI exists in existing .env
+      ansible.builtin.lineinfile:
+        path: "{{ compose_dir }}/.env"
+        regexp: "^GOOGLE_OAUTH_WEB_RETURN_URI="
+        line: "GOOGLE_OAUTH_WEB_RETURN_URI={{ google_oauth_web_return_uri }}"
+      no_log: true
+      when:
+        - env_stat.stat.exists
+        - google_oauth_web_return_uri | length > 0
+        - "'GOOGLE_OAUTH_WEB_RETURN_URI=' not in existing_env.stdout"
+
+    - name: Ensure GOOGLE_TOKEN_ENCRYPTION_KEY exists in existing .env
+      ansible.builtin.lineinfile:
+        path: "{{ compose_dir }}/.env"
+        regexp: "^GOOGLE_TOKEN_ENCRYPTION_KEY="
+        line: "GOOGLE_TOKEN_ENCRYPTION_KEY={{ google_oauth_token_encryption_key }}"
+      no_log: true
+      when:
+        - env_stat.stat.exists
+        - google_oauth_token_encryption_key | length > 0
+        - "'GOOGLE_TOKEN_ENCRYPTION_KEY=' not in existing_env.stdout"
 
     - name: Ensure .env is owned by ubuntu so the deploy user can read it
       ansible.builtin.file:
@@ -116,12 +187,3 @@
       args:
         executable: /bin/bash
       changed_when: false
-
-    - name: Show generated env (for the record)
-      ansible.builtin.command: cat "{{ compose_dir }}/.env"
-      register: env_content
-      changed_when: false
-
-    - name: Print env
-      ansible.builtin.debug:
-        var: env_content.stdout_lines
