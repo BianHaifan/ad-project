@@ -17,6 +17,7 @@ import com.adproject.admin.api.AdminDtos.PageMeta;
 import com.adproject.admin.api.AdminDtos.ModerationDecisionRequest;
 import com.adproject.admin.api.AdminDtos.ReviewDecisionRequest;
 import com.adproject.admin.api.AdminDtos.UserStatusRequest;
+import com.adproject.admin.api.AdminDtos.UpdateCompanyRequest;
 import com.adproject.admin.domain.ModerationDecision;
 import com.adproject.admin.domain.ModerationSourceType;
 import com.adproject.admin.domain.ModerationStatus;
@@ -43,6 +44,7 @@ import jakarta.persistence.criteria.Subquery;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
@@ -223,7 +225,7 @@ public class AdminService {
                 .orElseThrow(AdminService::companyNotFound);
         requireVersion(company.getVersion(), request.expectedVersion(), "company");
         CompanyVerificationStatus before = company.getVerificationStatus();
-        if (before != CompanyVerificationStatus.PENDING && before != CompanyVerificationStatus.CHANGES_REQUESTED) {
+        if (before != CompanyVerificationStatus.PENDING) {
             throw conflict("INVALID_COMPANY_REVIEW_TRANSITION", "This company is not awaiting review");
         }
         Instant now = clock.instant();
@@ -231,6 +233,31 @@ public class AdminService {
         saveAudit(currentUser.userId(), "COMPANY_" + decision.name(), "COMPANY", companyId,
                 Map.of("verificationStatus", before.name()), Map.of("verificationStatus", decision.name()),
                 request.reason(), requestId, now);
+        companyRepository.flush();
+        return new CompanyReviewResponse(toCompany(company));
+    }
+
+    @Transactional
+    public CompanyReviewResponse updateCompany(AuthenticatedUser currentUser, String companyId,
+                                               UpdateCompanyRequest request, String requestId) {
+        requireAdmin(currentUser);
+        CompanyEntity company = companyRepository.findByIdForUpdate(companyId)
+                .orElseThrow(AdminService::companyNotFound);
+        requireVersion(company.getVersion(), request.expectedVersion(), "company");
+        Map<String, String> errors = new LinkedHashMap<>();
+        if (request.name() != null && request.name().isBlank()) errors.put("name", "must not be blank");
+        validateHttpUrl("logoUrl", request.logoUrl(), errors);
+        validateHttpUrl("website", request.website(), errors);
+        if (!errors.isEmpty()) throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR",
+                "Request validation failed", errors);
+        Map<String, Object> before = companySnapshot(company);
+        Instant now = clock.instant();
+        company.updateProfile(value(request.name(), company.getName()), value(request.logoUrl(), company.getLogoUrl()),
+                value(request.stage(), company.getStage()), value(request.employeeRange(), company.getEmployeeRange()),
+                value(request.website(), company.getWebsite()), value(request.description(), company.getDescription()),
+                value(request.location(), company.getLocation()), now);
+        saveAudit(currentUser.userId(), "COMPANY_PROFILE_UPDATED", "COMPANY", companyId, before,
+                companySnapshot(company), request.reason(), requestId, now);
         companyRepository.flush();
         return new CompanyReviewResponse(toCompany(company));
     }
@@ -324,6 +351,25 @@ public class AdminService {
                 company.getDescription(), company.getLocation(), company.getVersion(), company.getCreatedBy(),
                 creator == null ? "Unknown user" : creator.getFullName(), creator == null ? null : creator.getEmail(),
                 company.getCreatedAt(), company.getUpdatedAt());
+    }
+
+    private static Map<String, Object> companySnapshot(CompanyEntity company) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("name", company.getName()); snapshot.put("logoUrl", company.getLogoUrl());
+        snapshot.put("stage", company.getStage()); snapshot.put("employeeRange", company.getEmployeeRange());
+        snapshot.put("website", company.getWebsite()); snapshot.put("description", company.getDescription());
+        snapshot.put("location", company.getLocation()); snapshot.put("version", company.getVersion());
+        return snapshot;
+    }
+
+    private static String value(String candidate, String existing) {
+        return candidate == null ? existing : candidate.trim();
+    }
+
+    private static void validateHttpUrl(String field, String value, Map<String, String> errors) {
+        if (value != null && !value.isBlank() && !(value.startsWith("https://") || value.startsWith("http://"))) {
+            errors.put(field, "must be an absolute http or https URL");
+        }
     }
 
     private ModerationCase toModeration(ModerationCaseEntity moderationCase) {

@@ -105,6 +105,17 @@ class DashboardIntegrationTest {
                 .andExpect(jsonPath("$.data.recentJobs.length()").value(0));
     }
 
+    @Test void dashboardReturnsPendingAndRejectedCompanyStatusWithoutFailing() throws Exception {
+        for (String status : new String[]{"PENDING", "REJECTED"}) {
+            Fixture f = fixture("Dashboard " + status);
+            jdbc.update("update companies set verification_status=? where id=?", status, f.companyId());
+            mvc.perform(get("/api/v1/recruiter/dashboard").header("Authorization", recruiter(f)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.metrics.companyVerificationStatus").value(status))
+                    .andExpect(jsonPath("$.data.metrics.activeJobs").value(0));
+        }
+    }
+
     private String submit(Fixture f, String jobId) throws Exception {
         String response = mvc.perform(post("/api/v1/jobs/{id}/applications", jobId)
                         .header("Authorization", candidate(f)).header("Idempotency-Key", UUID.randomUUID())

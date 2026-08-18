@@ -7,6 +7,7 @@ import {
 import {EmptyState, ErrorState, LoadingState} from '../components/AsyncState';
 import {PageHeader} from '../components/PageHeader';
 import {sanitizePreviewUrl} from '../lib/safeUrl';
+import {AuthApiError} from '../api/authClient';
 import type {Message} from '../models/recruiter';
 
 const ACCEPTED_ATTACHMENT_TYPES = '.pdf,.doc,.docx,.txt,.png,.jpg,.jpeg';
@@ -19,6 +20,18 @@ function formatBytes(bytes: number): string {
 
 function isPreviewableImage(contentType: string): boolean {
   return contentType === 'image/png' || contentType === 'image/jpeg';
+}
+
+function messageSendError(error: unknown, withAttachment: boolean): string {
+  if (error instanceof AuthApiError) {
+    if (error.code === 'CONVERSATION_CLOSED') return 'This conversation is closed and no longer accepts messages.';
+    if (error.status === 403) return 'You no longer have permission to message this candidate.';
+    if (error.status === 404) return 'This conversation is no longer available. Return to the conversation list.';
+    if (error.status === 0 || error.code === 'NETWORK_ERROR') return 'Connection lost. Your message was not sent; check your network and try again.';
+  }
+  return withAttachment
+    ? 'Attachment could not be sent. Remove it or try again.'
+    : 'Message could not be sent. Please try again.';
 }
 
 function MessageImageAttachment({conversationId, message, onDownload}: {
@@ -117,6 +130,8 @@ export function MessagesPage() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!activeId) return;
+    send.reset();
+    sendWithAttachment.reset();
     if (attachment) {
       sendWithAttachment.mutate({id: activeId, body: body.trim(), file: attachment}, {
         onSuccess: () => {setBody(''); setAttachment(null);},
@@ -179,12 +194,12 @@ export function MessagesPage() {
           <ErrorState onRetry={() => {detail.refetch(); messages.refetch();}}/>
         ) : detail.isLoading || messages.isLoading ? (
           <LoadingState label="Loading conversation…"/>
-        ) : detail.data && activeSummary ? (
+        ) : detail.data ? (
           <>
             <header>
               <span className="avatar">{detail.data.participant.fullName[0]}</span>
               <span className="grow"><b>{detail.data.participant.fullName}</b>
-                <small>Applied to {activeSummary.jobTitle}</small></span>
+                <small>{activeSummary ? `Applied to ${activeSummary.jobTitle}` : 'Application conversation'}</small></span>
               <button className="button secondary"
                 onClick={() => nav(`/recruiter/applications/${detail.data!.applicationId}`)}>View application</button>
             </header>
@@ -226,7 +241,10 @@ export function MessagesPage() {
                   style={{display: 'none'}} onChange={onFileChange}/>
                 <button type="button" className="button secondary" aria-label="Attach a file"
                   disabled={sending} onClick={pickFile}>+</button>
-                <input value={body} onChange={event => setBody(event.target.value)} placeholder="Write a message…"
+                <input value={body} onChange={event => {
+                  setBody(event.target.value);
+                  if (send.isError || sendWithAttachment.isError) { send.reset(); sendWithAttachment.reset(); }
+                }} placeholder="Write a message…"
                   disabled={sending}/>
                 <button className="button primary" disabled={!canSend}>
                   {sending ? 'Sending…' : 'Send'}</button>
@@ -234,8 +252,9 @@ export function MessagesPage() {
             </form>
             {(send.isError || sendWithAttachment.isError) &&
               <small role="alert" className="form-error">
-                {sendWithAttachment.isError ? 'Attachment could not be sent. Please try again.' :
-                  'Message could not be sent. Please try again.'}
+                {sendWithAttachment.isError
+                  ? messageSendError(sendWithAttachment.error, true)
+                  : messageSendError(send.error, false)}
               </small>}
           </>
         ) : (

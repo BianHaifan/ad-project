@@ -41,7 +41,7 @@ function RankedList({data, total, hasNext, degraded, modelVersion, source, page,
   const first = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const last = Math.min(total, (page - 1) * PAGE_SIZE + data.length);
   return <>
-    {degraded && <p className="demo-notice">The AI model is currently unavailable, so these results use a
+    {degraded && <p className="fallback-notice">The AI model is currently unavailable, so these results use a
       deterministic rule-based ranking. Review the evidence before deciding.</p>}
     {source === 'MODEL' && <p className="meta-note">Ranked by ML model {modelVersion || 'current'} · {total} candidate{total === 1 ? '' : 's'}</p>}
     <div className="data-table app-table with-match rank-table">

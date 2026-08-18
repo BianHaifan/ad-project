@@ -67,8 +67,10 @@ import com.adproject.candidate.data.model.CandidateProfile
 import com.adproject.candidate.data.model.Job
 import com.adproject.candidate.data.model.JobFeedData
 import com.adproject.candidate.data.model.ProfileTool
-import com.adproject.candidate.feature.profile.COMMON_LOCATIONS
+import com.adproject.candidate.feature.profile.NumberWheelSheet
 import com.adproject.candidate.feature.profile.SALARY_OPTIONS
+import com.adproject.candidate.feature.profile.SelectorField
+import com.adproject.candidate.feature.profile.SingleSelectSheet
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
@@ -88,6 +90,7 @@ fun JobFeedScreen(
     onRetryLoadMore: () -> Unit,
     onTab: (MainTab) -> Unit,
     onJob: (String) -> Unit,
+    onApplyFilters: (EmploymentType?, WorkplaceType?, String?, Long?) -> Unit = { _, _, _, _ -> },
 ) {
     val listState = rememberLazyListState()
     var showFilters by remember { mutableStateOf(false) }
@@ -247,6 +250,7 @@ fun JobFeedScreen(
             onLocation = onLocation,
             onMinimumSalary = onMinimumSalary,
             onClearAll = onClearFilters,
+            onApply = onApplyFilters,
             onDismiss = { showFilters = false },
         )
     }
@@ -268,7 +272,7 @@ internal fun JobCard(job: Job, onJob: (String) -> Unit, onToggleSave: (String) -
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 FigmaSvg(R.raw.recruiter_avatar, "Recruiter avatar", Modifier.size(28.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(job.recruiter?.let { "${it.fullName} - ${it.title}" } ?: "Recruiter contact unavailable",
+                Text(job.recruiter?.let { "${it.fullName} - ${it.title}" } ?: "Recruiter details unavailable",
                     Modifier.weight(1f), color = Color(0xFF34404B), fontSize = 12.sp)
                 job.match?.let { TagChip("AI Match $it%", accent = true) }
                 Spacer(Modifier.width(10.dp))
@@ -308,9 +312,17 @@ private fun JobFilterSheet(
     onLocation: (String?) -> Unit,
     onMinimumSalary: (Long?) -> Unit,
     onClearAll: () -> Unit,
+    onApply: (EmploymentType?, WorkplaceType?, String?, Long?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var employment by remember(state.employmentType) { mutableStateOf(state.employmentType) }
+    var workplace by remember(state.workplaceType) { mutableStateOf(state.workplaceType) }
+    var location by remember(state.location) { mutableStateOf(state.location.orEmpty()) }
+    var salary by remember(state.minimumSalary) { mutableStateOf(state.minimumSalary) }
+    var showEmployment by remember { mutableStateOf(false) }
+    var showWorkplace by remember { mutableStateOf(false) }
+    var showSalary by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
@@ -323,48 +335,27 @@ private fun JobFilterSheet(
                 Text("Clear all", Modifier.clickable(onClick = onClearAll), color = AdTealDark,
                     fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
-            FilterSection("Job type") {
-                EmploymentType.entries.forEach { type ->
-                    FilterChip(
-                        selected = state.employmentType == type,
-                        onClick = { onEmploymentType(if (state.employmentType == type) null else type) },
-                        label = { Text(type.label()) },
-                        colors = filterChipColors(),
-                    )
-                }
-            }
-            FilterSection("Workplace") {
-                WorkplaceType.entries.forEach { type ->
-                    FilterChip(
-                        selected = state.workplaceType == type,
-                        onClick = { onWorkplaceType(if (state.workplaceType == type) null else type) },
-                        label = { Text(type.label()) },
-                        colors = filterChipColors(),
-                    )
-                }
-            }
-            FilterSection("Location") {
-                COMMON_LOCATIONS.forEach { location ->
-                    FilterChip(
-                        selected = state.location == location,
-                        onClick = { onLocation(if (state.location == location) null else location) },
-                        label = { Text(location) },
-                        colors = filterChipColors(),
-                    )
-                }
-            }
-            FilterSection("Minimum salary") {
-                SALARY_OPTIONS.forEach { salary ->
-                    FilterChip(
-                        selected = state.minimumSalary == salary,
-                        onClick = { onMinimumSalary(if (state.minimumSalary == salary) null else salary) },
-                        label = { Text("S$%,d+".format(salary)) },
-                        colors = filterChipColors(),
-                    )
-                }
-            }
+            SelectorField("Job type", employment?.label(), "Any", onClick = { showEmployment = true })
+            SelectorField("Workplace", workplace?.label(), "Any", onClick = { showWorkplace = true })
+            OutlinedTextField(location, { location = it }, Modifier.fillMaxWidth(),
+                label = { Text("Location") }, placeholder = { Text("Enter any city or region") }, singleLine = true)
+            SelectorField("Minimum salary", salary?.let { "S$%,d+".format(it) }, "Any",
+                onClick = { showSalary = true })
+            PrimaryButton("Apply filters", {
+                onApply(employment, workplace, location, salary)
+                onDismiss()
+            }, Modifier.fillMaxWidth())
         }
     }
+    if (showEmployment) SingleSelectSheet(
+        "Job type", EmploymentType.entries, EmploymentType::label, employment, "Any",
+        { employment = it; showEmployment = false }, { showEmployment = false })
+    if (showWorkplace) SingleSelectSheet(
+        "Workplace", WorkplaceType.entries, WorkplaceType::label, workplace, "Any",
+        { workplace = it; showWorkplace = false }, { showWorkplace = false })
+    if (showSalary) NumberWheelSheet(
+        "Minimum salary", SALARY_OPTIONS, { "S$%,d+".format(it) }, salary, "Any",
+        { salary = it; showSalary = false }, { showSalary = false })
 }
 
 @Composable
@@ -378,14 +369,14 @@ private fun FilterSection(title: String, content: @Composable () -> Unit) {
     }
 }
 
+private fun EmploymentType.label(): String = name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
+private fun WorkplaceType.label(): String = name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
+
 @Composable
 private fun filterChipColors() = FilterChipDefaults.filterChipColors(
     selectedContainerColor = AdTealSoft,
     selectedLabelColor = AdTealDark,
 )
-
-private fun EmploymentType.label(): String = name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
-private fun WorkplaceType.label(): String = name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
 
 @Composable
 fun ProfileScreen(data: CandidateProfile, onTab: (MainTab) -> Unit, onApplications: () -> Unit,

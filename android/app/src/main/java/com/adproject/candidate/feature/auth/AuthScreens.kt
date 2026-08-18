@@ -20,6 +20,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +45,10 @@ import com.adproject.candidate.core.designsystem.PrimaryButton
 import com.adproject.candidate.core.designsystem.SecondaryButton
 import com.adproject.candidate.data.contract.EmploymentType
 import com.adproject.candidate.data.contract.WorkplaceType
+import com.adproject.candidate.feature.profile.AGE_OPTIONS
+import com.adproject.candidate.feature.profile.NumberWheelSheet
+import com.adproject.candidate.feature.profile.SelectorField
+import com.adproject.candidate.feature.profile.SingleSelectSheet
 
 @Composable
 fun SignInScreen(
@@ -148,6 +156,9 @@ fun CandidateOnboardingScreen(
     onEmploymentType: (EmploymentType) -> Unit,
     onComplete: () -> Unit,
 ) {
+    var showAge by remember { mutableStateOf(false) }
+    var showWorkplace by remember { mutableStateOf(false) }
+    var showEmployment by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxSize().background(AdBackground).verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 22.dp),
@@ -162,28 +173,54 @@ fun CandidateOnboardingScreen(
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 AuthField("HEADLINE", state.headline, onHeadline, error = state.fieldErrors["headline"])
                 AuthField("CURRENT LOCATION", state.location, onLocation, error = state.fieldErrors["location"])
-                AuthField("AGE", state.age, onAge, error = state.fieldErrors["age"])
-                AuthField("RESUME SUMMARY", state.summary, onSummary, error = state.fieldErrors["resumeSummary"])
+                SelectorField(
+                    label = "AGE",
+                    value = state.age.takeIf(String::isNotBlank),
+                    placeholder = "Select age",
+                    isError = state.fieldErrors["age"] != null,
+                    errorText = state.fieldErrors["age"],
+                    onClick = { showAge = true },
+                )
+                AuthField("RESUME SUMMARY (OPTIONAL)", state.summary, onSummary, error = state.fieldErrors["resumeSummary"])
                 AuthField("SKILLS (COMMA SEPARATED)", state.skills, onSkills, error = state.fieldErrors["skills"])
                 AuthField("TARGET ROLE", state.desiredTitle, onDesiredTitle, error = state.fieldErrors["desiredTitle"])
                 AuthField("PREFERRED LOCATION", state.preferredLocation, onPreferredLocation, error = state.fieldErrors["preferredLocation"])
-                Text("WORK STYLE", color = AdMuted, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
-                WorkplaceType.entries.forEach { type ->
-                    SecondaryButton(if (state.workplaceType == type) "✓ ${type.name.lowercase().replaceFirstChar(Char::uppercase)}" else type.name.lowercase().replaceFirstChar(Char::uppercase),
-                        { onWorkplaceType(type) }, Modifier.fillMaxWidth())
-                }
-                Text("JOB TYPE", color = AdMuted, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
-                EmploymentType.entries.forEach { type ->
-                    SecondaryButton(if (state.employmentType == type) "✓ ${type.name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)}" else type.name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase),
-                        { onEmploymentType(type) }, Modifier.fillMaxWidth())
-                }
+                SelectorField("WORK STYLE", enumLabel(state.workplaceType), "Select work style", onClick = { showWorkplace = true })
+                SelectorField("JOB TYPE", enumLabel(state.employmentType), "Select job type", onClick = { showEmployment = true })
                 state.message?.let { Text(it, color = Color(0xFFB42318), fontSize = 11.sp) }
                 PrimaryButton(if (state.submitting) "Saving…" else "See recommended jobs", onComplete,
                     Modifier.fillMaxWidth(), enabled = !state.submitting)
             }
         }
     }
+    if (showAge) {
+        NumberWheelSheet(
+            title = "Age", values = AGE_OPTIONS, labelOf = Int::toString,
+            initialValue = state.age.toIntOrNull(), clearLabel = "Age is required",
+            onConfirm = { value -> value?.let { onAge(it.toString()) }; showAge = false },
+            onDismiss = { showAge = false },
+        )
+    }
+    if (showWorkplace) {
+        SingleSelectSheet(
+            title = "Work style", options = WorkplaceType.entries, optionLabel = ::enumLabel,
+            initialSelected = state.workplaceType, clearLabel = null,
+            onConfirm = { value -> value?.let(onWorkplaceType); showWorkplace = false },
+            onDismiss = { showWorkplace = false },
+        )
+    }
+    if (showEmployment) {
+        SingleSelectSheet(
+            title = "Job type", options = EmploymentType.entries, optionLabel = ::enumLabel,
+            initialSelected = state.employmentType, clearLabel = null,
+            onConfirm = { value -> value?.let(onEmploymentType); showEmployment = false },
+            onDismiss = { showEmployment = false },
+        )
+    }
 }
+
+private fun enumLabel(value: Enum<*>): String =
+    value.name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
 
 @Composable
 fun CreateAccountScreen(

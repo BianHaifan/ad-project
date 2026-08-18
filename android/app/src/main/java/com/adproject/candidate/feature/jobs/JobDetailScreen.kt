@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,7 +45,8 @@ import com.adproject.candidate.data.contract.CandidateJobApplicationState
 @Composable
 fun JobDetailScreen(state: JobDetailUiState, onBack: () -> Unit, onRetry: () -> Unit,
                     onApply: (String) -> Unit, onViewCompany: (String) -> Unit,
-                    onViewRecruiter: (String) -> Unit, onToggleSave: () -> Unit) {
+                    onViewRecruiter: (String) -> Unit, onToggleSave: () -> Unit,
+                    onMessageRecruiter: () -> Unit = {}) {
     when {
         state.loading -> Box(Modifier.fillMaxSize().background(AdBackground), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = AdTeal)
@@ -59,14 +61,14 @@ fun JobDetailScreen(state: JobDetailUiState, onBack: () -> Unit, onRetry: () -> 
                 if (!state.notFound) PrimaryButton("Try again", onRetry)
             }
         }
-        else -> JobDetailContent(state, onBack, onApply, onViewCompany, onViewRecruiter, onToggleSave)
+        else -> JobDetailContent(state, onBack, onApply, onViewCompany, onViewRecruiter, onToggleSave, onMessageRecruiter)
     }
 }
 
 @Composable
 private fun JobDetailContent(state: JobDetailUiState, onBack: () -> Unit, onApply: (String) -> Unit,
                              onViewCompany: (String) -> Unit, onViewRecruiter: (String) -> Unit,
-                             onToggleSave: () -> Unit) {
+                             onToggleSave: () -> Unit, onMessageRecruiter: () -> Unit) {
     val data = state.data ?: return
     Column(Modifier.fillMaxSize().background(AdBackground)) {
         AdTopBar("Job details", onBack) {
@@ -105,7 +107,10 @@ private fun JobDetailContent(state: JobDetailUiState, onBack: () -> Unit, onAppl
                     Text(data.job.title, color = Color(0xFF111827), fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Text(data.job.salary, color = AdTeal, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Text("${data.location} · ${data.employmentType} · ${data.workplace}", color = AdMuted, fontSize = 13.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { data.job.skills.take(3).forEach { TagChip(it) } }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        data.job.skills.forEach { TagChip(it) }
+                    }
                 }
             }
             if (data.matchAnalysisAvailable) AdCard(Modifier.fillMaxWidth()) {
@@ -116,10 +121,10 @@ private fun JobDetailContent(state: JobDetailUiState, onBack: () -> Unit, onAppl
                     }
                     Text("ML model compares your resume skills and experience with this job.", color = AdMuted, fontSize = 12.sp, lineHeight = 17.sp)
                     if (data.strongMatches.isNotBlank()) {
-                        Text("Strong: ${data.strongMatches}", color = AdTealDark, fontSize = 12.sp)
+                        Text("Strong matches\n${data.strongMatches}", color = AdTealDark, fontSize = 12.sp, lineHeight = 18.sp)
                     }
                     if (data.gap.isNotBlank()) {
-                        Text("Gap: ${data.gap}", color = Color(0xFFFF8500), fontSize = 12.sp)
+                        Text("Gaps\n${data.gap}", color = Color(0xFFFF8500), fontSize = 12.sp, lineHeight = 18.sp)
                     }
                 }
             } else AdCard(Modifier.fillMaxWidth()) {
@@ -129,20 +134,26 @@ private fun JobDetailContent(state: JobDetailUiState, onBack: () -> Unit, onAppl
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("About this role", color = Color(0xFF111827), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     Text(data.description, color = AdMuted, fontSize = 12.sp, lineHeight = 17.sp)
-                    Text(data.requirements, color = AdTealDark, fontSize = 11.sp)
+                    if (data.requirements.isNotBlank()) {
+                        Text("Requirements", color = Color(0xFF111827), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(data.requirements, color = AdTealDark, fontSize = 12.sp, lineHeight = 18.sp)
+                    }
                     data.deadline?.let { Text("Deadline: $it", color = AdMuted, fontSize = 10.sp) }
                     data.publishedAt?.let { Text("Published: $it", color = AdMuted, fontSize = 10.sp) }
                 }
             }
             data.job.recruiter?.let { recruiter -> AdCard(Modifier.fillMaxWidth()) {
-                Row(Modifier.clickable { onViewRecruiter(recruiter.recruiterId) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(AdTealSoft), contentAlignment = Alignment.Center) { Text(recruiter.fullName.take(1), color = AdTeal) }
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(AdTealSoft)
+                        .clickable { onViewRecruiter(recruiter.recruiterId) }, contentAlignment = Alignment.Center) {
+                        Text(recruiter.fullName.take(1), color = AdTeal)
+                    }
                     Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
+                    Column(Modifier.weight(1f).clickable { onViewRecruiter(recruiter.recruiterId) }) {
                         Text(recruiter.fullName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Text("${recruiter.title} · ${data.job.company}", color = AdMuted, fontSize = 10.sp)
                     }
-                    Text("View profile →", color = AdTeal, fontSize = 10.sp)
+                    PrimaryButton("Message", onMessageRecruiter)
                 }
             } }
             Spacer(Modifier.height(10.dp))

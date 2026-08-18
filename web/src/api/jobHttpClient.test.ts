@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 import {AuthApiError, type AuthClient} from './authClient';
-import {JobHttpClient} from './jobHttpClient';
+import {JobHttpClient, singaporeEndOfDayUtc} from './jobHttpClient';
 import type {RecruiterJobSummary} from '../models/recruiter';
 
 const job: RecruiterJobSummary = {
@@ -21,6 +21,9 @@ function setup(result: unknown) {
 }
 
 describe('JobHttpClient', () => {
+  it('converts a Singapore calendar deadline to an explicit UTC end of day', () => {
+    expect(singaporeEndOfDayUtc('2026-09-30')).toBe('2026-09-30T15:59:59.000Z');
+  });
   it('loads and parses a real paginated recruiter job list with all filters', async () => {
     const {client, requestWithAuth} = setup({data: [job], meta: {page: 2, pageSize: 10, total: 11, hasNext: false}});
     await expect(client.listJobs({q: ' Backend ', status: 'DRAFT', employmentType: 'FULL_TIME', location: ' SG ', ownerId: 'owner-1', page: 2, pageSize: 10}))

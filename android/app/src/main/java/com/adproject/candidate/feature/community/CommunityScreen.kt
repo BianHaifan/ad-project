@@ -1,6 +1,7 @@
 package com.adproject.candidate.feature.community
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
@@ -27,7 +28,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -148,7 +155,11 @@ fun CommunityCreatePostScreen(state: CommunityUiState, onBack: () -> Unit, onDra
     Scaffold(containerColor=AdBackground,topBar={AdTopBar("Create post",onBack)}) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("CATEGORY",color=AdMuted,fontSize=10.sp,fontWeight=FontWeight.Bold)
-            CommunityCategory.entries.forEach { category -> FilterChip(selected=(state.category?:CommunityCategory.GENERAL)==category,onClick={onCategory(category)},label={Text(category.label())}) }
+            CommunityCategoryDropdown(
+                selected = state.category ?: CommunityCategory.GENERAL,
+                enabled = !state.submitting,
+                onSelected = onCategory,
+            )
             OutlinedTextField(state.draft,onDraft,Modifier.fillMaxWidth().weight(1f),placeholder={Text("What would you like to share?")},supportingText={Text("$length / 2000")},isError=length>2000)
             SecondaryButton("Choose images (${state.images.size}/4)",{launcher.launch("image/*")},Modifier.fillMaxWidth(),enabled=!state.submitting)
             if (state.images.isNotEmpty()) {
@@ -175,6 +186,40 @@ fun CommunityCreatePostScreen(state: CommunityUiState, onBack: () -> Unit, onDra
             }
             state.publishError?.let { Text(it,color=Color(0xFFB42318),fontSize=12.sp) }
             PrimaryButton(if(state.submitting)"Publishing…" else "Publish post",onPublish,Modifier.fillMaxWidth(),enabled=!state.submitting&&state.draft.isNotBlank()&&length<=2000)
+        }
+    }
+}
+
+@Composable
+private fun CommunityCategoryDropdown(
+    selected: CommunityCategory,
+    enabled: Boolean,
+    onSelected: (CommunityCategory) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .background(Color.White).border(1.dp, Color(0xFFD8DEE3), RoundedCornerShape(12.dp))
+                .clickable(enabled = enabled) { expanded = true }
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(selected.label(), color = if (enabled) AdText else AdMuted, fontSize = 13.sp)
+            Text("⌄", color = AdMuted, fontSize = 16.sp)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            CommunityCategory.entries.forEach { category ->
+                DropdownMenuItem(
+                    text = { Text(category.label()) },
+                    onClick = {
+                        expanded = false
+                        onSelected(category)
+                    },
+                    enabled = enabled,
+                )
+            }
         }
     }
 }

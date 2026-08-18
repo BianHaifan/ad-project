@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.*
 import com.adproject.candidate.core.designsystem.*
 import com.adproject.candidate.data.api.ApiResult
+import com.adproject.candidate.feature.messages.DirectTextBubble
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -21,4 +22,48 @@ class CommunityDirectViewModel(private val id:String,private val repository:Comm
  fun send(){val body=mutable.value.draft.trim();if(body.isEmpty()||mutable.value.sending)return;mutable.update{it.copy(sending=true,error=null)};viewModelScope.launch{when(val result=repository.sendDirect(id,body)){is ApiResult.Success->mutable.update{it.copy(messages=it.messages+result.value,draft="",sending=false)};is ApiResult.Failure->mutable.update{it.copy(sending=false,error=result.message)}}}}
  companion object{fun factory(id:String,repository:CommunityRepository)=object:ViewModelProvider.Factory{@Suppress("UNCHECKED_CAST")override fun<T:ViewModel>create(modelClass:Class<T>)=CommunityDirectViewModel(id,repository)as T}}
 }
-@Composable fun CommunityDirectMessageScreen(state:CommunityDirectUiState,onBack:()->Unit,onRetry:()->Unit,onDraft:(String)->Unit,onSend:()->Unit){Scaffold(containerColor=AdBackground,topBar={AdTopBar(state.conversation?.participant?.fullName?:"Community message",onBack)}){padding->when{state.loading->Box(Modifier.fillMaxSize().padding(padding),contentAlignment=androidx.compose.ui.Alignment.Center){CircularProgressIndicator(color=AdTeal)};state.conversation==null->StateBox{Text(state.error?:"Conversation unavailable");SecondaryButton("Try again",onRetry)};else->Column(Modifier.fillMaxSize().padding(padding)){LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){if(state.messages.isEmpty())item{Text("No messages yet. Say hello.",color=AdMuted)}else items(state.messages,key={it.messageId}){message->AdCard(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(message.body,color=AdText);Text(localTime(message.sentAt),color=AdMuted)}}}};state.error?.let{Text(it,Modifier.padding(horizontal=16.dp),color=Color(0xFFB42318))};Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(state.draft,onDraft,Modifier.weight(1f),placeholder={Text("Message")});PrimaryButton(if(state.sending)"Sending…" else "Send",onSend,enabled=!state.sending&&state.draft.isNotBlank())}}}}}
+@Composable
+fun CommunityDirectMessageScreen(
+    state: CommunityDirectUiState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onDraft: (String) -> Unit,
+    onSend: () -> Unit,
+) {
+    Scaffold(
+        containerColor = AdBackground,
+        topBar = { AdTopBar(state.conversation?.participant?.fullName ?: "Community message", onBack) },
+    ) { padding ->
+        when {
+            state.loading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                CircularProgressIndicator(color = AdTeal)
+            }
+            state.conversation == null -> StateBox {
+                Text(state.error ?: "Conversation unavailable")
+                SecondaryButton("Try again", onRetry)
+            }
+            else -> Column(Modifier.fillMaxSize().padding(padding)) {
+                LazyColumn(
+                    Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (state.messages.isEmpty()) item { Text("No messages yet. Say hello.", color = AdMuted) }
+                    else items(state.messages, key = { it.messageId }) { message ->
+                        DirectTextBubble(
+                            body = message.body,
+                            sentAt = message.sentAt,
+                            sent = message.senderId != state.conversation.participant.userId,
+                        )
+                    }
+                }
+                state.error?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = Color(0xFFB42318)) }
+                Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(state.draft, onDraft, Modifier.weight(1f), placeholder = { Text("Write a message…") })
+                    PrimaryButton(if (state.sending) "Sending…" else "Send", onSend,
+                        enabled = !state.sending && state.draft.isNotBlank())
+                }
+            }
+        }
+    }
+}

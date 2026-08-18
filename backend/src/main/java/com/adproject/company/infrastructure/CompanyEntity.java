@@ -83,9 +83,6 @@ public class CompanyEntity {
         this.website = website;
         this.description = description;
         this.location = location;
-        if (verificationStatus == CompanyVerificationStatus.CHANGES_REQUESTED) {
-            verificationStatus = CompanyVerificationStatus.PENDING;
-        }
         this.updatedAt = now;
         this.version++;
     }

@@ -54,14 +54,15 @@ public class CandidateOnboardingService {
         }
 
         String skills = json(request.skills().stream().map(String::trim).distinct().toList());
+        String resumeSummary = request.resumeSummary() == null ? "" : request.resumeSummary().trim();
         var resume = resumes.findByCandidateIdForUpdate(user.getId()).orElse(null);
         if (resume == null) {
             resumes.save(new ResumeEntity(UUID.randomUUID().toString(), user.getId(), user.getFullName(),
                     request.age(), request.location().trim(), request.headline().trim(),
-                    request.resumeSummary().trim(), "[]", skills, 1, now, now));
+                    resumeSummary, "[]", skills, 1, now, now));
         } else {
             resume.replace(user.getFullName(), request.age(), request.location().trim(), request.headline().trim(),
-                    request.resumeSummary().trim(), resume.getExperiencesJson(), skills, now);
+                    resumeSummary, resume.getExperiencesJson(), skills, now);
         }
 
         String desiredTitles = json(List.of(request.desiredTitle().trim()));

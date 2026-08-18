@@ -484,14 +484,14 @@ class ProfileScreensUiTest {
         composeRule.onNodeWithText("FULL TIME").performClick()
         composeRule.onNodeWithText("Confirm").performClick()
         composeRule.onNodeWithText("Not specified").performScrollTo().performClick()
-        composeRule.onNodeWithText("S$6,000").performClick()
+        composeRule.onNodeWithText("S$2,000").performClick()
         composeRule.onNodeWithText("Confirm").performClick()
         composeRule.onNodeWithText("Save preferences").performScrollTo().performClick()
         assertEquals(listOf("Backend Engineer"), titles)
         assertEquals(listOf("Singapore"), locations)
         assertEquals(setOf(WorkplaceType.HYBRID, WorkplaceType.ONSITE), workplaces)
         assertEquals(setOf(EmploymentType.PART_TIME, EmploymentType.FULL_TIME), employments)
-        assertEquals(6000L, salary)
+        assertEquals(2000L, salary)
     }
 
     @Test

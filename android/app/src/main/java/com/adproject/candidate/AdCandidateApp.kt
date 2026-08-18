@@ -162,6 +162,22 @@ fun AdCandidateApp(
 
     LaunchedEffect(Unit) { container.sessionManager.load() }
 
+    LaunchedEffect(sessionActive) {
+        if (sessionActive == true) {
+            profileViewModel.load()
+            resumeViewModel.load()
+            applicationListViewModel.load()
+            communityViewModel.refresh()
+        } else if (sessionActive == false) {
+            authViewModel.resetForSignedOut()
+            applicationViewModel.clear()
+            profileViewModel.reset()
+            resumeViewModel.reset()
+            applicationListViewModel.reset()
+            communityViewModel.reset()
+        }
+    }
+
     if (sessionActive == null || onboardingRequired == null) {
         Surface(Modifier.fillMaxSize(), color = Color.White) {}
         return
@@ -213,7 +229,10 @@ fun AdCandidateApp(
                     onEmail = authViewModel::updateSignInEmail,
                     onPassword = authViewModel::updateSignInPassword,
                     onSignIn = authViewModel::signIn,
-                    onCreateAccount = { navController.navigate(Route.CreateAccount) },
+                    onCreateAccount = {
+                        authViewModel.resetRegister()
+                        navController.navigate(Route.CreateAccount)
+                    },
                     onForgotPassword = { navController.navigate(Route.PasswordReset) },
                 )
             }
@@ -260,7 +279,10 @@ fun AdCandidateApp(
                     onConfirmPassword = authViewModel::updateConfirmPassword,
                     onAgreed = authViewModel::updateAgreed,
                     onCreate = authViewModel::register,
-                    onSignIn = { navController.popBackStack() },
+                    onSignIn = {
+                        authViewModel.resetRegister()
+                        navController.popBackStack()
+                    },
                 )
             }
             composable(Route.Jobs) {
@@ -284,11 +306,12 @@ fun AdCandidateApp(
                     onRetryLoadMore = jobsViewModel::retryLoadMore,
                     onTab = ::openTab,
                     onJob = { navController.navigate(Route.jobDetail(it)) },
+                    onApplyFilters = jobsViewModel::applyFilters,
                 )
             }
             composable(Route.Messages) {
                 val messagesViewModel: MessagesViewModel = viewModel(
-                    factory = MessagesViewModel.factory(container.candidateConversationRepository),
+                    factory = MessagesViewModel.factory(container.candidateConversationRepository, container.communityRepository),
                 )
                 val state by messagesViewModel.state.collectAsStateWithLifecycle()
                 ScreenLifecyclePolling(
@@ -301,6 +324,7 @@ fun AdCandidateApp(
                     onRefresh = messagesViewModel::refresh,
                     onTab = ::openTab,
                     onConversation = { navController.navigate(Route.chatDetail(it)) },
+                    onCommunityConversation = { navController.navigate(Route.communityDirect(it)) },
                 )
             }
             composable(Route.ChatDetail) { entry ->
@@ -412,7 +436,7 @@ fun AdCandidateApp(
             }
             composable(Route.CommunityDirect) { entry ->
                 val id=requireNotNull(entry.arguments?.getString("conversationId"));val viewModel:CommunityDirectViewModel=viewModel(key="community-direct-$id",factory=CommunityDirectViewModel.factory(id,container.communityRepository));val state by viewModel.state.collectAsStateWithLifecycle()
-                CommunityDirectMessageScreen(state,{navigateBack(Route.Community)},viewModel::load,viewModel::updateDraft,viewModel::send)
+                CommunityDirectMessageScreen(state,{if(!navController.popBackStack())openTab(MainTab.Messages)},viewModel::load,viewModel::updateDraft,viewModel::send)
             }
             composable(Route.ResumeEdit) {
                 val state by resumeViewModel.state.collectAsStateWithLifecycle()
@@ -478,6 +502,7 @@ fun AdCandidateApp(
                     onViewCompany = { navController.navigate(Route.companyProfile(it)) },
                     onViewRecruiter = { navController.navigate(Route.recruiterProfile(it)) },
                     onToggleSave = detailViewModel::toggleSave,
+                    onMessageRecruiter = { openTab(MainTab.Messages) },
                 )
             }
             composable(Route.RecruiterProfile) { entry ->

@@ -2,11 +2,11 @@ import {useEffect, useRef, useState, type FormEvent} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {AuthApiError} from '../api/authClient';
 import {authSession} from '../api/authSession';
-import {useCreateJob, useJob, useUpdateJob} from '../api/queries';
+import {useCreateJob, useDashboard, useJob, useUpdateJob} from '../api/queries';
 import {ErrorState, LoadingState} from '../components/AsyncState';
 import type {EmploymentType, JobDraft, RecruiterJobSummary, Visibility, WorkplaceType} from '../models/recruiter';
 
-const blank: JobDraft = {title: '', employmentType: 'FULL_TIME', workplaceType: 'HYBRID', location: 'Singapore', salaryMin: 5000, salaryMax: 8000, description: '', requirements: '', skills: ['Java', 'Spring Boot', 'MySQL'], deadline: '', visibility: 'PUBLIC'};
+const blank: JobDraft = {title: '', employmentType: 'FULL_TIME', workplaceType: 'HYBRID', location: 'Singapore', salaryMin: 5000, salaryMax: 8000, description: '', requirements: '', skills: [], deadline: '', visibility: 'PUBLIC'};
 
 export function JobFormPage() {
   const {jobId} = useParams();
@@ -14,7 +14,9 @@ export function JobFormPage() {
   const nav = useNavigate();
   const create = useCreateJob();
   const update = useUpdateJob();
-  const jobQuery = useJob(jobId ?? '');
+  const dashboard = useDashboard();
+  const companyApproved = dashboard.data?.metrics.companyVerificationStatus === 'APPROVED';
+  const jobQuery = useJob(jobId ?? '', companyApproved);
   const submittingRef = useRef(false);
   const initializedJobId = useRef('');
   const [form, setForm] = useState<JobDraft>(() => ({...blank, skills: [...blank.skills]}));
@@ -31,6 +33,18 @@ export function JobFormPage() {
     }
   }, [currentJob, isEdit]);
 
+  if (dashboard.isLoading) return <LoadingState label="Checking company verification…"/>;
+  if (dashboard.isError || !dashboard.data) return <ErrorState onRetry={() => dashboard.refetch()}/>;
+  if (!companyApproved) {
+    const rejected = dashboard.data.metrics.companyVerificationStatus === 'REJECTED';
+    return <div className="state-card error"><strong>Job management is unavailable</strong>
+      <span>{rejected
+        ? 'Your company was not approved. Contact an administrator if a new company review is required.'
+        : 'Your company is awaiting approval. Jobs can be created or edited after verification.'}</span>
+      <div className="actions"><button className="button secondary" onClick={() => nav('/recruiter/dashboard')}>Back to dashboard</button>
+        <button className="button secondary" onClick={() => nav('/recruiter/profile')}>View profile</button></div>
+    </div>;
+  }
   if (isEdit && jobQuery.isLoading) return <LoadingState label="Loading the real job draft…"/>;
   if (isEdit && (jobQuery.isError || !currentJob)) {
     if (jobQuery.error instanceof AuthApiError && jobQuery.error.status === 404) {
@@ -54,6 +68,7 @@ export function JobFormPage() {
     if (!form.description.trim()) next.description = 'Job description is required.';
     if (!form.requirements.split('\n').some(value => value.trim())) next.requirements = 'Add at least one requirement.';
     if (!form.skills.length) next.skills = 'Add at least one skill.';
+    if (form.deadline && !isValidFutureSingaporeDate(form.deadline)) next.deadline = 'Use YYYY-MM-DD and choose today or a future date.';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -98,8 +113,8 @@ export function JobFormPage() {
     </section><section className="panel form-section"><h2>Role details</h2>
       <label>Job description *<textarea rows={4} value={form.description} onChange={event => set('description', event.target.value)}/>{errors.description && <em>{errors.description}</em>}</label>
       <label>Requirements *<textarea rows={3} value={form.requirements} onChange={event => set('requirements', event.target.value)} placeholder="One requirement per line"/>{errors.requirements && <em>{errors.requirements}</em>}</label>
-      <label>Required skills *<div className="skill-input">{form.skills.map(value => <button type="button" className="skill" key={value} onClick={() => set('skills', form.skills.filter(item => item !== value))}>{value} ×</button>)}<input aria-label="Add a skill" value={skill} onChange={event => setSkill(event.target.value)} onKeyDown={event => {if (event.key === 'Enter') {event.preventDefault(); const value = skill.trim(); if (value && !form.skills.includes(value)) set('skills', [...form.skills, value]); setSkill('');}}} placeholder="Add a skill and press Enter"/></div>{errors.skills && <em>{errors.skills}</em>}</label>
-    </section></div><aside className="job-aside"><section className="panel form-section"><h2>Draft settings</h2><label>Company<input value={companyName} disabled/></label><label>Application deadline<input type="date" value={form.deadline} onChange={event => set('deadline', event.target.value)}/>{errors.deadline && <em>{errors.deadline}</em>}</label><label>Visibility<select value={form.visibility} onChange={event => {const value = visibility(event.target.value); if (value) set('visibility', value);}}><option value="PUBLIC">Public</option><option value="PRIVATE">Private</option></select></label></section><section className="panel preview"><h2>Candidate preview</h2><h3>{form.title || 'Untitled role'}</h3><p>{companyName} · {form.location} · {form.workplaceType}</p><span className="match-badge">SGD {form.salaryMin}–{form.salaryMax} / month</span></section></aside></div>
+      <label>Required skills *<div className="skill-input">{form.skills.map(value => <button type="button" className="skill" key={value} onClick={() => set('skills', form.skills.filter(item => item !== value))}>{value} ×</button>)}<input aria-label="Add a skill" value={skill} onChange={event => setSkill(event.target.value)} onKeyDown={event => {if (event.key === 'Enter') {event.preventDefault(); const value = skill.trim(); if (value && !form.skills.some(item => item.toLowerCase() === value.toLowerCase())) set('skills', [...form.skills, value]); setSkill('');}}} placeholder="Add a skill and press Enter"/></div>{errors.skills && <em>{errors.skills}</em>}</label>
+    </section></div><aside className="job-aside"><section className="panel form-section"><h2>Draft settings</h2><label>Company<input value={companyName} disabled/></label><label>Application deadline (YYYY-MM-DD)<input aria-label="Application deadline (YYYY-MM-DD)" type="text" inputMode="numeric" placeholder="YYYY-MM-DD" value={form.deadline} onChange={event => set('deadline', event.target.value)}/><small>Valid through 23:59:59 Asia/Singapore.</small>{errors.deadline && <em>{errors.deadline}</em>}</label><label>Visibility<select value={form.visibility} onChange={event => {const value = visibility(event.target.value); if (value) set('visibility', value);}}><option value="PUBLIC">Public</option><option value="PRIVATE">Private</option></select></label></section><section className="panel preview"><h2>Candidate preview</h2><h3>{form.title || 'Untitled role'}</h3><p>{companyName} · {form.location} · {form.workplaceType}</p><span className="match-badge">SGD {form.salaryMin}–{form.salaryMax} / month</span></section></aside></div>
     <footer className="sticky-actions"><span>{isEdit ? `Editing server version ${currentJob?.version}` : 'The server will create version 1 as DRAFT.'}</span><div className="actions"><button type="button" className="button secondary" onClick={() => nav(isEdit ? `/recruiter/jobs/${jobId}` : '/recruiter/jobs')}>Cancel</button><button type="submit" className="button primary" disabled={mutationPending}>{mutationPending ? 'Saving draft…' : isEdit ? 'Save changes' : 'Save draft'}</button></div></footer>
   </form>;
 }
@@ -138,3 +153,15 @@ function presentJobError(caught: unknown, isEdit: boolean): {fieldErrors: Record
 const employmentType = (value: string): EmploymentType | undefined => value === 'FULL_TIME' || value === 'INTERNSHIP' || value === 'PART_TIME' ? value : undefined;
 const workplaceType = (value: string): WorkplaceType | undefined => value === 'ONSITE' || value === 'HYBRID' || value === 'REMOTE' ? value : undefined;
 const visibility = (value: string): Visibility | undefined => value === 'PUBLIC' || value === 'PRIVATE' ? value : undefined;
+
+function isValidFutureSingaporeDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const [, year, month, day] = match;
+  const candidate = `${year}-${month}-${day}`;
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  if (Number.isNaN(date.getTime()) || date.getUTCFullYear() !== Number(year) || date.getUTCMonth() + 1 !== Number(month) || date.getUTCDate() !== Number(day)) return false;
+  const parts = new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit'}).formatToParts(new Date());
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? '';
+  return candidate >= `${get('year')}-${get('month')}-${get('day')}`;
+}

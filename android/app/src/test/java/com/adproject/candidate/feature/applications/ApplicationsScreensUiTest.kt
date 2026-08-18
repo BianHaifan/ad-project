@@ -406,7 +406,7 @@ class ApplicationsScreensUiTest {
         composeRule.onNodeWithText("Real Company").assertIsDisplayed()
         composeRule.onNodeWithText("Offer received").assertExists()
         composeRule.onNodeWithText("90% match").assertExists()
-        composeRule.onNodeWithText("Refresh").performClick()
+        composeRule.onNodeWithContentDescription("Refresh applications").performClick()
         assertEquals(1, refreshed)
         composeRule.onNodeWithText("Backend Engineer").performClick()
         assertEquals("app-1", opened)
@@ -476,7 +476,7 @@ class ApplicationsScreensUiTest {
                 {}, {}, {}, {}, {}, {}, {},
             )
         }
-        composeRule.onNodeWithText("Refreshing…").assertExists()
+        composeRule.onNodeWithContentDescription("Refresh applications").assertDoesNotExist()
     }
 
     @Test

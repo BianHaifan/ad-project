@@ -121,6 +121,18 @@ class RecruiterJobIntegrationTest {
                 .andExpect(header().string("X-Request-Id", requestId))
                 .andExpect(jsonPath("$.error.requestId").value(requestId))
                 .andExpect(jsonPath("$.error.fieldErrors['salary.max']").exists());
+
+        mockMvc.perform(post("/api/v1/recruiter/jobs").header("Authorization", bearer(recruiter))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Past deadline").replace("2026-09-30T15:59:59Z", "2020-01-01T15:59:59Z")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.fieldErrors.deadline").value("must be in the future"));
+
+        mockMvc.perform(post("/api/v1/recruiter/jobs").header("Authorization", bearer(recruiter))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Duplicate skills").replace("[\"Java\",\"MySQL\"]", "[\"Java\",\" java \"]")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.fieldErrors.skills").value("must not contain duplicates"));
     }
 
     @Test
@@ -585,7 +597,7 @@ class RecruiterJobIntegrationTest {
     }
 
     @Test
-    void companyVerificationDoesNotBlockEditingAnExistingDraft() throws Exception {
+    void pendingAndRejectedCompaniesCannotEditAnExistingDraft() throws Exception {
         for (String verification : new String[]{"PENDING", "REJECTED"}) {
             Account recruiter = recruiter("update-" + verification.toLowerCase(), "APPROVED");
             String jobId = create(recruiter, createBody(verification + " editable draft"), 201)
@@ -595,9 +607,8 @@ class RecruiterJobIntegrationTest {
             mockMvc.perform(patch("/api/v1/recruiter/jobs/{jobId}", jobId)
                             .header("Authorization", bearer(recruiter)).contentType(MediaType.APPLICATION_JSON)
                             .content("{\"title\":\"Edited while " + verification + "\",\"expectedVersion\":1}"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data.title").value("Edited while " + verification))
-                    .andExpect(jsonPath("$.data.version").value(2));
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
         }
     }
 

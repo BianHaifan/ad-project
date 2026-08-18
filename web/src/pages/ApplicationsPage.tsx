@@ -54,7 +54,7 @@ export function ApplicationsPage() {
         <small>{meta.total} application{meta.total === 1 ? '' : 's'}</small></div>
         <button className={`button ${rankByMatch ? 'soft' : 'secondary'}`}
           aria-pressed={rankByMatch} onClick={() => setRankByMatch(value => !value)}>
-          AI ranked · Demo</button>
+          Rank by match</button>
         <input value={search} onChange={event => {setSearch(event.target.value); chooseStage(selected);}}
           placeholder="⌕ Search candidate name or email"/>
         <select value={selected ?? 'ALL'} onChange={event => chooseStage(applicationStatus(event.target.value))}>
@@ -67,7 +67,7 @@ export function ApplicationsPage() {
           {(jobsQuery.data?.data ?? []).map(job => <option key={job.jobId} value={job.jobId}>{job.title}</option>)}
         </select>
       </div>
-      {rankByMatch && <p className="demo-notice">Demo ranking uses stored match scores from the API response. Recruiters must review the evidence before making a decision.</p>}
+      {rankByMatch && <p className="meta-note">Sorted by the match scores returned by the service. Review the evidence before making a decision.</p>}
       {applications.length === 0 ? <EmptyState title="No applications found"
         description="Applications matching this stage or search will appear here."/> :
         <div className="data-table app-table with-match"><div className="table-head"><span>Candidate</span><span>Applied role</span>

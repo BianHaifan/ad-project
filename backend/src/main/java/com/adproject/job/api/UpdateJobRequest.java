@@ -22,8 +22,10 @@ public final class UpdateJobRequest {
     @Valid
     private CreateJobRequest.Salary salary;
     private String description;
-    private List<@NotBlank String> requirements;
-    private List<@NotBlank String> skills;
+    @Size(min = 1, max = 100)
+    private List<@NotBlank @Size(max = 200) String> requirements;
+    @Size(min = 1, max = 100)
+    private List<@NotBlank @Size(max = 200) String> skills;
     @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
             message = "must be an ISO-8601 UTC date-time ending in Z")
     private String deadline;

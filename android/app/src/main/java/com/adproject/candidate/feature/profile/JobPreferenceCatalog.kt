@@ -16,4 +16,4 @@ val COMMON_LOCATIONS: List<String> = listOf(
 )
 
 // Preset monthly salary figures (SGD) shown as single-select chips.
-val SALARY_OPTIONS: List<Long> = listOf(3000, 4000, 5000, 6000, 8000, 10000, 15000, 20000)
+val SALARY_OPTIONS: List<Long> = listOf(1000, 2000, 2500, 3000, 4000, 5000, 6000, 8000, 10000, 15000, 20000)

@@ -33,6 +33,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -77,17 +79,25 @@ public class JobService {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN",
                     "Only recruiters from an approved company can create jobs");
         }
+        Map<String, String> errors = new LinkedHashMap<>();
         if (request.salary().max() < request.salary().min()) {
+            errors.put("salary.max", "must be greater than or equal to salary.min");
+        }
+        Instant deadline = request.deadline() == null
+                ? null : DatabaseTimePrecision.micros(Instant.parse(request.deadline()));
+        validateDeadline(deadline, now(), errors);
+        validateSkills(request.skills(), errors);
+        if (!errors.isEmpty()) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR",
-                    "Request validation failed", Map.of("salary.max", "must be greater than or equal to salary.min"));
+                    "Request validation failed", errors);
         }
         Instant now = now();
         JobEntity entity = new JobEntity(
                 UUID.randomUUID().toString(), scope.company().getId(), currentUser.userId(), currentUser.userId(),
                 request.title().trim(), request.employmentType(), request.workplaceType(), request.location().trim(),
                 request.salary().min(), request.salary().max(), request.salary().currency(), request.salary().period(),
-                request.description(), writeList(request.requirements()), writeList(request.skills()),
-                request.deadline() == null ? null : DatabaseTimePrecision.micros(Instant.parse(request.deadline())), request.visibility(),
+                request.description(), writeList(normalizeList(request.requirements())),
+                writeList(normalizeList(request.skills())), deadline, request.visibility(),
                 JobStatus.DRAFT, 0, 1, now, now);
         return new JobResponse(toDetail(jobRepository.saveAndFlush(entity), scope.company()));
     }
@@ -155,6 +165,10 @@ public class JobService {
     public JobResponse update(AuthenticatedUser currentUser, String jobId, UpdateJobRequest request) {
         requireRecruiter(currentUser);
         Scope scope = requireScope(currentUser.userId());
+        if (scope.company().getVerificationStatus() != CompanyVerificationStatus.APPROVED) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN",
+                    "Only recruiters from an approved company can edit jobs");
+        }
         JobEntity job = jobRepository.findOwnJobForUpdate(jobId, scope.company().getId())
                 .orElseThrow(JobService::notFound);
         if (job.getVersion() != request.getExpectedVersion()) {
@@ -165,7 +179,10 @@ public class JobService {
             throw new ApiException(HttpStatus.CONFLICT, "INVALID_JOB_TRANSITION",
                     "Only draft jobs can be edited");
         }
-        Map<String, String> fieldErrors = validateUpdate(request);
+        Instant effectiveDeadline = request.isDeadlinePresent()
+                ? request.getDeadline() == null ? null : DatabaseTimePrecision.micros(Instant.parse(request.getDeadline()))
+                : job.getDeadline();
+        Map<String, String> fieldErrors = validateUpdate(request, effectiveDeadline);
         if (!fieldErrors.isEmpty()) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR",
                     "Request validation failed", fieldErrors);
@@ -181,19 +198,17 @@ public class JobService {
                 salary == null ? job.getSalaryCurrency() : salary.currency(),
                 salary == null ? job.getSalaryPeriod() : salary.period(),
                 request.getDescription() == null ? job.getDescription() : request.getDescription(),
-                request.getRequirements() == null ? job.getRequirementsJson() : writeList(request.getRequirements()),
-                request.getSkills() == null ? job.getSkillsJson() : writeList(request.getSkills()),
-                request.isDeadlinePresent()
-                        ? request.getDeadline() == null ? null : DatabaseTimePrecision.micros(Instant.parse(request.getDeadline()))
-                        : job.getDeadline(),
+                request.getRequirements() == null ? job.getRequirementsJson() : writeList(normalizeList(request.getRequirements())),
+                request.getSkills() == null ? job.getSkillsJson() : writeList(normalizeList(request.getSkills())),
+                effectiveDeadline,
                 request.getVisibility() == null ? job.getVisibility() : request.getVisibility(),
                 now());
         jobRepository.flush();
         return new JobResponse(toDetail(job, scope.company()));
     }
 
-    private static Map<String, String> validateUpdate(UpdateJobRequest request) {
-        java.util.LinkedHashMap<String, String> errors = new java.util.LinkedHashMap<>();
+    private Map<String, String> validateUpdate(UpdateJobRequest request, Instant effectiveDeadline) {
+        LinkedHashMap<String, String> errors = new LinkedHashMap<>();
         if (request.getTitle() != null && request.getTitle().isBlank()) errors.put("title", "must not be blank");
         if (request.getLocation() != null && request.getLocation().isBlank()) {
             errors.put("location", "must not be blank");
@@ -204,6 +219,8 @@ public class JobService {
         if (request.getSalary() != null && request.getSalary().max() < request.getSalary().min()) {
             errors.put("salary.max", "must be greater than or equal to salary.min");
         }
+        validateDeadline(effectiveDeadline, now(), errors);
+        if (request.getSkills() != null) validateSkills(request.getSkills(), errors);
         return errors;
     }
 
@@ -227,6 +244,10 @@ public class JobService {
                     "Only a draft job can be published");
         }
         Instant now = now();
+        if (job.getDeadline() != null && !job.getDeadline().isAfter(now)) {
+            throw new ApiException(HttpStatus.CONFLICT, "JOB_DEADLINE_EXPIRED",
+                    "The application deadline must be in the future before publishing");
+        }
         job.publish(now);
         auditRepository.save(new JobAuditEventEntity(UUID.randomUUID().toString(), job.getId(),
                 currentUser.userId(), scope.company().getId(), "JOB_PUBLISHED", JobStatus.DRAFT,
@@ -269,6 +290,24 @@ public class JobService {
 
     private Instant now() {
         return clock.instant().truncatedTo(ChronoUnit.MICROS);
+    }
+
+    private static void validateDeadline(Instant deadline, Instant now, Map<String, String> errors) {
+        if (deadline != null && !deadline.isAfter(now)) errors.put("deadline", "must be in the future");
+    }
+
+    private static void validateSkills(List<String> skills, Map<String, String> errors) {
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String skill : skills) {
+            if (!normalized.add(skill.trim().toLowerCase(Locale.ROOT))) {
+                errors.put("skills", "must not contain duplicates");
+                return;
+            }
+        }
+    }
+
+    private static List<String> normalizeList(List<String> values) {
+        return values.stream().map(String::trim).toList();
     }
 
     private static boolean isAllowedStatusTransition(JobStatus fromStatus, JobStatus toStatus) {

@@ -129,7 +129,7 @@ class CommunityTask5Test {
     }
 
     @Test fun singaporeMonthlySalaryUsesHireXDisplayFormat() {
-        assertEquals("S$3,200–4,800 · monthly", formatSalary("SGD", 3200, 4800, "MONTH"))
+        assertEquals("S$3,200–4,800 / month", formatSalary("SGD", 3200, 4800, "MONTH"))
     }
 
     private fun post(liked: Boolean = false) = CommunityPost("p1", CommunityAuthor("u", "Alex", null, "CANDIDATE", null), "body", 2, 3, liked, "2026-08-16T00:00:00Z", "2026-08-16T00:00:00Z")

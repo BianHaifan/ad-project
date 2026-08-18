@@ -1,14 +1,13 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {AuthApiError} from './authClient';
 import {adminClient} from './adminClient';
-import type {CompanyListParams, ModerationListParams, UserListParams} from './adminClient';
-import type {AdminUser, CompanyReview, ModerationCase, UserStatus} from '../models/admin';
+import type {CompanyListParams, UserListParams} from './adminClient';
+import type {AdminUser, CompanyReview, UpdateAdminCompanyInput, UserStatus} from '../models/admin';
 
 export const adminKeys = {
   me: ['admin', 'me'] as const,
   users: (params: UserListParams) => ['admin', 'users', params] as const,
   companies: (params: CompanyListParams) => ['admin', 'companies', params] as const,
-  moderation: (params: ModerationListParams) => ['admin', 'moderation', params] as const,
   audit: (params: Record<string, unknown>) => ['admin', 'audit', params] as const,
 };
 
@@ -20,9 +19,6 @@ export const useAdminUsers = (params: UserListParams) => useQuery({
 });
 export const useAdminCompanies = (params: CompanyListParams) => useQuery({
   queryKey: adminKeys.companies(params), queryFn: () => adminClient.listCompanies(params),
-});
-export const useModerationCases = (params: ModerationListParams) => useQuery({
-  queryKey: adminKeys.moderation(params), queryFn: () => adminClient.listModerationCases(params),
 });
 export const useAuditEvents = (params: Record<string, unknown>) => useQuery({
   queryKey: adminKeys.audit(params), queryFn: () => adminClient.listAuditEvents(params),
@@ -52,21 +48,20 @@ export const useReviewCompany = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({company, decision, reason}: {
-      company: CompanyReview; decision: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES'; reason: string;
+      company: CompanyReview; decision: 'APPROVE' | 'REJECT'; reason: string;
     }) => adminClient.reviewCompany(company, decision, reason),
     onSuccess: () => queryClient.invalidateQueries({queryKey: ['admin']}),
     onError: error => refreshAfterConflict(error, queryClient, ['admin', 'companies']),
   });
 };
 
-export const useModerationDecision = () => {
+export const useUpdateAdminCompany = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({moderationCase, decision, reason}: {
-      moderationCase: ModerationCase; decision: 'KEEP' | 'REMOVE'; reason: string;
-    }) => adminClient.decideModeration(moderationCase, decision, reason),
-    onSuccess: () => queryClient.invalidateQueries({queryKey: ['admin']}),
-    onError: error => refreshAfterConflict(error, queryClient, ['admin', 'moderation']),
+    mutationFn: ({company, input}: {company: CompanyReview; input: UpdateAdminCompanyInput}) =>
+      adminClient.updateCompany(company, input),
+    onSuccess: () => queryClient.invalidateQueries({queryKey: ['admin', 'companies']}),
+    onError: error => refreshAfterConflict(error, queryClient, ['admin', 'companies']),
   });
 };
 

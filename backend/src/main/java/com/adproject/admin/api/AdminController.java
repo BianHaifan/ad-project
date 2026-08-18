@@ -11,6 +11,7 @@ import com.adproject.admin.api.AdminDtos.ModerationCaseResponse;
 import com.adproject.admin.api.AdminDtos.ModerationDecisionRequest;
 import com.adproject.admin.api.AdminDtos.ReviewDecisionRequest;
 import com.adproject.admin.api.AdminDtos.UserStatusRequest;
+import com.adproject.admin.api.AdminDtos.UpdateCompanyRequest;
 import com.adproject.admin.application.AdminService;
 import com.adproject.admin.domain.ModerationSourceType;
 import com.adproject.admin.domain.ModerationStatus;
@@ -29,6 +30,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -97,6 +99,15 @@ public class AdminController {
         return adminService.getCompany(currentUser, companyId);
     }
 
+    @PatchMapping("/companies/{companyId}")
+    CompanyReviewResponse updateCompany(@AuthenticationPrincipal AuthenticatedUser currentUser,
+                                        @PathVariable String companyId,
+                                        @Valid @RequestBody UpdateCompanyRequest request,
+                                        HttpServletRequest servletRequest) {
+        return adminService.updateCompany(currentUser, companyId, request,
+                RequestIdFilter.current(servletRequest));
+    }
+
     @PostMapping("/companies/{companyId}/approve")
     CompanyReviewResponse approveCompany(@AuthenticationPrincipal AuthenticatedUser currentUser,
                                           @PathVariable String companyId,
@@ -113,15 +124,6 @@ public class AdminController {
                                          HttpServletRequest servletRequest) {
         return adminService.reviewCompany(currentUser, companyId, request, CompanyVerificationStatus.REJECTED,
                 RequestIdFilter.current(servletRequest));
-    }
-
-    @PostMapping("/companies/{companyId}/request-changes")
-    CompanyReviewResponse requestCompanyChanges(@AuthenticationPrincipal AuthenticatedUser currentUser,
-                                                @PathVariable String companyId,
-                                                @Valid @RequestBody ReviewDecisionRequest request,
-                                                HttpServletRequest servletRequest) {
-        return adminService.reviewCompany(currentUser, companyId, request,
-                CompanyVerificationStatus.CHANGES_REQUESTED, RequestIdFilter.current(servletRequest));
     }
 
     @GetMapping("/moderation/cases")

@@ -118,6 +118,7 @@ export function ProfilePage({redirect = defaultRedirect, sessions = authSession}
     {pageError && <div className="state-card error" role="alert"><span>{pageError}</span></div>}
     <div className="profile-layout">
       <section className="panel profile-summary">
+        <div className="section-title"><div><h2>Avatar</h2><small>Your profile image across the recruiter workspace.</small></div></div>
         {profile.avatarUrl
           ? <img className="avatar xl profile-avatar" src={profile.avatarUrl} alt=""/>
           : <span className="avatar xl">{initials(profile.fullName)}</span>}
@@ -126,16 +127,15 @@ export function ProfilePage({redirect = defaultRedirect, sessions = authSession}
           <p>{profile.title || 'No title yet'}</p>
           <p className="muted">{profile.company.name}</p>
         </div>
-        <dl className="profile-readonly">
-          <dt>Email</dt><dd>{profile.email}</dd>
-          <dt>Company</dt><dd>{profile.company.name}</dd>
-          <dt>Registered</dt><dd>{formatDate(profile.createdAt)}</dd>
-        </dl>
         <AvatarSection profile={profile} onAvatarChanged={onAvatarChanged}/>
       </section>
       <div className="profile-main">
-        <form className="panel form-section profile-form" onSubmit={submit} noValidate aria-busy={update.isPending}>
-          <h2>Edit profile</h2>
+        <form id="personal-profile-form" className="panel form-section profile-form" onSubmit={submit} noValidate aria-busy={update.isPending}>
+          <h2>Personal profile</h2>
+          <dl className="profile-readonly">
+            <dt>Email</dt><dd>{profile.email}</dd>
+            <dt>Registered</dt><dd>{formatDate(profile.createdAt)}</dd>
+          </dl>
           <label>FULL NAME
             <input value={form.fullName} onChange={event => set('fullName', event.target.value)} maxLength={100}/>
             {errors.fullName && <em>{errors.fullName}</em>}
@@ -148,13 +148,21 @@ export function ProfilePage({redirect = defaultRedirect, sessions = authSession}
             <textarea rows={5} value={form.bio} onChange={event => set('bio', event.target.value)} maxLength={1000}/>
             {errors.bio && <em>{errors.bio}</em>}
           </label>
-          <div className="actions">
-            <button type="submit" className="button primary" disabled={update.isPending}>
-              {update.isPending ? 'Saving…' : 'Save profile'}
-            </button>
-          </div>
         </form>
+        <section className="panel company-profile">
+          <div className="section-title"><div><h2>Company</h2><small>Company details are managed by administrators.</small></div></div>
+          <dl className="profile-readonly">
+            <dt>Name</dt><dd>{profile.company.name}</dd>
+            <dt>Verification</dt><dd>{profile.company.verificationStatus}</dd>
+          </dl>
+        </section>
         <GoogleConnectionSection redirect={redirect}/>
+        <section className="panel profile-actions">
+          <div><h2>Actions</h2><p className="muted">Save changes made to your personal profile.</p></div>
+          <button type="submit" form="personal-profile-form" className="button primary" disabled={update.isPending}>
+            {update.isPending ? 'Saving…' : 'Save profile'}
+          </button>
+        </section>
       </div>
     </div>
   </>;
@@ -225,9 +233,7 @@ function AvatarSection({profile, onAvatarChanged}: {
   const busy = upload.isPending || remove.isPending;
 
   return <div className="avatar-editor">
-    <div className="section-title">
-      <div><h3>Avatar</h3><small>PNG or JPEG, up to 5 MB.</small></div>
-    </div>
+    <small>PNG or JPEG, up to 5 MB.</small>
     {previewUrl && <img className="avatar xl profile-avatar" src={previewUrl} alt="Avatar preview"/>}
     {message?.tone === 'error'
       ? <div className="form-error" role="alert">{message.text}</div>

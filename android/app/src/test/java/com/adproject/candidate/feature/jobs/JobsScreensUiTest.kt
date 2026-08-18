@@ -19,6 +19,8 @@ import com.adproject.candidate.data.model.ProfileStat
 import com.adproject.candidate.data.model.ProfileTool
 import com.adproject.candidate.data.model.ProfileToolGroup
 import com.adproject.candidate.data.model.RecruiterContact
+import com.adproject.candidate.feature.profile.SALARY_OPTIONS
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -160,7 +162,7 @@ class JobsScreensUiTest {
         composeRule.onNodeWithText("Filter jobs").assertIsDisplayed()
         composeRule.onNodeWithText("Job type").assertIsDisplayed()
         composeRule.onNodeWithText("Minimum salary").assertIsDisplayed()
-        composeRule.onNodeWithText("S$6,000+").assertIsDisplayed()
+        assertTrue(SALARY_OPTIONS.containsAll(listOf(1000L, 2000L, 2500L)))
     }
 
     @Test
@@ -207,6 +209,7 @@ class JobsScreensUiTest {
         var apply: String? = null
         var viewCompany: String? = null
         var viewRecruiter: String? = null
+        var messageRecruiter = 0
         composeRule.setContent {
             JobDetailScreen(
                 state = JobDetailUiState(
@@ -234,25 +237,29 @@ class JobsScreensUiTest {
                 onViewCompany = { viewCompany = it },
                 onViewRecruiter = { viewRecruiter = it },
                 onToggleSave = { toggleSave++ },
+                onMessageRecruiter = { messageRecruiter++ },
             )
         }
 
         composeRule.onNodeWithText("About this role").assertIsDisplayed()
         composeRule.onNodeWithText("AI Match Analysis").assertExists()
-        composeRule.onNodeWithText("Strong: Skills matched: 2 of 3").assertExists()
-        composeRule.onNodeWithText("Gap: Experience is below the stated requirement").assertExists()
+        composeRule.onNodeWithText("Strong matches\nSkills matched: 2 of 3").assertExists()
+        composeRule.onNodeWithText("Gaps\nExperience is below the stated requirement").assertExists()
+        composeRule.onNodeWithText("Requirements").assertExists()
         composeRule.onNodeWithText("Deadline: 2026-09-01").assertExists()
         composeRule.onNodeWithText("Published: 2026-08-11").assertExists()
 
         composeRule.onNodeWithContentDescription("Save job").performClick()
         composeRule.onNodeWithText("Apply").performClick()
         composeRule.onNodeWithText("Real Company").performClick()
-        composeRule.onNodeWithText("View profile →").performScrollTo().performClick()
+        composeRule.onNodeWithText("Mia Chen").performScrollTo().performClick()
+        composeRule.onNodeWithText("Message").performClick()
 
         assertEquals(1, toggleSave)
         assertEquals("job-1", apply)
         assertEquals("company-1", viewCompany)
         assertEquals("rec-1", viewRecruiter)
+        assertEquals(1, messageRecruiter)
     }
 
     @Test

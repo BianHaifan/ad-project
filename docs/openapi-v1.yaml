@@ -1391,49 +1391,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
       description: 'Permission: Recruiter company member; current company scope only. Status: DRAFT. Clients: Recruiter.'
       x-mvp-scope: MVP
-    patch:
-      tags:
-      - Profile
-      summary: Update recruiter company
-      operationId: updateRecruiterCompany
-      x-status: DRAFT
-      x-clients:
-      - Recruiter
-      x-permission: Recruiter company admin capability; current company scope only
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateCompanyRequest'
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                - data
-                properties:
-                  data:
-                    $ref: '#/components/schemas/Company'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-      description: 'Permission: Recruiter company admin capability; current company scope only. Status: DRAFT. Clients:
-        Recruiter. Concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch
-        returns 409 VERSION_CONFLICT.'
-      x-concurrency: Require expectedVersion; compare atomically; on success increment version; mismatch returns
-        409 VERSION_CONFLICT.
-      x-mvp-scope: MVP
   /recruiter/dashboard:
     get:
       tags:
@@ -3133,6 +3090,18 @@ paths:
         '200': {description: Community direct conversation, content: {application/json: {schema: {$ref: '#/components/schemas/CommunityDirectConversationResponse'}}}}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+  /community/direct-conversations:
+    get:
+      tags: [Community]
+      summary: List Community direct conversations for the current participant
+      operationId: listCommunityDirectConversations
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200': {description: Community direct conversations, content: {application/json: {schema: {$ref: '#/components/schemas/CommunityDirectConversationListResponse'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
   /community/direct-conversations/{conversationId}/messages:
     get:
       tags: [Community]
@@ -3459,6 +3428,31 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+  /admin/companies/{companyId}:
+    patch:
+      tags: [Admin]
+      summary: Update a company profile as the platform administrator
+      operationId: updateAdminCompany
+      x-clients: [Admin]
+      x-permission: PLATFORM_ADMIN
+      x-audit: true
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminUpdateCompanyRequest'}
+      responses:
+        '200': {description: Updated company, content: {application/json: {schema: {$ref: '#/components/schemas/CompanyReviewResponse'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
   /admin/companies/{companyId}/approve:
     post:
       tags: [Admin]
@@ -3509,35 +3503,6 @@ paths:
       responses:
         '200':
           description: Rejected company
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/CompanyReviewResponse'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '403': {$ref: '#/components/responses/Forbidden'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
-        '422': {$ref: '#/components/responses/ValidationError'}
-  /admin/companies/{companyId}/request-changes:
-    post:
-      tags: [Admin]
-      summary: Request changes to a pending company
-      operationId: requestCompanyChanges
-      x-clients: [Admin]
-      x-permission: PLATFORM_ADMIN
-      x-audit: true
-      parameters:
-      - name: companyId
-        in: path
-        required: true
-        schema: {type: string, format: uuid}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminReviewDecisionRequest'}
-      responses:
-        '200':
-          description: Company awaiting changes
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CompanyReviewResponse'}
@@ -3858,14 +3823,21 @@ components:
       type: object
       required: [data]
       properties:
-        data:
-          type: object
-          required: [conversationId, participant, createdAt, updatedAt]
-          properties:
-            conversationId: {type: string}
-            participant: {$ref: '#/components/schemas/CommunityAuthor'}
-            createdAt: {type: string, format: date-time}
-            updatedAt: {type: string, format: date-time}
+        data: {$ref: '#/components/schemas/CommunityDirectConversation'}
+    CommunityDirectConversationListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/CommunityDirectConversation'}}
+        meta: {$ref: '#/components/schemas/PageMeta'}
+    CommunityDirectConversation:
+      type: object
+      required: [conversationId, participant, createdAt, updatedAt]
+      properties:
+        conversationId: {type: string}
+        participant: {$ref: '#/components/schemas/CommunityAuthor'}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
     CommunityDirectMessage:
       type: object
       required: [messageId, conversationId, senderId, body, sentAt]
@@ -3983,12 +3955,15 @@ components:
     CandidateOnboardingRequest:
       type: object
       additionalProperties: false
-      required: [headline, location, age, resumeSummary, skills, desiredTitle, preferredLocation, workplaceType, employmentType]
+      required: [headline, location, age, skills, desiredTitle, preferredLocation, workplaceType, employmentType]
       properties:
         headline: { type: string, minLength: 1, maxLength: 200 }
         location: { type: string, minLength: 1, maxLength: 100 }
         age: { type: integer, minimum: 16, maximum: 100 }
-        resumeSummary: { type: string, minLength: 1, maxLength: 5000 }
+        resumeSummary:
+          type: string
+          maxLength: 5000
+          description: Optional resume summary. Omitted or blank values create a valid minimal default resume.
         skills:
           type: array
           minItems: 1
@@ -5080,18 +5055,27 @@ components:
           type: string
         requirements:
           type: array
+          minItems: 1
+          maxItems: 100
           items:
             type: string
+            minLength: 1
+            maxLength: 200
         skills:
           type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
           items:
             type: string
+            minLength: 1
+            maxLength: 200
         deadline:
           oneOf:
           - type: string
             format: date-time
             pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
+            description: ISO-8601 UTC date-time ending with Z. When present, it must be later than server time.
           - type: 'null'
         visibility:
           $ref: '#/components/schemas/Visibility'
@@ -5730,28 +5714,178 @@ components:
         fields are rejected as unknown fields. Title is required when the server has no existing recruiter profile
         row.
 
-    UpdateCompanyRequest:
+    AdminUpdateCompanyRequest:
       type: object
       required:
       - expectedVersion
+      - reason
       properties:
-        name:
-          type: string
-        website:
-          type: string
-          format: uri
-        description:
-          type: string
-        logoAssetId:
-          type: string
-          description: Reserved for the post-MVP Asset API. MVP clients MUST omit this field; Company.logoUrl remains
-            null.
-        location:
-          type: string
-        expectedVersion:
-          type: integer
-          minimum: 1
+        name: {type: string, minLength: 1, maxLength: 200}
+        logoUrl: {type: [string, 'null'], maxLength: 500}
+        website: {type: [string, 'null'], maxLength: 500}
+        stage: {type: [string, 'null'], maxLength: 32}
+        employeeRange: {type: [string, 'null'], maxLength: 50}
+        description: {type: [string, 'null'], maxLength: 5000}
+        location: {type: [string, 'null'], maxLength: 100}
+        expectedVersion: {type: integer, minimum: 1}
+        reason: {type: string, minLength: 1, maxLength: 500}
       additionalProperties: false
+    CompanyVerificationStatus:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED]
+    UserStatus:
+      type: string
+      enum: [ACTIVE, DISABLED]
+    AdminCompanyRef:
+      type: object
+      required: [companyId, name, verificationStatus]
+      properties:
+        companyId: {type: string, format: uuid}
+        name: {type: string}
+        verificationStatus: {$ref: '#/components/schemas/CompanyVerificationStatus'}
+    AdminUser:
+      type: object
+      required: [userId, fullName, email, role, status, adminAccess, version, createdAt, updatedAt]
+      properties:
+        userId: {type: string, format: uuid}
+        fullName: {type: string}
+        email: {type: string, format: email}
+        role: {$ref: '#/components/schemas/UserRole'}
+        status: {$ref: '#/components/schemas/UserStatus'}
+        adminAccess: {type: boolean}
+        company:
+          oneOf:
+          - {$ref: '#/components/schemas/AdminCompanyRef'}
+          - {type: 'null'}
+        version: {type: integer, minimum: 1}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    AdminUserResponse:
+      type: object
+      required: [data]
+      properties:
+        data: {$ref: '#/components/schemas/AdminUser'}
+    AdminUserListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/AdminUser'}}
+        meta: {$ref: '#/components/schemas/PageMeta'}
+    CompanyReview:
+      type: object
+      required: [companyId, name, verificationStatus, version, createdByUserId, createdByName, createdByEmail, createdAt, updatedAt]
+      properties:
+        companyId: {type: string, format: uuid}
+        name: {type: string}
+        logoUrl: {type: [string, 'null']}
+        stage: {type: [string, 'null']}
+        employeeRange: {type: [string, 'null']}
+        verificationStatus: {$ref: '#/components/schemas/CompanyVerificationStatus'}
+        website: {type: [string, 'null']}
+        description: {type: [string, 'null']}
+        location: {type: [string, 'null']}
+        version: {type: integer, minimum: 1}
+        createdByUserId: {type: string, format: uuid}
+        createdByName: {type: string}
+        createdByEmail: {type: string, format: email}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    CompanyReviewResponse:
+      type: object
+      required: [data]
+      properties:
+        data: {$ref: '#/components/schemas/CompanyReview'}
+    CompanyReviewListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/CompanyReview'}}
+        meta: {$ref: '#/components/schemas/PageMeta'}
+    ModerationSourceType:
+      type: string
+      enum: [COMMUNITY_POST, COMMUNITY_COMMENT]
+    ModerationStatus:
+      type: string
+      enum: [PENDING, KEPT, REMOVED]
+    ModerationCase:
+      type: object
+      required: [caseId, sourceType, sourceId, authorId, authorName, contentSnapshot, reportReason, reportCount, status, version, createdAt, updatedAt]
+      properties:
+        caseId: {type: string, format: uuid}
+        sourceType: {$ref: '#/components/schemas/ModerationSourceType'}
+        sourceId: {type: string, format: uuid}
+        authorId: {type: string, format: uuid}
+        authorName: {type: string}
+        contentSnapshot: {type: string}
+        reportReason: {type: string}
+        reportCount: {type: integer, minimum: 0}
+        status: {$ref: '#/components/schemas/ModerationStatus'}
+        version: {type: integer, minimum: 1}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    ModerationCaseResponse:
+      type: object
+      required: [data]
+      properties:
+        data: {$ref: '#/components/schemas/ModerationCase'}
+    ModerationCaseListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/ModerationCase'}}
+        meta: {$ref: '#/components/schemas/PageMeta'}
+    ModerationDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision, reason, expectedVersion]
+      properties:
+        decision: {type: string, enum: [KEEP, REMOVE]}
+        reason: {type: string, minLength: 1, maxLength: 500}
+        expectedVersion: {type: integer, minimum: 1}
+    AdminAuditEvent:
+      type: object
+      required: [auditEventId, actorId, actorName, action, targetType, targetId, beforeState, afterState, reason, requestId, occurredAt]
+      properties:
+        auditEventId: {type: string, format: uuid}
+        actorId: {type: string, format: uuid}
+        actorName: {type: string}
+        action: {type: string}
+        targetType: {type: string}
+        targetId: {type: string}
+        beforeState: {type: string}
+        afterState: {type: string}
+        reason: {type: string}
+        requestId: {type: string}
+        occurredAt: {type: string, format: date-time}
+    AdminAuditEventListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/AdminAuditEvent'}}
+        meta: {$ref: '#/components/schemas/PageMeta'}
+    AdminReviewDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [reason, expectedVersion]
+      properties:
+        reason: {type: string, minLength: 1, maxLength: 500}
+        expectedVersion: {type: integer, minimum: 1}
+    AdminUserStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status, reason, expectedVersion]
+      properties:
+        status: {type: string, enum: [ACTIVE, DISABLED]}
+        reason: {type: string, minLength: 1, maxLength: 500}
+        expectedVersion: {type: integer, minimum: 1}
+    AdminAccessRequest:
+      type: object
+      additionalProperties: false
+      required: [enabled, reason, expectedVersion]
+      properties:
+        enabled: {type: boolean}
+        reason: {type: string, minLength: 1, maxLength: 500}
+        expectedVersion: {type: integer, minimum: 1}
     RecruiterDashboard:
       type: object
       required:
@@ -5823,18 +5957,27 @@ components:
           type: string
         requirements:
           type: array
+          minItems: 1
+          maxItems: 100
           items:
             type: string
+            minLength: 1
+            maxLength: 200
         skills:
           type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
           items:
             type: string
+            minLength: 1
+            maxLength: 200
         deadline:
           oneOf:
           - type: string
             format: date-time
             pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
-            description: ISO-8601 UTC date-time; the value MUST end with Z.
+            description: ISO-8601 UTC date-time ending with Z. When present, it must be later than server time.
           - type: 'null'
         visibility:
           $ref: '#/components/schemas/Visibility'

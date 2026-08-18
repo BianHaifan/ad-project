@@ -46,7 +46,6 @@ export function AdminShell({client = authClient, sessions = authSession}: {
       <nav aria-label="Admin navigation">
         <NavLink to="/admin/users">Accounts</NavLink>
         <NavLink to="/admin/company-reviews">Company reviews</NavLink>
-        <NavLink to="/admin/moderation">Moderation</NavLink>
         <NavLink to="/admin/audit-log">Audit log</NavLink>
       </nav>
       <div className="admin-account">

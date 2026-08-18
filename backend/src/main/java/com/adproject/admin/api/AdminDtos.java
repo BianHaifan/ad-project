@@ -49,6 +49,15 @@ public final class AdminDtos {
                                      @Min(1) int expectedVersion) {}
     public record ReviewDecisionRequest(@NotBlank @Size(max = 500) String reason,
                                         @Min(1) int expectedVersion) {}
+    public record UpdateCompanyRequest(@Size(max = 200) String name,
+                                       @Size(max = 500) String logoUrl,
+                                       @Size(max = 32) String stage,
+                                       @Size(max = 50) String employeeRange,
+                                       @Size(max = 500) String website,
+                                       @Size(max = 5000) String description,
+                                       @Size(max = 100) String location,
+                                       @NotNull @Min(1) Integer expectedVersion,
+                                       @NotBlank @Size(max = 500) String reason) {}
     public record ModerationDecisionRequest(@NotNull ModerationDecision decision,
                                              @NotBlank @Size(max = 500) String reason,
                                              @Min(1) int expectedVersion) {}

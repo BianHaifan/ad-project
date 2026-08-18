@@ -5,14 +5,10 @@ import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.company.api.CompanyDtos.Company;
 import com.adproject.company.api.CompanyDtos.CompanyResponse;
 import com.adproject.company.api.CompanyDtos.UpdateCompanyRequest;
-import com.adproject.company.domain.CompanyMemberRole;
 import com.adproject.company.infrastructure.CompanyEntity;
 import com.adproject.company.infrastructure.CompanyMemberRepository;
 import com.adproject.company.infrastructure.CompanyRepository;
 import com.adproject.user.domain.UserRole;
-import java.time.Clock;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,13 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class RecruiterCompanyService {
     private final CompanyRepository companyRepository;
     private final CompanyMemberRepository memberRepository;
-    private final Clock clock;
 
-    public RecruiterCompanyService(CompanyRepository companyRepository, CompanyMemberRepository memberRepository,
-                                   Clock clock) {
+    public RecruiterCompanyService(CompanyRepository companyRepository, CompanyMemberRepository memberRepository) {
         this.companyRepository = companyRepository;
         this.memberRepository = memberRepository;
-        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -41,39 +34,7 @@ public class RecruiterCompanyService {
     @Transactional
     public CompanyResponse update(AuthenticatedUser currentUser, UpdateCompanyRequest request) {
         requireRecruiter(currentUser);
-        var member = memberRepository.findByUserId(currentUser.userId()).orElseThrow(RecruiterCompanyService::forbidden);
-        if (member.getMemberRole() != CompanyMemberRole.ADMIN) throw forbidden();
-        CompanyEntity company = companyRepository.findByIdForUpdate(member.getCompanyId())
-                .orElseThrow(RecruiterCompanyService::notFound);
-        if (company.getVersion() != request.expectedVersion()) {
-            throw new ApiException(HttpStatus.CONFLICT, "VERSION_CONFLICT",
-                    "The company has changed; reload it before editing");
-        }
-        Map<String, String> errors = validate(request);
-        if (!errors.isEmpty()) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR",
-                    "Request validation failed", errors);
-        }
-        company.updateProfile(value(request.name(), company.getName()), value(request.logoUrl(), company.getLogoUrl()),
-                value(request.stage(), company.getStage()), value(request.employeeRange(), company.getEmployeeRange()),
-                value(request.website(), company.getWebsite()), value(request.description(), company.getDescription()),
-                value(request.location(), company.getLocation()), clock.instant());
-        companyRepository.flush();
-        return new CompanyResponse(toCompany(company));
-    }
-
-    private static Map<String, String> validate(UpdateCompanyRequest request) {
-        Map<String, String> errors = new LinkedHashMap<>();
-        if (request.name() != null && request.name().isBlank()) errors.put("name", "must not be blank");
-        if (request.website() != null && !request.website().isBlank()
-                && !(request.website().startsWith("https://") || request.website().startsWith("http://"))) {
-            errors.put("website", "must be an absolute http or https URL");
-        }
-        return errors;
-    }
-
-    private static String value(String candidate, String existing) {
-        return candidate == null ? existing : candidate.trim();
+        throw forbidden();
     }
 
     private static Company toCompany(CompanyEntity company) {

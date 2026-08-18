@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 import type {AuthClient} from './authClient';
 import {AdminClient} from './adminClient';
-import type {AdminUser, CompanyReview, ModerationCase} from '../models/admin';
+import type {AdminUser, CompanyReview} from '../models/admin';
 
 const user: AdminUser = {
   userId: '11111111-1111-1111-1111-111111111111', fullName: 'Ada Admin', email: 'ada@example.com',
@@ -30,20 +30,28 @@ describe('AdminClient', () => {
     });
   });
 
-  it('uses the declared company and moderation decision contracts', async () => {
+  it('uses the declared company review contract', async () => {
     const company = {companyId: 'company-1', version: 3} as CompanyReview;
-    const moderationCase = {caseId: 'case-1', version: 5} as ModerationCase;
     const requestWithAuth = vi.fn().mockResolvedValue({data: {}});
     const client = new AdminClient({requestWithAuth} as unknown as Pick<AuthClient, 'requestWithAuth'>);
 
-    await client.reviewCompany(company, 'REQUEST_CHANGES', 'Add website evidence');
-    await client.decideModeration(moderationCase, 'REMOVE', 'Community rule violation');
+    await client.reviewCompany(company, 'APPROVE', 'Website evidence verified');
 
-    expect(requestWithAuth.mock.calls[0]).toEqual(['/admin/companies/company-1/request-changes', {
-      method: 'POST', body: JSON.stringify({reason: 'Add website evidence', expectedVersion: 3}),
+    expect(requestWithAuth.mock.calls[0]).toEqual(['/admin/companies/company-1/approve', {
+      method: 'POST', body: JSON.stringify({reason: 'Website evidence verified', expectedVersion: 3}),
     }]);
-    expect(requestWithAuth.mock.calls[1]).toEqual(['/admin/moderation/cases/case-1/decision', {
-      method: 'POST', body: JSON.stringify({decision: 'REMOVE', reason: 'Community rule violation', expectedVersion: 5}),
-    }]);
+  });
+
+  it('updates a company with the current version and an audit reason', async () => {
+    const company = {companyId: 'company-1', version: 3} as CompanyReview;
+    const requestWithAuth = vi.fn().mockResolvedValue({data: {...company, name: 'Edited', version: 4}});
+    const client = new AdminClient({requestWithAuth} as unknown as Pick<AuthClient, 'requestWithAuth'>);
+    await client.updateCompany(company, {name: 'Edited', logoUrl: null, website: 'https://example.test',
+      stage: 'SERIES_A', employeeRange: '11-50', location: 'Singapore', description: 'Public', reason: 'Verified'});
+    expect(requestWithAuth).toHaveBeenCalledWith('/admin/companies/company-1', {
+      method: 'PATCH', body: JSON.stringify({name: 'Edited', logoUrl: null, website: 'https://example.test',
+        stage: 'SERIES_A', employeeRange: '11-50', location: 'Singapore', description: 'Public', reason: 'Verified',
+        expectedVersion: 3}),
+    });
   });
 });

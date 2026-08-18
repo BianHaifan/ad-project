@@ -70,6 +70,8 @@ interface CommunityHttpApi {
 
     @POST("community/posts/{postId}/direct-conversation")
     suspend fun startDirect(@retrofit2.http.Path("postId") postId: String): Response<DataEnvelope<CommunityDirectConversationDto>>
+    @GET("community/direct-conversations")
+    suspend fun directConversations(@Query("page") page: Int = 1, @Query("pageSize") pageSize: Int = 100): Response<ListEnvelope<CommunityDirectConversationDto, PageMeta>>
     @GET("community/direct-conversations/{id}")
     suspend fun direct(@retrofit2.http.Path("id") id: String): Response<DataEnvelope<CommunityDirectConversationDto>>
     @GET("community/direct-conversations/{id}/messages")
@@ -106,6 +108,7 @@ interface CommunityRepository {
     suspend fun search(page: Int, pageSize: Int = 20, q: String? = null, category: CommunityCategory? = null): ApiResult<CommunityPostPage> = posts(page, pageSize)
     suspend fun create(body: String, category: CommunityCategory, images: List<CommunityImageUpload>): ApiResult<CommunityPost> = create(body)
     suspend fun startDirect(postId: String): ApiResult<CommunityDirectConversation> = ApiResult.Failure("Community messaging is unavailable.")
+    suspend fun directConversations(): ApiResult<List<CommunityDirectConversation>> = ApiResult.Success(emptyList())
     suspend fun direct(id: String): ApiResult<CommunityDirectConversation> = ApiResult.Failure("Community messaging is unavailable.")
     suspend fun directMessages(id: String): ApiResult<List<CommunityDirectMessage>> = ApiResult.Failure("Community messaging is unavailable.")
     suspend fun sendDirect(id: String, body: String): ApiResult<CommunityDirectMessage> = ApiResult.Failure("Community messaging is unavailable.")
@@ -181,6 +184,12 @@ class RealCommunityRepository(private val api: CommunityHttpApi, moshi: Moshi) :
     } catch (_: Exception) { ApiResult.Failure("Unable to publish comment right now.") }
 
     override suspend fun startDirect(postId: String) = request("Unable to message this author.", { api.startDirect(postId) }, ::toDirect)
+    override suspend fun directConversations(): ApiResult<List<CommunityDirectConversation>> = try {
+        val response = api.directConversations(); val body = response.body()
+        if (response.isSuccessful && body != null) ApiResult.Success(body.data.map(::toDirect))
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) { ApiResult.Failure("Unable to load Community conversations. Check your network and try again.")
+    } catch (_: Exception) { ApiResult.Failure("Unable to load Community conversations right now.") }
     override suspend fun direct(id: String) = request("Unable to load this conversation.", { api.direct(id) }, ::toDirect)
     override suspend fun directMessages(id: String): ApiResult<List<CommunityDirectMessage>> = try { val response=api.directMessages(id);val body=response.body();if(response.isSuccessful&&body!=null)ApiResult.Success(body.data.map(::toDirectMessage))else errors.failure(response.code(),response.errorBody()?.string()) } catch (_:Exception){ApiResult.Failure("Unable to load messages.")}
     override suspend fun sendDirect(id: String, body: String) = request("Unable to send this message.", { api.sendDirect(id, CreateCommunityCommentRequest(body)) }, ::toDirectMessage)

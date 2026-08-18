@@ -45,6 +45,20 @@ class CandidateOnboardingIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void candidateCanCompleteMinimalOnboardingWithoutResumeSummary() throws Exception {
+        JsonNode auth=register("onboarding-minimal@example.com","Password1!","CANDIDATE",null);
+        String token=auth.path("accessToken").asText();
+        Map<String,Object> body=Map.of("headline","QA Engineer","location","Johor Bahru","age",24,
+                "skills",java.util.List.of("Testing"),"desiredTitle","QA Engineer",
+                "preferredLocation","Johor Bahru","workplaceType","REMOTE","employmentType","FULL_TIME");
+        mvc.perform(post("/api/v1/candidate/onboarding").header("Authorization","Bearer "+token)
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/candidate/resume").header("Authorization","Bearer "+token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.summary").value(""));
+    }
+
     private JsonNode register(String email,String password,String role,String company) throws Exception {
         var body=new java.util.LinkedHashMap<String,Object>();body.put("role",role);body.put("fullName","Onboarding User");body.put("email",email);body.put("password",password);body.put("acceptedTermsVersion","2026-08");if(company!=null)body.put("companyName",company);
         String value=mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body))).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();return mapper.readTree(value).path("data");

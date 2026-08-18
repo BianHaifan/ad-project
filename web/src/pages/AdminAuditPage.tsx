@@ -1,6 +1,7 @@
 import {useState, type FormEvent} from 'react';
 import {useAuditEvents} from '../api/adminQueries';
 import {EmptyState, ErrorState, LoadingState} from '../components/AsyncState';
+import {AdminPagination} from '../components/AdminPagination';
 
 export function AdminAuditPage() {
   const [actorInput, setActorInput] = useState('');
@@ -23,8 +24,8 @@ export function AdminAuditPage() {
             {events.data.data.map(item => <div className="admin-table-row" key={item.auditEventId}><span><b>{new Date(item.occurredAt).toLocaleString()}</b><small>{item.actorName}</small></span>
               <span className="audit-action">{item.action.replaceAll('_', ' ')}</span><span>{item.targetType}<small>{item.targetId.slice(0, 12)}</small></span>
               <span>{item.reason}</span><code>{item.requestId}</code></div>)}</div>
-          <div className="admin-pagination"><span>{events.data.meta.total} total</span><button disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button>
-            <b>{page}</b><button disabled={!events.data.meta.hasNext} onClick={() => setPage(page + 1)}>Next</button></div>
+          <AdminPagination page={page} total={events.data.meta.total} pageSize={events.data.meta.pageSize}
+            hasNext={events.data.meta.hasNext} onPage={setPage}/>
         </>}
     </div>
   </section>;

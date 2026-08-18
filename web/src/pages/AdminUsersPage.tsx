@@ -2,6 +2,7 @@ import {useState, type FormEvent} from 'react';
 import {AuthApiError} from '../api/authClient';
 import {useAdminUsers, useChangeAdminAccess, useChangeUserStatus} from '../api/adminQueries';
 import {AdminActionDialog} from '../components/AdminActionDialog';
+import {AdminPagination} from '../components/AdminPagination';
 import {AdminStatusBadge} from '../components/AdminStatusBadge';
 import {EmptyState, ErrorState, LoadingState} from '../components/AsyncState';
 import type {AdminUser, BusinessRole, UserStatus} from '../models/admin';
@@ -94,7 +95,7 @@ export function AdminUsersPage() {
                   <span>{user.adminAccess ? <span className="admin-badge admin">Admin</span> : 'Standard'}</span>
                 </button>)}
               </div>
-              <Pagination page={page} total={users.data.meta.total} pageSize={users.data.meta.pageSize}
+              <AdminPagination page={page} total={users.data.meta.total} pageSize={users.data.meta.pageSize}
                 hasNext={users.data.meta.hasNext} onPage={setPage}/>
             </>}
       </div>
@@ -137,7 +138,3 @@ function Metric({label, value, note}: {label: string; value: number | string; no
 function Detail({label, value}: {label: string; value: string}) { return <div><small>{label}</small><b>{value}</b></div> }
 function titleCase(value: string) { return value.toLowerCase().replaceAll('_', ' ').replace(/^./, char => char.toUpperCase()) }
 function formatDate(value: string) { return new Intl.DateTimeFormat('en-GB', {dateStyle: 'medium'}).format(new Date(value)) }
-function Pagination({page, total, pageSize, hasNext, onPage}: {page: number; total: number; pageSize: number; hasNext: boolean; onPage: (page: number) => void}) {
-  return <div className="admin-pagination"><span>{total} total</span><button disabled={page === 1} onClick={() => onPage(page - 1)}>Previous</button>
-    <b>{page}</b><button disabled={!hasNext} onClick={() => onPage(page + 1)}>Next</button><small>{pageSize} per page</small></div>;
-}

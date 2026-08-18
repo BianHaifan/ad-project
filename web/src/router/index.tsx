@@ -4,7 +4,6 @@ import {AppShell} from '../components/AppShell';
 import {AdminAuditPage} from '../pages/AdminAuditPage';
 import {AdminAuthPage} from '../pages/AdminAuthPage';
 import {AdminCompaniesPage} from '../pages/AdminCompaniesPage';
-import {AdminModerationPage} from '../pages/AdminModerationPage';
 import {AdminUsersPage} from '../pages/AdminUsersPage';
 import {ApplicationDetailPage} from '../pages/ApplicationDetailPage';
 import {ApplicationsPage} from '../pages/ApplicationsPage';
@@ -57,7 +56,6 @@ export const router = createBrowserRouter([
     {index: true, element: <Navigate to="/admin/users" replace/>},
     {path: 'users', element: <AdminUsersPage/>},
     {path: 'company-reviews', element: <AdminCompaniesPage/>},
-    {path: 'moderation', element: <AdminModerationPage/>},
     {path: 'audit-log', element: <AdminAuditPage/>},
     ]},
   ]},
