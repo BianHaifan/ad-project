@@ -6,6 +6,7 @@ import {
 } from '../api/queries';
 import {EmptyState, ErrorState, LoadingState} from '../components/AsyncState';
 import {PageHeader} from '../components/PageHeader';
+import {sanitizePreviewUrl} from '../lib/safeUrl';
 import type {Message} from '../models/recruiter';
 
 const ACCEPTED_ATTACHMENT_TYPES = '.pdf,.doc,.docx,.txt,.png,.jpg,.jpeg';
@@ -66,7 +67,7 @@ function MessageImageAttachment({conversationId, message, onDownload}: {
 }
 
 function ComposerImagePreview({file}: {file: File}) {
-  const objectUrl = useMemo(() => URL.createObjectURL(file), [file]);
+  const objectUrl = useMemo(() => sanitizePreviewUrl(URL.createObjectURL(file)) ?? '', [file]);
   useEffect(() => () => URL.revokeObjectURL(objectUrl), [objectUrl]);
   return <img className="composer-image" src={objectUrl} alt={file.name}/>;
 }

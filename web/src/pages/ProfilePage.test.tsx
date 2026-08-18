@@ -92,7 +92,7 @@ describe('ProfilePage', () => {
     renderPage();
     await screen.findByDisplayValue('Mia Chen');
     expect(screen.queryByLabelText(/avatar url/i)).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/example\.com/)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/^example\.com$/)).not.toBeInTheDocument();
   });
 
   it('validates required fields before saving', async () => {

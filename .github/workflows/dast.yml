@@ -16,6 +16,7 @@ jobs:
       DB_ROOT_PASSWORD: dast_root_pw
       DB_PASSWORD: dast_app_pw
       JWT_SECRET: dast-ci-test-secret-key-not-for-production-use-only
+      ML_INTERNAL_TOKEN: dast-ml-internal-token
     steps:
       - uses: actions/checkout@v4
       - name: generate temporary TLS certificate for CI
@@ -27,11 +28,12 @@ jobs:
             -keyout certs/ad-b-server.key -out certs/ad-b-server.crt
       - name: build local backend and web images
         working-directory: infra/docker
-        run: docker compose -f docker-compose.yml -f docker-compose.dast.yml build backend web
+        run: docker compose -f docker-compose.yml -f docker-compose.dast.yml build backend web ml
       - name: start stack
         working-directory: infra/docker
         run: docker compose -f docker-compose.yml -f docker-compose.dast.yml up -d
-      - name: wait for backend and web to be ready
+      - name: wait for backend, web and ml to be ready
+        working-directory: infra/docker
         run: |
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{}' || true)
@@ -45,6 +47,12 @@ jobs:
           done
           curl -s -o /dev/null -w 'backend login probe: %{http_code}\n' -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{}'
           curl -s -o /dev/null -w 'web index: %{http_code}\n' http://localhost/
+          for i in $(seq 1 30); do
+            ml_code=$(docker compose -f docker-compose.yml -f docker-compose.dast.yml exec -T ml python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/internal/v1/health', timeout=3).status == 200 else sys.exit(1)" 2>/dev/null && echo ok || echo fail)
+            if [ "$ml_code" = "ok" ]; then break; fi
+            sleep 5
+          done
+          docker compose -f docker-compose.yml -f docker-compose.dast.yml ps
       - name: ZAP baseline scan
         uses: zaproxy/action-baseline@v0.15.0
         with:
@@ -71,6 +79,7 @@ jobs:
       DB_ROOT_PASSWORD: dast_root_pw
       DB_PASSWORD: dast_app_pw
       JWT_SECRET: dast-ci-test-secret-key-not-for-production-use-only
+      ML_INTERNAL_TOKEN: dast-ml-internal-token
     steps:
       - uses: actions/checkout@v4
       - name: generate temporary TLS certificate for CI
@@ -82,11 +91,12 @@ jobs:
             -keyout certs/ad-b-server.key -out certs/ad-b-server.crt
       - name: build local backend and web images
         working-directory: infra/docker
-        run: docker compose -f docker-compose.yml -f docker-compose.dast.yml build backend web
+        run: docker compose -f docker-compose.yml -f docker-compose.dast.yml build backend web ml
       - name: start stack
         working-directory: infra/docker
         run: docker compose -f docker-compose.yml -f docker-compose.dast.yml up -d
-      - name: wait for backend and web to be ready
+      - name: wait for backend, web and ml to be ready
+        working-directory: infra/docker
         run: |
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{}' || true)
@@ -100,6 +110,12 @@ jobs:
           done
           curl -s -o /dev/null -w 'backend login probe: %{http_code}\n' -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{}'
           curl -s -o /dev/null -w 'web index: %{http_code}\n' http://localhost/
+          for i in $(seq 1 30); do
+            ml_code=$(docker compose -f docker-compose.yml -f docker-compose.dast.yml exec -T ml python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/internal/v1/health', timeout=3).status == 200 else sys.exit(1)" 2>/dev/null && echo ok || echo fail)
+            if [ "$ml_code" = "ok" ]; then break; fi
+            sleep 5
+          done
+          docker compose -f docker-compose.yml -f docker-compose.dast.yml ps
       - name: seed test accounts and capture tokens
         id: tokens
         run: |

@@ -7,6 +7,7 @@ import {ErrorState, LoadingState} from '../components/AsyncState';
 import {GoogleConnectionSection} from '../components/GoogleConnectionSection';
 import {PageHeader} from '../components/PageHeader';
 import {parseOAuthCallbackResult, type GoogleOAuthCallbackResult} from '../lib/googleOAuth';
+import {sanitizePreviewUrl} from '../lib/safeUrl';
 import type {RecruiterProfileDetail} from '../models/recruiter';
 
 type Redirect = (url: string) => void;
@@ -187,7 +188,7 @@ function AvatarSection({profile, onAvatarChanged}: {
     }
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    setPreviewUrl(sanitizePreviewUrl(URL.createObjectURL(file)));
   };
 
   const clearSelection = () => {

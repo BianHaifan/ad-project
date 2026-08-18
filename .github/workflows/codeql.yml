@@ -106,3 +106,28 @@ jobs:
           name: codeql-web-sarif
           path: codeql-results-web/
           if-no-files-found: ignore
+
+  analyze-ml:
+    name: Analyze ml-service (Python)
+    runs-on: ubuntu-latest
+    permissions: { security-events: write, actions: read, contents: read }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: python
+          queries: security-extended
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:python
+          output: codeql-results-ml
+      - name: upload ml codeql report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codeql-ml-sarif
+          path: codeql-results-ml/
+          if-no-files-found: ignore
