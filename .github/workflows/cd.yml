@@ -91,15 +91,25 @@ jobs:
 
       - name: deploy on target server B
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_ADDRESS: ${{ vars.RESEND_FROM_ADDRESS }}
         with:
           host: ${{ vars.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: RESEND_API_KEY,RESEND_FROM_ADDRESS
           command_timeout: 20m
           script: |
             set -e
             cd /opt/adproject/infra/docker
             docker load -i /opt/adproject/infra/docker/images/images.tar
+            if [ -n "${RESEND_API_KEY:-}" ]; then
+              export SMTP_PASSWORD="$RESEND_API_KEY"
+            fi
+            if [ -n "${RESEND_FROM_ADDRESS:-}" ]; then
+              export SMTP_FROM_ADDRESS="$RESEND_FROM_ADDRESS"
+            fi
             docker compose --env-file /opt/adproject/infra/docker/.env up -d --remove-orphans
             docker image prune -f >/dev/null 2>&1 || true
             code=000

@@ -19,7 +19,7 @@
 
 - 本地默认不配置真实邮箱；密码重置请求返回明确的 `503 PASSWORD_RESET_EMAIL_NOT_CONFIGURED`，不会伪造发送成功。
 - 自动化测试使用进程内 fake sender，仅捕获验证码用于安全边界验证，不输出验证码到日志、响应或报告。
-- staging/production 使用 Spring Mail SMTP adapter，通过 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_FROM`、`SMTP_STARTTLS` 注入。
+- staging/production 使用 Spring Mail SMTP adapter，通过 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_FROM_ADDRESS`、`SMTP_STARTTLS` 注入。
 - 部署凭据必须由环境或密钥服务提供，不写入仓库；默认建议使用独立事务邮件账号并启用 STARTTLS。
 
 ## 当前人工验收前提

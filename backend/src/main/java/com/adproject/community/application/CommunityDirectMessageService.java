@@ -1,6 +1,6 @@
 package com.adproject.community.application;
 import com.adproject.common.api.ApiException; import com.adproject.common.security.AuthenticatedUser; import com.adproject.common.time.DatabaseTimePrecision;
-import com.adproject.community.api.CommunityDirectDtos.*; import com.adproject.community.api.CommunityDtos.*; import com.adproject.community.infrastructure.*;
+import com.adproject.community.api.CommunityDirectDtos.Conversation; import com.adproject.community.api.CommunityDirectDtos.ConversationResponse; import com.adproject.community.api.CommunityDirectDtos.Message; import com.adproject.community.api.CommunityDirectDtos.MessageListResponse; import com.adproject.community.api.CommunityDirectDtos.MessageResponse; import com.adproject.community.api.CommunityDirectDtos.SendMessageRequest; import com.adproject.community.api.CommunityDtos.CommunityAuthor; import com.adproject.community.api.CommunityDtos.PageMeta; import com.adproject.community.infrastructure.*;
 import com.adproject.company.infrastructure.*; import com.adproject.user.domain.UserRole; import com.adproject.user.infrastructure.*;
 import java.time.Clock; import java.util.*; import org.springframework.data.domain.*; import org.springframework.http.HttpStatus; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
 @Service public class CommunityDirectMessageService {
