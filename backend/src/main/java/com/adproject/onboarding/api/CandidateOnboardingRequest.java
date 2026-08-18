@@ -13,7 +13,7 @@ public record CandidateOnboardingRequest(
         @NotBlank @Size(max = 200) String headline,
         @NotBlank @Size(max = 100) String location,
         @Min(16) @Max(100) int age,
-        @NotBlank @Size(max = 5000) String resumeSummary,
+        @Size(max = 5000) String resumeSummary,
         @NotNull @Size(min = 1, max = 100) List<@NotBlank @Size(max = 200) String> skills,
         @NotBlank @Size(max = 200) String desiredTitle,
         @NotBlank @Size(max = 200) String preferredLocation,

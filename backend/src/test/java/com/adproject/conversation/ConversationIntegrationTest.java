@@ -107,6 +107,29 @@ class ConversationIntegrationTest {
                 .andExpect(jsonPath("$.data[0].unreadCount").value(0));
     }
 
+    @Test void recruiterSendsMessageWithoutAnyGoogleConnection() throws Exception {
+        Fixture f = fixture("Recruiter Send Candidate");
+        String applicationId = submit(f, job(f, "Recruiter Send Job"), UUID.randomUUID().toString());
+        String conversationId = conversationId(applicationId);
+
+        String response = mvc.perform(post("/api/v1/recruiter/conversations/{id}/messages", conversationId)
+                        .header("Authorization", recruiter(f))
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Thanks for applying\",\"clientMessageId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.senderType").value("RECRUITER"))
+                .andExpect(jsonPath("$.data.body").value("Thanks for applying"))
+                .andReturn().getResponse().getContentAsString();
+
+        String messageId = mapper.readTree(response).at("/data/messageId").asText();
+        mvc.perform(get("/api/v1/candidate/conversations/{id}/messages", conversationId)
+                        .header("Authorization", candidate(f)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].messageId").value(messageId))
+                .andExpect(jsonPath("$.data[0].deliveryStatus").value("SENT"));
+    }
+
     @Test void conversationIsCompanyScoped() throws Exception {
         Fixture a = fixture("Company A Candidate");
         String jobId = job(a, "A Job");

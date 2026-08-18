@@ -20,6 +20,9 @@ import com.adproject.candidate.data.contract.Salary
 import com.adproject.candidate.data.contract.Visibility
 import com.adproject.candidate.data.contract.WorkplaceType
 import com.adproject.candidate.feature.auth.AuthViewModel
+import com.adproject.candidate.feature.auth.OnboardingUiState
+import com.adproject.candidate.feature.auth.RegisterUiState
+import com.adproject.candidate.feature.auth.SignInUiState
 import com.adproject.candidate.feature.jobs.JobDetailViewModel
 import com.adproject.candidate.feature.jobs.JobFeedViewModel
 import com.adproject.candidate.feature.jobs.SavedJobsViewModel
@@ -57,6 +60,9 @@ class ViewModelTest {
         assertTrue(viewModel.signIn.value.submitting)
         auth.loginResult.complete(ApiResult.Success(Unit))
         advanceUntilIdle()
+        assertFalse(viewModel.signIn.value.submitting)
+        assertEquals("", viewModel.signIn.value.email)
+        assertEquals("", viewModel.signIn.value.password)
 
         viewModel.updateFullName("Candidate")
         viewModel.updateRegisterEmail("new@example.com")
@@ -67,6 +73,42 @@ class ViewModelTest {
         viewModel.register()
         advanceUntilIdle()
         assertEquals(1, auth.registerCalls)
+    }
+
+    @Test fun authResetClearsSensitiveFieldsErrorsAndSubmissionLocks() = runTest(main.dispatcher) {
+        val viewModel = AuthViewModel(QueuedAuthRepository(ApiResult.Failure("Nope")))
+        viewModel.updateSignInEmail("candidate@example.com")
+        viewModel.updateSignInPassword("UnitOnly9!")
+        viewModel.updateFullName("Previous candidate")
+        viewModel.updateRegisterEmail("previous@example.com")
+        viewModel.updateRegisterPassword("UnitOnly9!")
+        viewModel.updateConfirmPassword("UnitOnly9!")
+        viewModel.updateAgreed(true)
+
+        viewModel.resetForSignedOut()
+
+        assertEquals(SignInUiState(), viewModel.signIn.value)
+        assertEquals(RegisterUiState(), viewModel.register.value)
+        assertEquals(OnboardingUiState(), viewModel.onboarding.value)
+    }
+
+    @Test fun minimalOnboardingDoesNotRequireResumeSummary() = runTest(main.dispatcher) {
+        val auth = OnboardingAuthRepository()
+        val viewModel = AuthViewModel(auth)
+        viewModel.updateOnboardingHeadline("QA Engineer")
+        viewModel.updateOnboardingLocation("Johor Bahru")
+        viewModel.updateOnboardingAge("24")
+        viewModel.updateOnboardingSkills("Testing")
+        viewModel.updateDesiredTitle("QA Engineer")
+        viewModel.updatePreferredLocation("Johor Bahru")
+
+        viewModel.completeOnboarding()
+        advanceUntilIdle()
+
+        assertEquals(1, auth.onboardingCalls)
+        assertEquals("", auth.lastOnboarding?.resumeSummary)
+        assertFalse(viewModel.onboarding.value.submitting)
+        assertFalse(viewModel.onboarding.value.fieldErrors.containsKey("resumeSummary"))
     }
 
     @Test fun authValidationAndSafeFailuresReachUiState() = runTest(main.dispatcher) {
@@ -345,6 +387,19 @@ private class QueuedAuthRepository(vararg results: ApiResult<Unit>) : AuthReposi
     override suspend fun login(email: String, password: String): ApiResult<Unit> { loginCalls++; return queue.removeFirst() }
     override suspend fun register(fullName: String, email: String, password: String): ApiResult<Unit> { registerCalls++; return queue.removeFirst() }
     override suspend fun logout(): ApiResult<Unit> = ApiResult.Success(Unit)
+}
+
+private class OnboardingAuthRepository : AuthRepository {
+    var onboardingCalls = 0
+    var lastOnboarding: com.adproject.candidate.data.contract.CandidateOnboardingRequest? = null
+    override suspend fun login(email: String, password: String): ApiResult<Unit> = ApiResult.Success(Unit)
+    override suspend fun register(fullName: String, email: String, password: String): ApiResult<Unit> = ApiResult.Success(Unit)
+    override suspend fun logout(): ApiResult<Unit> = ApiResult.Success(Unit)
+    override suspend fun completeOnboarding(request: com.adproject.candidate.data.contract.CandidateOnboardingRequest): ApiResult<Unit> {
+        onboardingCalls++
+        lastOnboarding = request
+        return ApiResult.Success(Unit)
+    }
 }
 
 private class QueueJobRepository(

@@ -69,6 +69,19 @@ class JobFeedViewModel(private val repository: CandidateJobRepository) : ViewMod
         load()
     }
 
+    fun applyFilters(employmentType: EmploymentType?, workplaceType: WorkplaceType?,
+                     location: String?, minimumSalary: Long?) {
+        mutableState.update {
+            it.copy(
+                employmentType = employmentType,
+                workplaceType = workplaceType,
+                location = location?.trim()?.takeIf(String::isNotEmpty),
+                minimumSalary = minimumSalary,
+            )
+        }
+        load()
+    }
+
     fun clearFilters() {
         mutableState.update {
             it.copy(employmentType = null, workplaceType = null, location = null, minimumSalary = null)
@@ -432,7 +445,7 @@ private fun toUiJob(job: RecommendedJob) = Job(
     title = job.title,
     company = job.companyName,
     companyInitial = job.companyName.take(1).uppercase(),
-    companyMeta = "${job.location} • Recommended #${job.rank}",
+    companyMeta = job.location,
     salary = formatSalary(job.salaryCurrency, job.salaryMin.toLong(), job.salaryMax.toLong(), job.salaryPeriod),
     skills = job.skills,
     match = job.matchScore,
@@ -444,13 +457,13 @@ private fun toUiJob(job: RecommendedJob) = Job(
 internal fun formatSalary(currency: String, minimum: Long, maximum: Long, period: String): String {
     val symbol = if (currency.equals("SGD", ignoreCase = true)) "S$" else currency
     val cadence = when (period.uppercase()) {
-        "MONTH" -> "monthly"
-        "YEAR" -> "yearly"
-        "DAY" -> "daily"
-        "HOUR" -> "hourly"
+        "MONTH" -> "month"
+        "YEAR" -> "year"
+        "DAY" -> "day"
+        "HOUR" -> "hour"
         else -> period.lowercase()
     }
-    return "$symbol%,d–%,d · $cadence".format(minimum, maximum)
+    return "$symbol%,d–%,d / $cadence".format(minimum, maximum)
 }
 
 private fun toUiDetail(job: CandidateJob, analysis: MatchAnalysis?,
@@ -459,10 +472,10 @@ private fun toUiDetail(job: CandidateJob, analysis: MatchAnalysis?,
     location = job.location,
     employmentType = job.employmentType.name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase),
     workplace = job.workplaceType.name.lowercase().replaceFirstChar(Char::uppercase),
-    strongMatches = analysis?.strongMatches?.joinToString(" • ").orEmpty(),
-    gap = analysis?.gaps?.joinToString(" • ").orEmpty(),
+    strongMatches = analysis?.strongMatches?.joinToString("\n") { "• $it" }.orEmpty(),
+    gap = analysis?.gaps?.joinToString("\n") { "• $it" }.orEmpty(),
     description = job.description,
-    requirements = job.requirements.joinToString("  ·  "),
+    requirements = job.requirements.joinToString("\n") { "• $it" },
     skills = job.skills,
     deadline = job.deadline,
     publishedAt = job.publishedAt,

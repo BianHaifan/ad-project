@@ -30,6 +30,7 @@ class ProfileResumeViewModelTest {
         assertTrue(viewModel.state.value.saved)
         assertEquals("Updated", viewModel.state.value.data?.fullName)
         assertFalse(viewModel.state.value.editing)
+        assertFalse(viewModel.state.value.submitting)
     }
 
     @Test fun profileValidationAndRetryErrorAreSafe() = runTest(main.dispatcher) {
@@ -117,6 +118,7 @@ class ProfileResumeViewModelTest {
         advanceUntilIdle()
         assertTrue(viewModel.state.value.saved)
         assertFalse(viewModel.state.value.editing)
+        assertFalse(viewModel.state.value.submitting)
         assertEquals(4, viewModel.state.value.data?.version)
     }
 

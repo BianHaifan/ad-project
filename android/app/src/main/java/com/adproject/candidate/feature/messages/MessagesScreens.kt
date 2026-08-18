@@ -79,6 +79,7 @@ import com.adproject.candidate.data.contract.InterviewContext
 import com.adproject.candidate.data.contract.Message
 import com.adproject.candidate.data.contract.MessageAttachment
 import com.adproject.candidate.data.contract.SenderType
+import com.adproject.candidate.feature.community.CommunityDirectConversation
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
@@ -92,6 +93,7 @@ fun MessagesScreen(
     onRefresh: () -> Unit,
     onTab: (MainTab) -> Unit,
     onConversation: (String) -> Unit,
+    onCommunityConversation: (String) -> Unit = {},
 ) {
     Scaffold(bottomBar = { AdBottomBar(MainTab.Messages, onTab) }, containerColor = AdBackground) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 18.dp)) {
@@ -112,7 +114,7 @@ fun MessagesScreen(
                     Modifier.fillMaxWidth().weight(1f),
                     contentAlignment = Alignment.Center,
                 ) { CircularProgressIndicator(color = AdTeal) }
-                state.message != null && state.conversations.isEmpty() -> Column(
+                state.message != null && state.conversations.isEmpty() && state.communityConversations.isEmpty() -> Column(
                     Modifier.fillMaxWidth().weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
@@ -121,7 +123,7 @@ fun MessagesScreen(
                     Spacer(Modifier.height(14.dp))
                     PrimaryButton("Try again", onRetry)
                 }
-                state.conversations.isEmpty() -> Column(
+                state.conversations.isEmpty() && state.communityConversations.isEmpty() -> Column(
                     Modifier.fillMaxWidth().weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
@@ -132,13 +134,46 @@ fun MessagesScreen(
                 else -> LazyColumn(
                     Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(16.dp)).background(Color.White),
                 ) {
+                    if (state.conversations.isNotEmpty()) item {
+                        Text("Hiring conversations", Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            color = AdMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
                     items(state.conversations, key = { it.conversationId }) { conversation ->
                         ConversationRow(conversation, onConversation)
+                        HorizontalDivider(color = Color(0xFFE8EDF0))
+                    }
+                    if (state.communityConversations.isNotEmpty()) item {
+                        Text("Community conversations", Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            color = AdMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    items(state.communityConversations, key = { "community-${it.conversationId}" }) { conversation ->
+                        CommunityConversationRow(conversation, onCommunityConversation)
                         HorizontalDivider(color = Color(0xFFE8EDF0))
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CommunityConversationRow(
+    conversation: CommunityDirectConversation,
+    onConversation: (String) -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().height(88.dp).clickable { onConversation(conversation.conversationId) }.padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(48.dp).clip(CircleShape).background(AdTealSoft), contentAlignment = Alignment.Center) {
+            Text(conversation.participant.fullName.take(1).uppercase(), color = AdTeal, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(conversation.participant.fullName, color = AdText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text("Community direct message", color = AdMuted, fontSize = 12.sp)
+        }
+        Text(formatConversationTime(conversation.updatedAt), color = Color(0xFF89939D), fontSize = 10.sp)
     }
 }
 
@@ -387,6 +422,23 @@ private fun MessageBubble(
                 }
             }
             Text(formatMessageTime(message.sentAt), color = if (sent) Color.White else Color(0xFFD4F5F2), fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+fun DirectTextBubble(body: String, sentAt: String, sent: Boolean) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (sent) Arrangement.End else Arrangement.Start) {
+        Column(
+            Modifier.width(if (sent) 260.dp else 306.dp)
+                .clip(if (sent) RoundedCornerShape(14.dp, 4.dp, 14.dp, 14.dp) else RoundedCornerShape(4.dp, 14.dp, 14.dp, 14.dp))
+                .background(if (sent) AdTeal else Color.White)
+                .then(if (sent) Modifier else Modifier.border(1.dp, Color(0xFFE8EDF0), RoundedCornerShape(4.dp, 14.dp, 14.dp, 14.dp)))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(body, color = if (sent) Color.White else AdText, fontSize = 13.sp, lineHeight = 18.sp)
+            Text(formatMessageTime(sentAt), color = if (sent) Color.White else Color(0xFF6B7885), fontSize = 11.sp)
         }
     }
 }

@@ -16,6 +16,9 @@ import com.fasterxml.jackson.databind.*; import java.util.*; import org.junit.ju
   mvc.perform(get("/api/v1/community/posts/{postId}/images/{imageId}",postId,imageId)).andExpect(status().isOk()).andExpect(content().contentType("image/png"));
   String started=mvc.perform(post("/api/v1/community/posts/{postId}/direct-conversation",postId).header("Authorization","Bearer "+candidate)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();String id=mapper.readTree(started).path("data").path("conversationId").asText();
   mvc.perform(post("/api/v1/community/direct-conversations/{id}/messages",id).header("Authorization","Bearer "+candidate).contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Is this role remote?\"}")).andExpect(status().isCreated());
+  mvc.perform(get("/api/v1/community/direct-conversations").header("Authorization","Bearer "+candidate)).andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(1)).andExpect(jsonPath("$.data[0].conversationId").value(id)).andExpect(jsonPath("$.meta.total").value(1));
+  mvc.perform(get("/api/v1/community/direct-conversations").header("Authorization","Bearer "+recruiter)).andExpect(status().isOk()).andExpect(jsonPath("$.data[0].conversationId").value(id));
+  mvc.perform(get("/api/v1/community/direct-conversations").header("Authorization","Bearer "+other)).andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(0));
   mvc.perform(get("/api/v1/community/direct-conversations/{id}/messages",id).header("Authorization","Bearer "+recruiter)).andExpect(status().isOk()).andExpect(jsonPath("$.data[0].body").value("Is this role remote?"));
   mvc.perform(get("/api/v1/community/direct-conversations/{id}/messages",id).header("Authorization","Bearer "+other)).andExpect(status().isNotFound());
  }

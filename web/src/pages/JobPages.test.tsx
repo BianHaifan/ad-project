@@ -2,16 +2,19 @@ import '@testing-library/jest-dom/vitest';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {createMemoryRouter, RouterProvider} from 'react-router-dom';
-import {afterEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {AuthApiError} from '../api/authClient';
 import {recruiterRepository} from '../api/repository';
 import {jobs} from '../mocks/data';
+import type {Dashboard} from '../models/recruiter';
 import {JobDetailPage} from './JobDetailPage';
 import {JobFormPage} from './JobFormPage';
 import {JobsPage} from './JobsPage';
 
 const testJob = {...jobs[0], jobId: 'job-real-1', title: 'Backend Engineer', status: 'DRAFT' as const,
   publishedAt: null, version: 1};
+const approvedDashboard: Dashboard = {metrics: {activeJobs: 0, appliedApplications: 0, inReviewApplications: 0,
+  interviewApplications: 0, companyVerificationStatus: 'APPROVED'}, recentApplications: [], recentJobs: []};
 
 function renderRoute(path: string, routes: {path: string; element: React.ReactNode}[]) {
   const client = new QueryClient({defaultOptions: {queries: {retry: false}, mutations: {retry: false}}});
@@ -21,7 +24,19 @@ function renderRoute(path: string, routes: {path: string; element: React.ReactNo
 }
 
 describe('real recruiter job pages', () => {
+  beforeEach(() => {vi.spyOn(recruiterRepository, 'getDashboard').mockResolvedValue(approvedDashboard)});
   afterEach(() => {cleanup(); vi.restoreAllMocks();});
+
+  it('blocks the job form before loading a draft when the company is rejected', async () => {
+    vi.mocked(recruiterRepository.getDashboard).mockResolvedValue({
+      ...approvedDashboard, metrics: {...approvedDashboard.metrics, companyVerificationStatus: 'REJECTED'},
+    });
+    const getJob = vi.spyOn(recruiterRepository, 'getJob');
+    renderRoute('/recruiter/jobs/job-real-1/edit', [{path: '/recruiter/jobs/:jobId/edit', element: <JobFormPage/>}]);
+    expect(await screen.findByText('Job management is unavailable')).toBeInTheDocument();
+    expect(screen.getByText(/contact an administrator/i)).toBeInTheDocument();
+    expect(getJob).not.toHaveBeenCalled();
+  });
 
   it('loads and renders the authenticated real job list', async () => {
     const list = vi.spyOn(recruiterRepository, 'listJobs').mockResolvedValue({data: [testJob], meta: {page: 1, pageSize: 20, total: 1, hasNext: false}});
@@ -109,6 +124,7 @@ describe('real recruiter job pages', () => {
       {path: '/recruiter/jobs/:jobId', element: <div>Persisted detail route</div>},
       {path: '/recruiter/jobs', element: <div>Jobs route</div>},
     ]);
+    await screen.findByLabelText('Job title *');
     fillRequiredForm();
     const button = screen.getByRole('button', {name: 'Save draft'});
     fireEvent.click(button);
@@ -121,20 +137,14 @@ describe('real recruiter job pages', () => {
     expect(router.state.location.pathname).toBe('/recruiter/jobs/job-real-1');
   });
 
-  it('maps server field errors and shows a clear pending-company denial', async () => {
+  it('maps server field errors safely', async () => {
     vi.spyOn(recruiterRepository, 'createJob').mockRejectedValueOnce(new AuthApiError(422, 'VALIDATION_ERROR', 'raw', {title: 'Server title error'}));
     renderRoute('/recruiter/jobs/new', [{path: '/recruiter/jobs/new', element: <JobFormPage/>}, {path: '/recruiter/jobs', element: <div/>}]);
+    await screen.findByLabelText('Job title *');
     fillRequiredForm();
     fireEvent.click(screen.getByRole('button', {name: 'Save draft'}));
     expect(await screen.findByText('Server title error')).toBeInTheDocument();
     expect(screen.queryByText('raw')).not.toBeInTheDocument();
-    cleanup();
-    vi.restoreAllMocks();
-    vi.spyOn(recruiterRepository, 'createJob').mockRejectedValue(new AuthApiError(403, 'FORBIDDEN', 'raw forbidden'));
-    renderRoute('/recruiter/jobs/new', [{path: '/recruiter/jobs/new', element: <JobFormPage/>}, {path: '/recruiter/jobs', element: <div/>}]);
-    fillRequiredForm();
-    fireEvent.click(screen.getByRole('button', {name: 'Save draft'}));
-    expect(await screen.findByText('Your company must be approved before you can create a job draft.')).toBeInTheDocument();
   });
 
   it('loads a real detail and presents a safe not-found state', async () => {
@@ -372,4 +382,7 @@ function fillRequiredForm() {
   fireEvent.change(screen.getByLabelText('Job title *'), {target: {value: 'Real created role'}});
   fireEvent.change(screen.getByLabelText('Job description *'), {target: {value: 'Build real backend services'}});
   fireEvent.change(screen.getByLabelText('Requirements *'), {target: {value: 'Build reliable APIs'}});
+  const skill = screen.getByLabelText('Add a skill');
+  fireEvent.change(skill, {target: {value: 'Java'}});
+  fireEvent.keyDown(skill, {key: 'Enter'});
 }

@@ -147,6 +147,32 @@ describe('MessagesPage', () => {
     expect(screen.getByPlaceholderText('Write a message…')).toHaveValue('hello');
   });
 
+  it('opens a directly linked conversation even when it is outside the current list page', async () => {
+    vi.spyOn(recruiterRepository, 'listConversations')
+      .mockResolvedValue({data: [], meta: {...listMeta, total: 101}});
+    vi.spyOn(recruiterRepository, 'getConversation').mockResolvedValue(detail);
+    vi.spyOn(recruiterRepository, 'listMessages').mockResolvedValue({data: [candidateMessage], meta: messageMeta});
+    renderMessages('/recruiter/messages/conv-1');
+    expect(await screen.findByText('Application conversation')).toBeInTheDocument();
+    expect(screen.getByText('Hi recruiter')).toBeInTheDocument();
+    expect(screen.queryByText('Conversation not found')).not.toBeInTheDocument();
+  });
+
+  it('explains a network send failure and clears the stale error after editing', async () => {
+    mockConversation();
+    const sendMessage = vi.spyOn(recruiterRepository, 'sendMessage')
+      .mockRejectedValue(new AuthApiError(0, 'NETWORK_ERROR', 'private detail'));
+    renderMessages('/recruiter/messages/conv-1');
+    await screen.findAllByText('Yan Bohao');
+    const input = screen.getByPlaceholderText('Write a message…');
+    fireEvent.change(input, {target: {value: 'hello'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Send'}));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalled());
+    expect(await screen.findByRole('alert')).toHaveTextContent(/connection lost/i);
+    fireEvent.change(input, {target: {value: 'hello again'}});
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('downloads an image attachment via the repository and renders a preview', async () => {
     vi.spyOn(recruiterRepository, 'listConversations').mockResolvedValue({data: [summary], meta: listMeta});
     vi.spyOn(recruiterRepository, 'getConversation').mockResolvedValue(detail);

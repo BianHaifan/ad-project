@@ -70,9 +70,16 @@ function jobDraftPayload(input: JobDraft) {
     description: input.description.trim(),
     requirements: input.requirements.split('\n').map(value => value.trim()).filter(Boolean),
     skills: input.skills,
-    deadline: input.deadline ? new Date(`${input.deadline}T15:59:59Z`).toISOString() : null,
+    deadline: input.deadline ? singaporeEndOfDayUtc(input.deadline) : null,
     visibility: input.visibility,
   };
+}
+
+export function singaporeEndOfDayUtc(date: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) throw new Error('Invalid YYYY-MM-DD date');
+  const [, year, month, day] = match;
+  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 15, 59, 59)).toISOString();
 }
 
 function parseJobEnvelope(payload: unknown): RecruiterJobSummary {

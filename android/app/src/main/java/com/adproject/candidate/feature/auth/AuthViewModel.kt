@@ -83,6 +83,15 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
     fun updateResetPassword(value: String) = mutableReset.update { it.copy(password = value, message = null) }
     fun updateResetConfirm(value: String) = mutableReset.update { it.copy(confirmPassword = value, message = null) }
     fun restartPasswordReset() = mutableReset.update { PasswordResetUiState(email = it.email) }
+    fun resetSignIn() { mutableSignIn.value = SignInUiState() }
+    fun resetRegister() { mutableRegister.value = RegisterUiState() }
+    fun resetOnboarding() { mutableOnboarding.value = OnboardingUiState() }
+    fun resetForSignedOut() {
+        resetSignIn()
+        resetRegister()
+        mutableReset.value = PasswordResetUiState()
+        resetOnboarding()
+    }
 
     fun updateOnboardingHeadline(value: String) = mutableOnboarding.update { it.copy(headline = value, fieldErrors = it.fieldErrors - "headline", message = null) }
     fun updateOnboardingLocation(value: String) = mutableOnboarding.update { it.copy(location = value, fieldErrors = it.fieldErrors - "location", message = null) }
@@ -105,7 +114,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
         mutableSignIn.update { it.copy(submitting = true, message = null) }
         viewModelScope.launch {
             when (val result = repository.login(state.email.trim(), state.password)) {
-                is ApiResult.Success -> Unit
+                is ApiResult.Success -> resetSignIn()
                 is ApiResult.Failure -> mutableSignIn.update {
                     it.copy(submitting = false, fieldErrors = result.fieldErrors, message = result.message)
                 }
@@ -124,7 +133,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
         mutableRegister.update { it.copy(submitting = true, message = null) }
         viewModelScope.launch {
             when (val result = repository.register(state.fullName.trim(), state.email.trim(), state.password)) {
-                is ApiResult.Success -> Unit
+                is ApiResult.Success -> resetRegister()
                 is ApiResult.Failure -> mutableRegister.update {
                     it.copy(submitting = false, fieldErrors = result.fieldErrors, message = result.message)
                 }
@@ -133,7 +142,10 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
     }
 
     fun logout() {
-        viewModelScope.launch { repository.logout() }
+        viewModelScope.launch {
+            repository.logout()
+            resetForSignedOut()
+        }
     }
 
     fun requestPasswordReset() {
@@ -192,7 +204,6 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
             if (state.headline.isBlank()) put("headline", "Headline is required")
             if (state.location.isBlank()) put("location", "Location is required")
             if (age == null || age !in 16..100) put("age", "Age must be between 16 and 100")
-            if (state.summary.isBlank()) put("resumeSummary", "Summary is required")
             if (skills.isEmpty()) put("skills", "Add at least one skill")
             if (state.desiredTitle.isBlank()) put("desiredTitle", "Target role is required")
             if (state.preferredLocation.isBlank()) put("preferredLocation", "Preferred location is required")

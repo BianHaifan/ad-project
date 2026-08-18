@@ -92,7 +92,7 @@ function ConnectionPanel({connection, submitting, onConnect, onDisconnect}: {
 
 function describeActionError(error: unknown): string {
   if (error instanceof AuthApiError && error.code === 'GOOGLE_OAUTH_NOT_CONFIGURED') {
-    return 'Google integration is not configured in this demo environment yet.';
+    return 'Google integration is not configured for this environment.';
   }
   return 'Something went wrong. Please try again.';
 }

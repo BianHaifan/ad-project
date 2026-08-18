@@ -41,6 +41,7 @@ class CommunityViewModel(private val repository: CommunityRepository) : ViewMode
     fun search() = loadFirst(refreshing = true)
     fun retry() = loadFirst()
     fun refresh() = loadFirst(refreshing = true)
+    fun reset() { mutableState.value = CommunityUiState() }
     fun applyPostUpdate(post: CommunityPost) {
         mutableState.update { state -> state.copy(posts = state.posts.map { if (it.id == post.id) post else it }) }
     }

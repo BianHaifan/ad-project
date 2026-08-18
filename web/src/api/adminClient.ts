@@ -8,10 +8,8 @@ import type {
   CompanyVerificationStatus,
   DataResponse,
   ListResponse,
-  ModerationCase,
-  ModerationSourceType,
-  ModerationStatus,
   UserStatus,
+  UpdateAdminCompanyInput,
 } from '../models/admin';
 
 type RequestClient = Pick<AuthClient, 'requestWithAuth'>;
@@ -28,14 +26,6 @@ export interface UserListParams {
 export interface CompanyListParams {
   q?: string;
   status?: CompanyVerificationStatus | '';
-  page?: number;
-  pageSize?: number;
-}
-
-export interface ModerationListParams {
-  q?: string;
-  sourceType?: ModerationSourceType | '';
-  status?: ModerationStatus | '';
   page?: number;
   pageSize?: number;
 }
@@ -77,24 +67,18 @@ export class AdminClient {
     return (await this.client.requestWithAuth<DataResponse<CompanyReview>>(apiPaths.companyReview(companyId))).data;
   }
 
-  async reviewCompany(company: CompanyReview, decision: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES', reason: string) {
+  async reviewCompany(company: CompanyReview, decision: 'APPROVE' | 'REJECT', reason: string) {
     const path = decision === 'APPROVE' ? apiPaths.approveCompany(company.companyId)
-      : decision === 'REJECT' ? apiPaths.rejectCompany(company.companyId)
-        : apiPaths.requestCompanyChanges(company.companyId);
+      : apiPaths.rejectCompany(company.companyId);
     return (await this.client.requestWithAuth<DataResponse<CompanyReview>>(path, {
       method: 'POST', body: JSON.stringify({reason, expectedVersion: company.version}),
     })).data;
   }
 
-  listModerationCases(params: ModerationListParams = {}): Promise<ListResponse<ModerationCase>> {
-    return this.client.requestWithAuth(withQuery(apiPaths.moderationCases, params));
-  }
-
-  async decideModeration(moderationCase: ModerationCase, decision: 'KEEP' | 'REMOVE', reason: string) {
-    return (await this.client.requestWithAuth<DataResponse<ModerationCase>>(
-      apiPaths.moderationDecision(moderationCase.caseId), {
-        method: 'POST', body: JSON.stringify({decision, reason, expectedVersion: moderationCase.version}),
-      })).data;
+  async updateCompany(company: CompanyReview, input: UpdateAdminCompanyInput): Promise<CompanyReview> {
+    return (await this.client.requestWithAuth<DataResponse<CompanyReview>>(apiPaths.updateCompany(company.companyId), {
+      method: 'PATCH', body: JSON.stringify({...input, expectedVersion: company.version}),
+    })).data;
   }
 
   listAuditEvents(params: {actorId?: string; action?: string; targetType?: string; page?: number; pageSize?: number} = {}) {

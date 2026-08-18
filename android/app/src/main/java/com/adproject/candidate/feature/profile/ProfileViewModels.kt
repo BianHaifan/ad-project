@@ -47,6 +47,7 @@ class CandidateProfileViewModel(
     private val mutable = MutableStateFlow(ProfileUiState())
     val state: StateFlow<ProfileUiState> = mutable
     init { load() }
+    fun reset() { mutable.value = ProfileUiState() }
     fun load() {
         mutable.value = ProfileUiState()
         viewModelScope.launch {
@@ -92,7 +93,9 @@ class CandidateProfileViewModel(
                 expectedVersion = current.data.version,
             )
             when (val result = repository.update(request)) {
-                is ApiResult.Success -> mutable.update { it.copy(loading = false, data = result.value, saved = true, editing = false) }
+                is ApiResult.Success -> mutable.update {
+                    it.copy(loading = false, data = result.value, submitting = false, saved = true, editing = false)
+                }
                 is ApiResult.Failure -> mutable.update { it.copy(submitting = false, message = result.message, fieldErrors = result.fieldErrors) }
             }
         }
@@ -161,6 +164,7 @@ class CandidateResumeViewModel(private val repository: CandidateResumeRepository
     private val mutable = MutableStateFlow(ResumeUiState())
     val state: StateFlow<ResumeUiState> = mutable
     init { load() }
+    fun reset() { mutable.value = ResumeUiState() }
     fun load() {
         mutable.value = ResumeUiState()
         viewModelScope.launch {

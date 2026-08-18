@@ -20,8 +20,8 @@ public record CreateJobRequest(
         @NotBlank @Size(max = 100) String location,
         @NotNull @Valid Salary salary,
         @NotBlank String description,
-        @NotNull List<@NotBlank String> requirements,
-        @NotNull List<@NotBlank String> skills,
+        @NotNull @Size(min = 1, max = 100) List<@NotBlank @Size(max = 200) String> requirements,
+        @NotNull @Size(min = 1, max = 100) List<@NotBlank @Size(max = 200) String> skills,
         @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
                 message = "must be an ISO-8601 UTC date-time ending in Z") String deadline,
         @NotNull Visibility visibility

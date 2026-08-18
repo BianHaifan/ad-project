@@ -48,7 +48,7 @@ export function AdminAuthPage({client = authClient}: {client?: AdminAuthClient})
         <span className="admin-eyebrow">TRUST & SAFETY</span>
         <h1>Control access.<br/>Protect trust.</h1>
         <p>Review companies, secure user access, and resolve reported content from one accountable workspace.</p>
-        <ul><li>Account status and admin access controls</li><li>Company verification decisions</li><li>Reasoned, traceable moderation actions</li></ul>
+        <ul><li>Account status and admin access controls</li><li>Company verification decisions</li><li>Reasoned, traceable administrative actions</li></ul>
       </div>
       <small>Every high-impact action is recorded in the audit log.</small>
     </aside>

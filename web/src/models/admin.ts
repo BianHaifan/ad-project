@@ -1,8 +1,6 @@
 export type BusinessRole = 'CANDIDATE' | 'RECRUITER';
 export type UserStatus = 'ACTIVE' | 'DISABLED';
-export type CompanyVerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
-export type ModerationSourceType = 'COMMUNITY_POST' | 'COMMUNITY_COMMENT';
-export type ModerationStatus = 'PENDING' | 'KEPT' | 'REMOVED';
+export type CompanyVerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface PageMeta {
   page: number;
@@ -46,19 +44,9 @@ export interface CompanyReview {
   updatedAt: string;
 }
 
-export interface ModerationCase {
-  caseId: string;
-  sourceType: ModerationSourceType;
-  sourceId: string;
-  authorId: string | null;
-  authorName: string | null;
-  contentSnapshot: string;
-  reportReason: string;
-  reportCount: number;
-  status: ModerationStatus;
-  version: number;
-  createdAt: string;
-  updatedAt: string;
+export interface UpdateAdminCompanyInput {
+  name: string; logoUrl: string | null; website: string | null; stage: string | null;
+  employeeRange: string | null; location: string | null; description: string | null; reason: string;
 }
 
 export interface AuditEvent {

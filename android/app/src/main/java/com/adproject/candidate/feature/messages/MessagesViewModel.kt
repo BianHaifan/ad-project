@@ -11,6 +11,8 @@ import com.adproject.candidate.data.contract.ConversationSummary
 import com.adproject.candidate.data.contract.Message
 import com.adproject.candidate.data.contract.ReadStateRequest
 import com.adproject.candidate.data.contract.SendMessageRequest
+import com.adproject.candidate.feature.community.CommunityDirectConversation
+import com.adproject.candidate.feature.community.CommunityRepository
 import java.util.UUID
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -24,10 +26,14 @@ data class MessagesUiState(
     val loading: Boolean = true,
     val refreshing: Boolean = false,
     val conversations: List<ConversationSummary> = emptyList(),
+    val communityConversations: List<CommunityDirectConversation> = emptyList(),
     val message: String? = null,
 )
 
-class MessagesViewModel(private val repository: CandidateConversationRepository) : ViewModel() {
+class MessagesViewModel(
+    private val repository: CandidateConversationRepository,
+    private val communityRepository: CommunityRepository? = null,
+) : ViewModel() {
     private val mutableState = MutableStateFlow(MessagesUiState())
     val state: StateFlow<MessagesUiState> = mutableState.asStateFlow()
 
@@ -61,7 +67,7 @@ class MessagesViewModel(private val repository: CandidateConversationRepository)
             inFlight = true
             try {
                 mutableState.update {
-                    it.copy(loading = it.conversations.isEmpty() && !refreshing, refreshing = refreshing, message = null)
+                    it.copy(loading = it.conversations.isEmpty() && it.communityConversations.isEmpty() && !refreshing, refreshing = refreshing, message = null)
                 }
                 fetchSilently()
             } finally {
@@ -81,26 +87,37 @@ class MessagesViewModel(private val repository: CandidateConversationRepository)
     }
 
     private suspend fun fetchSilently() {
+        val communityResult = communityRepository?.directConversations()
         when (val result = repository.conversations()) {
             is ApiResult.Success -> {
                 consecutiveFailures = 0
                 mutableState.update {
-                    it.copy(loading = false, refreshing = false, conversations = result.value.conversations, message = null)
+                    it.copy(
+                        loading = false,
+                        refreshing = false,
+                        conversations = result.value.conversations,
+                        communityConversations = (communityResult as? ApiResult.Success)?.value ?: it.communityConversations,
+                        message = null,
+                    )
                 }
             }
             is ApiResult.Failure -> {
                 consecutiveFailures++
-                mutableState.update { it.copy(loading = false, refreshing = false, message = result.message) }
+                mutableState.update {
+                    val community = (communityResult as? ApiResult.Success)?.value ?: it.communityConversations
+                    it.copy(loading = false, refreshing = false, communityConversations = community,
+                        message = if (community.isEmpty()) result.message else null)
+                }
             }
         }
     }
 
     companion object {
-        fun factory(repository: CandidateConversationRepository): ViewModelProvider.Factory =
+        fun factory(repository: CandidateConversationRepository, communityRepository: CommunityRepository? = null): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    MessagesViewModel(repository) as T
+                    MessagesViewModel(repository, communityRepository) as T
             }
     }
 }

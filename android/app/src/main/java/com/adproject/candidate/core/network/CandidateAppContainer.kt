@@ -54,6 +54,7 @@ class CandidateAppContainer(context: Context) {
         .addConverterFactory(converter)
         .client(
             OkHttpClient.Builder()
+                .addInterceptor(ReadRetryInterceptor())
                 .sslSocketFactory(sslSocketFactory, trustManager)
                 .certificatePinner(pinner)
                 .build(),
@@ -64,6 +65,7 @@ class CandidateAppContainer(context: Context) {
     private val authenticatedClient = OkHttpClient.Builder()
         .sslSocketFactory(sslSocketFactory, trustManager)
         .certificatePinner(pinner)
+        .addInterceptor(ReadRetryInterceptor())
         .addInterceptor(AccessTokenInterceptor(sessionManager))
         .authenticator(RefreshAuthenticator(sessionManager))
         .build()

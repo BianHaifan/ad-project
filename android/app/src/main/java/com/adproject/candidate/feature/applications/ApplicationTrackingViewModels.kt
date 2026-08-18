@@ -30,6 +30,7 @@ class ApplicationListViewModel(private val repository: CandidateApplicationRepos
     fun load() = loadPage(1, replace = true, refreshing = false)
     fun retry() = load()
     fun refresh() = loadPage(1, replace = true, refreshing = true)
+    fun reset() { mutable.value = ApplicationListUiState() }
 
     fun selectFilter(filter: ApplicationListFilter?) {
         if (mutable.value.filter == filter) return

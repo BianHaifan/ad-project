@@ -1,15 +1,12 @@
-import type {CompanyVerificationStatus, ModerationStatus, UserStatus} from '../models/admin';
+import type {CompanyVerificationStatus, UserStatus} from '../models/admin';
 
-type Status = CompanyVerificationStatus | ModerationStatus | UserStatus;
+type Status = CompanyVerificationStatus | UserStatus;
 const labels: Record<Status, string> = {
   ACTIVE: 'Active',
   DISABLED: 'Disabled',
   PENDING: 'Pending',
   APPROVED: 'Approved',
   REJECTED: 'Rejected',
-  CHANGES_REQUESTED: 'Changes requested',
-  KEPT: 'Kept',
-  REMOVED: 'Removed',
 };
 
 export function AdminStatusBadge({status}: {status: Status}) {

@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.adproject.candidate.R
 import com.adproject.candidate.core.designsystem.*
 import com.adproject.candidate.data.contract.*
 import java.time.OffsetDateTime
@@ -35,9 +36,9 @@ fun RealMyApplicationsScreen(
 ) {
     Scaffold(
         topBar = { AdTopBar("My applications", onBack, action = {
-            TextButton(onClick = onRefresh, enabled = !state.refreshing && !state.loading) {
-                Text(if (state.refreshing) "Refreshing…" else "Refresh", color = AdTealDark, fontSize = 11.sp)
-            }
+            if (state.refreshing) CircularProgressIndicator(Modifier.size(22.dp), color = AdTeal, strokeWidth = 2.dp)
+            else FigmaSvg(R.raw.hirex_refresh, "Refresh applications",
+                Modifier.size(26.dp).clickable(enabled = !state.loading, onClick = onRefresh))
         }) },
         bottomBar = { AdBottomBar(MainTab.Me, onTab) },
         containerColor = AdBackground,

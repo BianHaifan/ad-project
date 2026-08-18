@@ -92,39 +92,67 @@ class AdminIntegrationTest {
     }
 
     @Test
-    void companyReviewAndRecruiterRemediationFollowTheDeclaredStateMachine() throws Exception {
+    void companyReviewIsFinalAfterApproveOrReject() throws Exception {
         Session admin = createAdmin("company-admin");
         Session recruiter = registerRecruiter("review-company");
-
-        mockMvc.perform(post("/api/v1/admin/companies/{id}/request-changes", recruiter.companyId())
-                        .header("Authorization", bearer(admin.accessToken()))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"Add a public website\",\"expectedVersion\":1}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.verificationStatus").value("CHANGES_REQUESTED"))
-                .andExpect(jsonPath("$.data.version").value(2));
-
-        mockMvc.perform(patch("/api/v1/recruiter/company")
-                        .header("Authorization", bearer(recruiter.accessToken()))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"website\":\"https://example.test\",\"expectedVersion\":2}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.verificationStatus").value("PENDING"))
-                .andExpect(jsonPath("$.data.version").value(3));
-
-        mockMvc.perform(post("/api/v1/admin/companies/{id}/approve", recruiter.companyId())
-                        .header("Authorization", bearer(admin.accessToken()))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"Website verified\",\"expectedVersion\":3}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.verificationStatus").value("APPROVED"));
 
         mockMvc.perform(post("/api/v1/admin/companies/{id}/reject", recruiter.companyId())
                         .header("Authorization", bearer(admin.accessToken()))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"Second decision\",\"expectedVersion\":4}"))
+                        .content("{\"reason\":\"Unable to verify company\",\"expectedVersion\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.verificationStatus").value("REJECTED"))
+                .andExpect(jsonPath("$.data.version").value(2));
+
+        mockMvc.perform(post("/api/v1/admin/companies/{id}/approve", recruiter.companyId())
+                        .header("Authorization", bearer(admin.accessToken()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Changed mind\",\"expectedVersion\":2}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("INVALID_COMPANY_REVIEW_TRANSITION"));
+
+    }
+
+    @Test
+    void onlyAdminCanEditCompanyWithVersionReasonValidationAndAudit() throws Exception {
+        Session admin = createAdmin("company-editor");
+        Session recruiter = registerRecruiter("editable-company");
+        String update = """
+                {"name":"Edited Labs","logoUrl":"https://example.test/logo.png",
+                 "website":"https://example.test","stage":"SERIES_A","employeeRange":"11-50",
+                 "location":"Singapore","description":"Updated public description",
+                 "reason":"Verified public company details","expectedVersion":1}
+                """;
+
+        mockMvc.perform(patch("/api/v1/admin/companies/{id}", recruiter.companyId())
+                        .header("Authorization", bearer(admin.accessToken())).header("X-Request-Id", "req_company_edit")
+                        .contentType(MediaType.APPLICATION_JSON).content(update))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("Edited Labs"))
+                .andExpect(jsonPath("$.data.version").value(2));
+        assertThat(jdbcTemplate.queryForObject("select count(*) from admin_audit_events where target_id=? " +
+                "and action='COMPANY_PROFILE_UPDATED' and request_id='req_company_edit'", Integer.class,
+                recruiter.companyId())).isEqualTo(1);
+
+        mockMvc.perform(patch("/api/v1/admin/companies/{id}", recruiter.companyId())
+                        .header("Authorization", bearer(admin.accessToken())).contentType(MediaType.APPLICATION_JSON)
+                        .content(update)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("VERSION_CONFLICT"));
+        mockMvc.perform(patch("/api/v1/admin/companies/{id}", recruiter.companyId())
+                        .header("Authorization", bearer(admin.accessToken())).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"website\":\"javascript:bad\",\"reason\":\"Check URL\",\"expectedVersion\":2}"))
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.fieldErrors.website").exists());
+        mockMvc.perform(patch("/api/v1/admin/companies/{id}", recruiter.companyId())
+                        .header("Authorization", bearer(admin.accessToken())).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Nope\",\"reason\":\"\",\"expectedVersion\":2}"))
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.fieldErrors.reason").exists());
+        mockMvc.perform(patch("/api/v1/admin/companies/{id}", recruiter.companyId())
+                        .header("Authorization", bearer(recruiter.accessToken())).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Nope\",\"reason\":\"Unauthorized\",\"expectedVersion\":2}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(patch("/api/v1/recruiter/company")
+                        .header("Authorization", bearer(recruiter.accessToken())).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Nope\",\"expectedVersion\":2}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

@@ -41,11 +41,12 @@ class CommunityMySqlFlywayIntegrationTest {
     @Autowired JdbcTemplate jdbcTemplate;
 
     @Test
-    void v25MigratesEmptyMySqlAndMatchesTheCompleteCommunitySchema() {
-        // V24 adds categorized image posts and V25 adds isolated Community direct messages.
+    void v26MigratesEmptyMySqlAndMatchesTheCompleteCommunitySchema() {
+        // V24 adds categorized image posts, V25 adds isolated Community direct messages,
+        // and V26 removes the obsolete company verification state.
         assertThat(jdbcTemplate.queryForObject(
                 "select version from flyway_schema_history where success = 1 order by installed_rank desc limit 1",
-                String.class)).isEqualTo("25");
+                String.class)).isEqualTo("26");
         assertThat(tableNames()).containsExactlyInAnyOrder(
                 "community_posts", "community_post_likes", "community_comments", "community_post_images",
                 "community_direct_conversations", "community_direct_messages");
