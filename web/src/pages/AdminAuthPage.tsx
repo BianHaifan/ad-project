@@ -67,7 +67,7 @@ export function AdminAuthPage({client = authClient}: {client?: AdminAuthClient})
         </label>
         <div className="form-options">
           <label className="check"><input type="checkbox" checked={remember}
-            onChange={event => setRemember(event.target.checked)}/>Remember this browser</label>
+            onChange={event => setRemember(event.target.checked)}/>Remember me</label>
         </div>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="button primary wide" type="submit" disabled={submitting}>

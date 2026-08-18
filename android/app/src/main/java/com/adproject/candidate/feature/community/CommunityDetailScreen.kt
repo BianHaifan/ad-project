@@ -1,6 +1,8 @@
 package com.adproject.candidate.feature.community
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,15 +10,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +34,9 @@ import com.adproject.candidate.core.designsystem.AdText
 import com.adproject.candidate.core.designsystem.AdTopBar
 import com.adproject.candidate.core.designsystem.PrimaryButton
 import com.adproject.candidate.core.designsystem.SecondaryButton
+import com.adproject.candidate.core.designsystem.FigmaSvg
+import com.adproject.candidate.R
+import coil3.compose.AsyncImage
 
 @Composable
 fun CommunityDetailScreen(
@@ -39,6 +48,7 @@ fun CommunityDetailScreen(
     onPublishComment: () -> Unit,
     onLoadMore: () -> Unit,
     onRetryComments: () -> Unit,
+    onMessageAuthor: () -> Unit,
 ) {
     val normalized = normalizeCommunityText(state.commentDraft)
     val count = normalized.codePointCount(0, normalized.length)
@@ -51,13 +61,25 @@ fun CommunityDetailScreen(
             }
             else -> LazyColumn(Modifier.fillMaxSize().padding(padding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item { CommunityPostCard(state.post) }
+                if (state.post.images.isNotEmpty()) item { Column(Modifier.fillMaxWidth().padding(horizontal=16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    state.post.images.forEach { image -> AsyncImage(
+                        model = image.url,
+                        contentDescription = "Post attachment",
+                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop,
+                    ) }
+                } }
+                item { SecondaryButton("Message author",onMessageAuthor,Modifier.fillMaxWidth().padding(horizontal=16.dp)) }
                 item {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         state.error?.let { Text(it, color = Color(0xFFB42318), fontSize = 12.sp) }
-                        PrimaryButton(
-                            if (state.liking) "Updating…" else if (state.post.likedByCurrentUser) "Unlike (${state.post.likeCount})" else "Like (${state.post.likeCount})",
-                            onToggleLike, Modifier.fillMaxWidth(), enabled = !state.liking,
-                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                            FigmaSvg(if (state.post.likedByCurrentUser) R.raw.hirex_like_active else R.raw.hirex_like_inactive,
+                                if (state.post.likedByCurrentUser) "Unlike post" else "Like post",
+                                Modifier.size(32.dp).clickable(enabled = !state.liking, onClick = onToggleLike))
+                            Text(if (state.liking) " Updating…" else " ${state.post.likeCount}", color = AdTeal,
+                                modifier = Modifier.padding(top = 7.dp))
+                        }
                     }
                 }
                 item { Text("Comments (${state.post.commentCount})", Modifier.padding(horizontal = 18.dp), color = AdText, fontWeight = FontWeight.Bold) }

@@ -30,6 +30,8 @@ import com.adproject.candidate.feature.applications.RealMyApplicationsScreen
 import com.adproject.candidate.feature.applications.RealApplicationDetailScreen
 import com.adproject.candidate.feature.auth.CreateAccountScreen
 import com.adproject.candidate.feature.auth.SignInScreen
+import com.adproject.candidate.feature.auth.PasswordResetScreen
+import com.adproject.candidate.feature.auth.CandidateOnboardingScreen
 import com.adproject.candidate.feature.auth.AuthViewModel
 import com.adproject.candidate.feature.jobs.JobDetailScreen
 import com.adproject.candidate.feature.jobs.JobFeedScreen
@@ -57,12 +59,17 @@ import com.adproject.candidate.feature.community.CommunityScreen
 import com.adproject.candidate.feature.community.CommunityViewModel
 import com.adproject.candidate.feature.community.CommunityDetailScreen
 import com.adproject.candidate.feature.community.CommunityDetailViewModel
+import com.adproject.candidate.feature.community.CommunityCreatePostScreen
+import com.adproject.candidate.feature.community.CommunityDirectViewModel
+import com.adproject.candidate.feature.community.CommunityDirectMessageScreen
 import com.adproject.candidate.data.api.CandidateRepository
 import com.adproject.candidate.data.api.FakeCandidateRepository
 
 private object Route {
     const val SignIn = "sign-in"
     const val CreateAccount = "create-account"
+    const val PasswordReset = "password-reset"
+    const val Onboarding = "onboarding"
     const val Jobs = "jobs"
     const val Messages = "messages"
     const val ChatDetail = "chat-detail/{conversationId}"
@@ -80,6 +87,8 @@ private object Route {
     const val CompanyProfile = "company/{companyId}"
     const val Community = "community"
     const val CommunityDetail = "community/{postId}"
+    const val CommunityCreate = "community-create"
+    const val CommunityDirect = "community-direct/{conversationId}"
 
     fun jobDetail(id: String) = "job-detail/$id"
     fun chatDetail(id: String) = "chat-detail/$id"
@@ -89,6 +98,7 @@ private object Route {
     fun recruiterProfile(id: String) = "recruiter/$id"
     fun companyProfile(id: String) = "company/$id"
     fun communityDetail(id: String) = "community/$id"
+    fun communityDirect(id: String) = "community-direct/$id"
 }
 
 /**
@@ -144,11 +154,15 @@ fun AdCandidateApp(
     val applicationListViewModel: ApplicationListViewModel = viewModel(
         factory = ApplicationListViewModel.factory(container.candidateApplicationRepository),
     )
+    val communityViewModel: CommunityViewModel = viewModel(
+        factory = CommunityViewModel.factory(container.communityRepository),
+    )
     val sessionActive by container.sessionManager.sessionActive.collectAsStateWithLifecycle()
+    val onboardingRequired by container.sessionManager.onboardingRequired.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { container.sessionManager.load() }
 
-    if (sessionActive == null) {
+    if (sessionActive == null || onboardingRequired == null) {
         Surface(Modifier.fillMaxSize(), color = Color.White) {}
         return
     }
@@ -174,9 +188,9 @@ fun AdCandidateApp(
     }
 
     Surface(Modifier.fillMaxSize().safeDrawingPadding(), color = Color.White) {
-        LaunchedEffect(sessionActive) {
+        LaunchedEffect(sessionActive, onboardingRequired) {
             if (sessionActive == true) {
-                navController.navigate(Route.Jobs) {
+                navController.navigate(if (onboardingRequired == true) Route.Onboarding else Route.Jobs) {
                     popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
                     launchSingleTop = true
                 }
@@ -187,7 +201,11 @@ fun AdCandidateApp(
                 }
             }
         }
-        NavHost(navController = navController, startDestination = if (sessionActive == true) Route.Jobs else Route.SignIn) {
+        NavHost(navController = navController, startDestination = when {
+            sessionActive != true -> Route.SignIn
+            onboardingRequired == true -> Route.Onboarding
+            else -> Route.Jobs
+        }) {
             composable(Route.SignIn) {
                 val state by authViewModel.signIn.collectAsStateWithLifecycle()
                 SignInScreen(
@@ -196,6 +214,40 @@ fun AdCandidateApp(
                     onPassword = authViewModel::updateSignInPassword,
                     onSignIn = authViewModel::signIn,
                     onCreateAccount = { navController.navigate(Route.CreateAccount) },
+                    onForgotPassword = { navController.navigate(Route.PasswordReset) },
+                )
+            }
+            composable(Route.PasswordReset) {
+                val state by authViewModel.reset.collectAsStateWithLifecycle()
+                PasswordResetScreen(
+                    state = state,
+                    onEmail = authViewModel::updateResetEmail,
+                    onCode = authViewModel::updateResetCode,
+                    onPassword = authViewModel::updateResetPassword,
+                    onConfirm = authViewModel::updateResetConfirm,
+                    onRequest = authViewModel::requestPasswordReset,
+                    onReset = authViewModel::confirmPasswordReset,
+                    onResend = authViewModel::resendPasswordReset,
+                    onBackToSignIn = {
+                        authViewModel.restartPasswordReset()
+                        navController.navigate(Route.SignIn) { popUpTo(Route.SignIn) { inclusive = false } }
+                    },
+                )
+            }
+            composable(Route.Onboarding) {
+                val state by authViewModel.onboarding.collectAsStateWithLifecycle()
+                CandidateOnboardingScreen(
+                    state = state,
+                    onHeadline = authViewModel::updateOnboardingHeadline,
+                    onLocation = authViewModel::updateOnboardingLocation,
+                    onAge = authViewModel::updateOnboardingAge,
+                    onSummary = authViewModel::updateOnboardingSummary,
+                    onSkills = authViewModel::updateOnboardingSkills,
+                    onDesiredTitle = authViewModel::updateDesiredTitle,
+                    onPreferredLocation = authViewModel::updatePreferredLocation,
+                    onWorkplaceType = authViewModel::updateWorkplaceType,
+                    onEmploymentType = authViewModel::updateEmploymentType,
+                    onComplete = authViewModel::completeOnboarding,
                 )
             }
             composable(Route.CreateAccount) {
@@ -319,20 +371,25 @@ fun AdCandidateApp(
                 )
             }
             composable(Route.Community) {
-                val communityViewModel: CommunityViewModel = viewModel(
-                    factory = CommunityViewModel.factory(container.communityRepository),
-                )
                 val state by communityViewModel.state.collectAsStateWithLifecycle()
                 CommunityScreen(
                     state = state,
                     onTab = ::openTab,
-                    onDraft = communityViewModel::updateDraft,
-                    onPublish = communityViewModel::publish,
+                    onQuery = communityViewModel::updateQuery,
+                    onSearch = communityViewModel::search,
+                    onCategory = communityViewModel::selectCategory,
+                    onCreate = { navController.navigate(Route.CommunityCreate) },
                     onRefresh = communityViewModel::refresh,
                     onRetry = communityViewModel::retry,
                     onLoadMore = communityViewModel::loadMore,
                     onPost = { navController.navigate(Route.communityDetail(it)) },
                 )
+            }
+            composable(Route.CommunityCreate) {
+                val state by communityViewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(state.publishedPostId) { state.publishedPostId?.let { id -> communityViewModel.consumePublished();navController.navigate(Route.communityDetail(id)){popUpTo(Route.Community)} } }
+                CommunityCreatePostScreen(state,{navigateBack(Route.Community)},communityViewModel::updateDraft,
+                    communityViewModel::selectCategory,communityViewModel::updateImages,communityViewModel::publish)
             }
             composable(Route.CommunityDetail) { entry ->
                 val postId = requireNotNull(entry.arguments?.getString("postId"))
@@ -341,12 +398,21 @@ fun AdCandidateApp(
                     factory = CommunityDetailViewModel.factory(postId, container.communityRepository),
                 )
                 val state by detailViewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(state.directConversationId) { state.directConversationId?.let { navController.navigate(Route.communityDirect(it)) } }
                 CommunityDetailScreen(
-                    state = state, onBack = { navigateBack(Route.Community) }, onRetry = detailViewModel::retry,
+                    state = state, onBack = {
+                        state.post?.let(communityViewModel::applyPostUpdate)
+                        navigateBack(Route.Community)
+                    }, onRetry = detailViewModel::retry,
                     onToggleLike = detailViewModel::toggleLike, onComment = detailViewModel::updateComment,
                     onPublishComment = detailViewModel::publishComment, onLoadMore = detailViewModel::loadMore,
                     onRetryComments = detailViewModel::retryComments,
+                    onMessageAuthor = detailViewModel::messageAuthor,
                 )
+            }
+            composable(Route.CommunityDirect) { entry ->
+                val id=requireNotNull(entry.arguments?.getString("conversationId"));val viewModel:CommunityDirectViewModel=viewModel(key="community-direct-$id",factory=CommunityDirectViewModel.factory(id,container.communityRepository));val state by viewModel.state.collectAsStateWithLifecycle()
+                CommunityDirectMessageScreen(state,{navigateBack(Route.Community)},viewModel::load,viewModel::updateDraft,viewModel::send)
             }
             composable(Route.ResumeEdit) {
                 val state by resumeViewModel.state.collectAsStateWithLifecycle()

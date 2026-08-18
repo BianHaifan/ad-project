@@ -41,21 +41,22 @@ class CommunityMySqlFlywayIntegrationTest {
     @Autowired JdbcTemplate jdbcTemplate;
 
     @Test
-    void v14MigratesEmptyMySqlAndMatchesTheCompleteCommunitySchema() {
-        // Community migration is V14, V18-V21 add profile/job features, and V22 adds admin management.
-        // The full merged schema must therefore finish at V22.
+    void v25MigratesEmptyMySqlAndMatchesTheCompleteCommunitySchema() {
+        // V24 adds categorized image posts and V25 adds isolated Community direct messages.
         assertThat(jdbcTemplate.queryForObject(
                 "select version from flyway_schema_history where success = 1 order by installed_rank desc limit 1",
-                String.class)).isEqualTo("22");
+                String.class)).isEqualTo("25");
         assertThat(tableNames()).containsExactlyInAnyOrder(
-                "community_posts", "community_post_likes", "community_comments");
+                "community_posts", "community_post_likes", "community_comments", "community_post_images",
+                "community_direct_conversations", "community_direct_messages");
 
         assertColumns("community_posts", List.of(
                 column("id", "char", "char(36)", "NO", null, "utf8mb4"),
                 column("author_id", "char", "char(36)", "NO", null, "utf8mb4"),
                 column("body", "text", "text", "NO", null, "utf8mb4"),
                 column("created_at", "datetime", "datetime(6)", "NO", 6, null),
-                column("updated_at", "datetime", "datetime(6)", "NO", 6, null)));
+                column("updated_at", "datetime", "datetime(6)", "NO", 6, null),
+                column("category", "varchar", "varchar(32)", "NO", null, "utf8mb4")));
         assertColumns("community_post_likes", List.of(
                 column("post_id", "char", "char(36)", "NO", null, "utf8mb4"),
                 column("user_id", "char", "char(36)", "NO", null, "utf8mb4"),
@@ -74,6 +75,10 @@ class CommunityMySqlFlywayIntegrationTest {
                 .containsExactly("post_id", "created_at", "id");
         assertThat(indexColumns("community_post_likes", "PRIMARY"))
                 .containsExactly("post_id", "user_id");
+        assertThat(indexColumns("community_post_images", "idx_community_post_images_post"))
+                .containsExactly("post_id", "position_index");
+        assertThat(indexColumns("community_direct_messages", "idx_community_direct_messages_page"))
+                .containsExactly("conversation_id", "sent_at", "id");
 
         List<ForeignKeyMetadata> foreignKeys = foreignKeys();
         assertThat(foreignKeys).extracting(ForeignKeyMetadata::mapping).containsExactlyInAnyOrder(
@@ -131,7 +136,8 @@ class CommunityMySqlFlywayIntegrationTest {
     private List<String> tableNames() {
         return jdbcTemplate.queryForList(
                 "select table_name from information_schema.tables where table_schema = database() "
-                        + "and table_name in ('community_posts','community_post_likes','community_comments')",
+                        + "and table_name in ('community_posts','community_post_likes','community_comments',"
+                        + "'community_post_images','community_direct_conversations','community_direct_messages')",
                 String.class);
     }
 

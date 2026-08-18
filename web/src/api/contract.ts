@@ -10,6 +10,8 @@ export const apiPaths = {
   login: '/auth/login',
   refresh: '/auth/refresh',
   logout: '/auth/logout',
+  passwordResetRequest: '/auth/password-reset/request',
+  passwordResetConfirm: '/auth/password-reset/confirm',
   adminMe: '/admin/me',
   adminUsers: '/admin/users',
   adminUser: (userId: string) => `/admin/users/${userId}`,
@@ -57,6 +59,9 @@ export const apiPaths = {
   communityPost: (postId: string) => `/community/posts/${postId}`,
   communityLike: (postId: string) => `/community/posts/${postId}/like`,
   communityComments: (postId: string) => `/community/posts/${postId}/comments`,
+  communityDirectConversation: (postId: string) => `/community/posts/${postId}/direct-conversation`,
+  communityDirectConversationDetail: (id: string) => `/community/direct-conversations/${id}`,
+  communityDirectMessages: (id: string) => `/community/direct-conversations/${id}/messages`,
 } as const;
 
 export function readData<T>(response: DataEnvelope<T>): T { return response.data }

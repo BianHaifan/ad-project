@@ -1,4 +1,4 @@
-import {useRef, useState, type FormEvent} from 'react';
+import {useEffect, useRef, useState, type FormEvent} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
 import {
   AuthApiError,
@@ -27,6 +27,20 @@ export function AuthPage({mode, client = authClient}: {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pageError, setPageError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setFullName('');
+    setCompanyName('');
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setRemember(false);
+    setAcceptedTerms(false);
+    setFieldErrors({});
+    setPageError('');
+    setLoading(false);
+    submittingRef.current = false;
+  }, [mode]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -69,7 +83,7 @@ export function AuthPage({mode, client = authClient}: {
 
   return <main className="auth-layout">
     <aside className="auth-brand">
-      <b>AD PROJECT · RECRUITER</b>
+      <b>HIREX · RECRUITER</b>
       <div>
         <h1>Hire smarter.<br/>Move faster.</h1>
         <p>Publish roles, review applicants, and discover AI-matched talent from one workspace.</p>
@@ -114,7 +128,7 @@ export function AuthPage({mode, client = authClient}: {
         {mode === 'signin' && <div className="form-options">
           <label className="check"><input type="checkbox" checked={remember}
             onChange={event => setRemember(event.target.checked)}/>Remember me</label>
-          <button type="button" className="text-button">Forgot password?</button>
+          <Link className="text-button" to="/recruiter/forgot-password">Forgot password?</Link>
         </div>}
         {mode === 'register' && <div className="form-options">
           <label className="check"><input type="checkbox" checked={acceptedTerms}
@@ -127,7 +141,7 @@ export function AuthPage({mode, client = authClient}: {
           {loading ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </button>
         <Link className="auth-link" to={mode === 'signin' ? '/recruiter/create-account' : '/recruiter/sign-in'}>
-          {mode === 'signin' ? 'New to AD Project? Create recruiter account' : 'Already have an account? Sign in'}
+          {mode === 'signin' ? 'New to HireX? Create recruiter account' : 'Already have an account? Sign in'}
         </Link>
       </form>
     </section>

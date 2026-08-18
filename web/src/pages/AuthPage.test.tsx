@@ -162,4 +162,36 @@ describe('AuthPage', () => {
     await waitFor(() => expect(register).toHaveBeenCalledTimes(2));
     expect(await screen.findByText('Recruiter Dashboard')).toBeInTheDocument();
   });
+
+  it('clears sign-in state when switching to account creation', async () => {
+    const client = {signIn: vi.fn(), register: vi.fn()} as unknown as AuthPageClient;
+    render(<MemoryRouter initialEntries={['/recruiter/sign-in']}><Routes>
+      <Route path="/recruiter/sign-in" element={<AuthPage mode="signin" client={client}/>}/>
+      <Route path="/recruiter/create-account" element={<AuthPage mode="register" client={client}/>}/>
+    </Routes></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText('WORK EMAIL'), {target: {value: 'old@example.com'}});
+    fireEvent.change(screen.getByLabelText('PASSWORD'), {target: {value: 'old-password'}});
+
+    fireEvent.click(screen.getByRole('link', {name: /Create recruiter account/i}));
+
+    await screen.findByRole('heading', {name: 'Create recruiter account'});
+    expect(screen.getByLabelText('WORK EMAIL')).toHaveValue('');
+    expect(screen.getByLabelText('PASSWORD')).toHaveValue('');
+  });
+
+  it('clears registration state when switching back to sign in', async () => {
+    const client = {signIn: vi.fn(), register: vi.fn()} as unknown as AuthPageClient;
+    render(<MemoryRouter initialEntries={['/recruiter/create-account']}><Routes>
+      <Route path="/recruiter/sign-in" element={<AuthPage mode="signin" client={client}/>}/>
+      <Route path="/recruiter/create-account" element={<AuthPage mode="register" client={client}/>}/>
+    </Routes></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText('WORK EMAIL'), {target: {value: 'old@example.com'}});
+    fireEvent.change(screen.getByLabelText('PASSWORD'), {target: {value: 'old-password'}});
+
+    fireEvent.click(screen.getByRole('link', {name: /Already have an account/i}));
+
+    await screen.findByRole('heading', {name: 'Welcome back'});
+    expect(screen.getByLabelText('WORK EMAIL')).toHaveValue('');
+    expect(screen.getByLabelText('PASSWORD')).toHaveValue('');
+  });
 });

@@ -14,6 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.adproject.candidate.feature.jobs.formatSalary
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.mockwebserver.MockResponse
@@ -113,18 +114,37 @@ class CommunityTask5Test {
         } finally { server.shutdown() }
     }
 
+    @Test fun feedAppliesThePostStateReturnedFromDetail() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val initial = post(liked = false)
+        val repo = DetailFake(
+            postResults = mutableListOf(ApiResult.Success(initial)),
+            postPageResult = ApiResult.Success(CommunityPostPage(listOf(initial), PageMeta(1, 20, 1, false))),
+        )
+        val vm = CommunityViewModel(repo); advanceUntilIdle()
+        vm.applyPostUpdate(initial.copy(likeCount = 3, commentCount = 4, likedByCurrentUser = true))
+        assertEquals(3, vm.state.value.posts.single().likeCount)
+        assertEquals(4, vm.state.value.posts.single().commentCount)
+        assertTrue(vm.state.value.posts.single().likedByCurrentUser)
+    }
+
+    @Test fun singaporeMonthlySalaryUsesHireXDisplayFormat() {
+        assertEquals("S$3,200–4,800 · monthly", formatSalary("SGD", 3200, 4800, "MONTH"))
+    }
+
     private fun post(liked: Boolean = false) = CommunityPost("p1", CommunityAuthor("u", "Alex", null, "CANDIDATE", null), "body", 2, 3, liked, "2026-08-16T00:00:00Z", "2026-08-16T00:00:00Z")
     private fun comment(id: String, body: String = "body") = CommunityComment(id, "p1", CommunityAuthor("u", "Alex", null, "CANDIDATE", null), body, "2026-08-16T00:00:00Z", "2026-08-16T00:00:00Z")
 }
 
 private class DetailFake(
     private val postResults: MutableList<ApiResult<CommunityPost>>,
+    private val postPageResult: ApiResult<CommunityPostPage> = ApiResult.Failure("unused"),
     private val commentPages: MutableList<ApiResult<CommunityCommentPage>> = mutableListOf(ApiResult.Success(CommunityCommentPage(emptyList(), PageMeta(1, 20, 0, false)))),
     private val likeResult: ApiResult<CommunityInteraction> = ApiResult.Success(CommunityInteraction("p1", 3, true)),
     private val createCommentResult: ApiResult<CommunityCommentCreated> = ApiResult.Success(CommunityCommentCreated(CommunityComment("c", "p1", CommunityAuthor("u", "A", null, "CANDIDATE", null), "b", "2026-08-16T00:00:00Z", "2026-08-16T00:00:00Z"), 1)),
 ) : CommunityRepository {
     var likeCalls = 0; var createCommentCalls = 0; var lastCommentBody = ""; val commentPagesRequested = mutableListOf<Int>()
-    override suspend fun posts(page: Int, pageSize: Int) = ApiResult.Failure("unused")
+    override suspend fun posts(page: Int, pageSize: Int) = postPageResult
     override suspend fun create(body: String) = ApiResult.Failure("unused")
     override suspend fun post(postId: String) = postResults.removeFirstOrNull() ?: ApiResult.Failure("missing")
     override suspend fun like(postId: String): ApiResult<CommunityInteraction> { likeCalls++; return likeResult }

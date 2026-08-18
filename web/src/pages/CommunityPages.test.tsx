@@ -7,6 +7,7 @@ import {AuthApiError} from '../api/authClient';
 import {communityHttpClient} from '../api/communityHttpClient';
 import {CommunityDetailPage} from './CommunityDetailPage';
 import {CommunityPage} from './CommunityPage';
+import {CommunityCreatePage} from './CommunityCreatePage';
 
 const author={userId:'u1',fullName:'Recruiter One',avatarUrl:null,role:'RECRUITER' as const,companyName:'Acme'};
 const post={id:'p1',author,body:'Persisted post',likeCount:2,commentCount:1,likedByCurrentUser:false,createdAt:'2026-08-16T00:00:00Z',updatedAt:'2026-08-16T00:00:00Z'};
@@ -30,11 +31,12 @@ describe('Community pages',()=>{
     vi.spyOn(communityHttpClient,'listPosts').mockResolvedValue({data:[],meta:{...meta,total:0}});
     let reject!:(reason:unknown)=>void;const pending=new Promise<never>((_,r)=>{reject=r});
     const create=vi.spyOn(communityHttpClient,'createPost').mockReturnValue(pending);
-    renderAt('/recruiter/community');await screen.findByText('No posts yet');
-    const input=screen.getByLabelText('Share an update');fireEvent.change(input,{target:{value:'Keep this text'}});
-    const submit=screen.getByRole('button',{name:'Publish'});fireEvent.click(submit);
+    const router=renderAt('/recruiter/community');await screen.findByText('No matching posts');
+    fireEvent.click(screen.getByRole('button',{name:'Create post'}));await waitFor(()=>expect(router.state.location.pathname).toBe('/recruiter/community/new'));
+    const input=screen.getByLabelText('Post');fireEvent.change(input,{target:{value:'Keep this text'}});
+    const submit=screen.getByRole('button',{name:'Publish post'});fireEvent.click(submit);
     await waitFor(()=>expect(create).toHaveBeenCalledTimes(1));expect(submit).toBeDisabled();fireEvent.click(submit);expect(create).toHaveBeenCalledTimes(1);reject(new AuthApiError(0,'NETWORK_ERROR','private'));
-    expect(await screen.findByText('Could not publish. Your text has been kept.')).toBeInTheDocument();
+    expect(await screen.findByText('Could not publish. Your input has been kept.')).toBeInTheDocument();
     expect(input).toHaveValue('Keep this text');
   });
 
@@ -62,6 +64,6 @@ describe('Community pages',()=>{
 
 function renderAt(path:string){
   const client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});
-  const router=createMemoryRouter([{path:'/recruiter/community',element:<CommunityPage/>},{path:'/recruiter/community/:postId',element:<CommunityDetailPage/>}],{initialEntries:[path]});
+  const router=createMemoryRouter([{path:'/recruiter/community',element:<CommunityPage/>},{path:'/recruiter/community/new',element:<CommunityCreatePage/>},{path:'/recruiter/community/:postId',element:<CommunityDetailPage/>}],{initialEntries:[path]});
   render(<QueryClientProvider client={client}><RouterProvider router={router}/></QueryClientProvider>);return router;
 }

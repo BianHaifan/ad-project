@@ -30,6 +30,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(user.getId())
                 .claim("role", user.getRole().name())
+                .claim("authVersion", user.getAuthVersion())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(properties.accessTokenSeconds())))
                 .id(UUID.randomUUID().toString())
@@ -38,8 +39,17 @@ public class JwtService {
     }
 
     public AuthenticatedUser parse(String token) {
-        Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
-        return new AuthenticatedUser(claims.getSubject(),
-                com.adproject.user.domain.UserRole.valueOf(claims.get("role", String.class)), false);
+        ParsedAccessToken parsed = parseAccessToken(token);
+        return new AuthenticatedUser(parsed.userId(), parsed.role(), false);
     }
+
+    public ParsedAccessToken parseAccessToken(String token) {
+        Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+        Integer authVersion = claims.get("authVersion", Integer.class);
+        return new ParsedAccessToken(claims.getSubject(),
+                com.adproject.user.domain.UserRole.valueOf(claims.get("role", String.class)),
+                authVersion == null ? 1 : authVersion);
+    }
+
+    public record ParsedAccessToken(String userId, com.adproject.user.domain.UserRole role, int authVersion) {}
 }

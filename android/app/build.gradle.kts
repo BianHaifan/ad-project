@@ -113,6 +113,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.6")
 
     implementation("io.coil-kt.coil3:coil-compose:3.3.0")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.3.0")
     implementation("io.coil-kt.coil3:coil-svg:3.3.0")
 
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

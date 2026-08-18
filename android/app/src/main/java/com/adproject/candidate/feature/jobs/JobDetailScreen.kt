@@ -70,15 +70,10 @@ private fun JobDetailContent(state: JobDetailUiState, onBack: () -> Unit, onAppl
     val data = state.data ?: return
     Column(Modifier.fillMaxSize().background(AdBackground)) {
         AdTopBar("Job details", onBack) {
-            Text(
-                if (state.isSaved) "Saved" else "Save",
-                Modifier.clip(RoundedCornerShape(8.dp))
-                    .clickable(enabled = !state.saving) { onToggleSave() }
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                color = if (state.isSaved) AdTealDark else AdMuted,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
+            if (state.saving) CircularProgressIndicator(Modifier.size(22.dp), color = AdTeal, strokeWidth = 2.dp)
+            else FigmaSvg(if (state.isSaved) R.raw.hirex_star_active else R.raw.hirex_star_inactive,
+                if (state.isSaved) "Remove saved job" else "Save job",
+                Modifier.size(28.dp).clickable(onClick = onToggleSave))
         }
         state.saveError?.let { message ->
             Text(message, Modifier.fillMaxWidth().background(Color.White)

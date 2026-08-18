@@ -2,6 +2,9 @@ package com.adproject.candidate.data.api
 
 import com.adproject.candidate.data.contract.AuthData
 import com.adproject.candidate.data.contract.CandidateRegisterRequest
+import com.adproject.candidate.data.contract.CandidateOnboardingRequest
+import com.adproject.candidate.data.contract.PasswordResetRequest
+import com.adproject.candidate.data.contract.PasswordResetConfirmRequest
 import com.adproject.candidate.data.contract.Company
 import com.adproject.candidate.data.contract.ConversationDetail
 import com.adproject.candidate.data.contract.ConversationSummary
@@ -45,6 +48,9 @@ interface AuthHttpApi {
     @POST("auth/login") suspend fun login(@Body request: LoginRequest): Response<DataEnvelope<AuthData>>
     @POST("auth/refresh") suspend fun refresh(@Body request: RefreshTokenRequest): Response<DataEnvelope<TokenData>>
     @POST("auth/logout") suspend fun logout(@Body request: RefreshTokenRequest): Response<Unit>
+    @POST("auth/password-reset/request") suspend fun requestPasswordReset(@Body request: PasswordResetRequest): Response<Unit>
+    @POST("auth/password-reset/confirm") suspend fun confirmPasswordReset(@Body request: PasswordResetConfirmRequest): Response<Unit>
+    @POST("candidate/onboarding") suspend fun completeOnboarding(@Body request: CandidateOnboardingRequest): Response<Unit>
 }
 
 interface CandidateJobHttpApi {

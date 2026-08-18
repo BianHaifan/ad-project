@@ -49,6 +49,9 @@ public class UserEntity {
     @Column(nullable = false)
     private int version;
 
+    @Column(name = "auth_version", nullable = false)
+    private int authVersion;
+
     protected UserEntity() {}
 
     public UserEntity(String id, String email, String passwordHash, String fullName, UserRole role,
@@ -63,6 +66,7 @@ public class UserEntity {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.version = 1;
+        this.authVersion = 1;
     }
 
     public String getId() { return id; }
@@ -75,6 +79,13 @@ public class UserEntity {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public int getVersion() { return version; }
+    public int getAuthVersion() { return authVersion; }
+
+    public void resetPassword(String passwordHash, Instant now) {
+        this.passwordHash = passwordHash;
+        this.authVersion++;
+        touch(now);
+    }
 
     public void updateFullName(String fullName, Instant now) {
         this.fullName = fullName;

@@ -138,16 +138,16 @@ fun Logo(size: Int = 56) {
     Box(
         Modifier.size(size.dp).clip(RoundedCornerShape((size * .32f).dp)).background(AdTeal),
         contentAlignment = Alignment.Center,
-    ) { Text("AD", color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size * .32f).sp) }
+    ) { Text("HX", color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size * .32f).sp) }
 }
 
 @Composable
 fun AdBottomBar(selected: MainTab, onSelected: (MainTab) -> Unit) {
     val icons = mapOf(
-        MainTab.Jobs to (R.raw.nav_jobs to R.raw.nav_jobs_inactive),
-        MainTab.Community to (R.raw.nav_community to R.raw.nav_community_inactive),
-        MainTab.Messages to (R.raw.nav_messages to R.raw.nav_messages_inactive),
-        MainTab.Me to (R.raw.nav_profile to R.raw.nav_jobs_inactive),
+        MainTab.Jobs to (R.raw.hirex_jobs_active to R.raw.hirex_jobs_inactive),
+        MainTab.Community to (R.raw.hirex_community_active to R.raw.hirex_community_inactive),
+        MainTab.Messages to (R.raw.hirex_messages_active to R.raw.hirex_messages_inactive),
+        MainTab.Me to (R.raw.hirex_me_active to R.raw.hirex_me_inactive),
     )
     Column(Modifier.fillMaxWidth().background(Color.White)) {
         HorizontalDivider(color = Color(0xFFF0F2F4))

@@ -21,6 +21,9 @@ import com.adproject.user.domain.UserRole;
 import com.adproject.user.domain.UserStatus;
 import com.adproject.user.infrastructure.UserEntity;
 import com.adproject.user.infrastructure.UserRepository;
+import com.adproject.profile.infrastructure.CandidateProfileRepository;
+import com.adproject.resume.infrastructure.ResumeRepository;
+import com.adproject.recommendation.infrastructure.CandidateJobPreferenceRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
@@ -47,12 +50,17 @@ public class AuthService {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final Clock clock;
+    private final CandidateProfileRepository candidateProfiles;
+    private final ResumeRepository resumes;
+    private final CandidateJobPreferenceRepository preferences;
 
     public AuthService(UserRepository userRepository, CompanyRepository companyRepository,
                        CompanyMemberRepository memberRepository, RefreshTokenRepository refreshTokenRepository,
                        AdminGrantRepository adminGrantRepository,
                        PasswordEncoder passwordEncoder, JwtService jwtService,
-                       RefreshTokenService refreshTokenService, Clock clock) {
+                       RefreshTokenService refreshTokenService, Clock clock,
+                       CandidateProfileRepository candidateProfiles, ResumeRepository resumes,
+                       CandidateJobPreferenceRepository preferences) {
         this.userRepository = userRepository;
         this.companyRepository = companyRepository;
         this.memberRepository = memberRepository;
@@ -62,6 +70,9 @@ public class AuthService {
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
         this.clock = clock;
+        this.candidateProfiles = candidateProfiles;
+        this.resumes = resumes;
+        this.preferences = preferences;
     }
 
     @Transactional
@@ -138,8 +149,12 @@ public class AuthService {
 
     private AuthResponse authResponse(UserEntity user, CompanyEntity company) {
         var refresh = refreshTokenService.issue(user.getId());
+        Boolean onboardingRequired = user.getRole() == UserRole.CANDIDATE
+                ? !(candidateProfiles.existsById(user.getId()) && resumes.findByCandidateId(user.getId()).isPresent()
+                    && preferences.existsById(user.getId()))
+                : null;
         return new AuthResponse(new AuthData(jwtService.createAccessToken(user), refresh.rawToken(), ACCESS_SECONDS,
-                REFRESH_SECONDS, toAuthUser(user, company)));
+                REFRESH_SECONDS, toAuthUser(user, company), onboardingRequired));
     }
 
     private CompanyEntity findCompany(UserEntity user) {

@@ -41,6 +41,7 @@ class CommunityTask2IntegrationTest {
     void clearCommunityData() {
         jdbcTemplate.update("delete from community_post_likes");
         jdbcTemplate.update("delete from community_comments");
+        jdbcTemplate.update("delete from community_post_images");
         jdbcTemplate.update("delete from community_posts");
     }
 

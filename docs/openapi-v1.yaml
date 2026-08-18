@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: AD Project Unified Candidate + Recruiter API
+  title: HireX Unified Candidate + Recruiter API
   version: 1.0.0-draft
   description: 'DRAFT API v1 contract for Candidate Android and Recruiter Web. HTTP Method + normalized Path is
     the unique operation key. JSON fields use camelCase; all IDs are opaque strings; all date-time values are ISO-8601
@@ -143,6 +143,58 @@ paths:
       x-permission: Authenticated session
       description: 'Permission: Authenticated session. Status: DRAFT. Clients: Candidate, Recruiter.'
       x-mvp-scope: MVP
+  /auth/password-reset/request:
+    post:
+      tags: [Auth]
+      summary: Request a one-time password reset code
+      operationId: requestPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetRequest' }
+      responses:
+        '202':
+          description: The same accepted response is returned whether or not the email exists.
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503':
+          description: Email delivery is not configured or unavailable.
+      x-permission: Public
+      x-clients: [Candidate, Recruiter]
+  /auth/password-reset/confirm:
+    post:
+      tags: [Auth]
+      summary: Confirm a one-time code and replace the password
+      operationId: confirmPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetConfirmRequest' }
+      responses:
+        '204': { description: Password changed and all existing sessions revoked. }
+        '422': { $ref: '#/components/responses/ValidationError' }
+      x-permission: Public
+      x-clients: [Candidate, Recruiter]
+  /candidate/onboarding:
+    post:
+      tags: [Profile, Resume, Recommendations]
+      summary: Atomically complete Candidate profile, default resume, and job preferences
+      operationId: completeCandidateOnboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CandidateOnboardingRequest' }
+      responses:
+        '204': { description: Onboarding completed. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+      x-permission: Candidate self
+      x-clients: [Candidate]
   /jobs:
     get:
       tags:
@@ -150,6 +202,12 @@ paths:
       summary: Search and filter jobs
       operationId: listJobs
       parameters:
+      - name: q
+        in: query
+        schema: {type: string}
+      - name: category
+        in: query
+        schema: {$ref: '#/components/schemas/CommunityCategory'}
       - name: q
         in: query
         schema:
@@ -2974,6 +3032,12 @@ paths:
       security:
       - bearerAuth: []
       parameters:
+      - name: q
+        in: query
+        schema: {type: string}
+      - name: category
+        in: query
+        schema: {$ref: '#/components/schemas/CommunityCategory'}
       - $ref: '#/components/parameters/Page'
       - $ref: '#/components/parameters/CommunityPageSize'
       responses:
@@ -2993,7 +3057,7 @@ paths:
       x-mvp-scope: P2_DEMO
     post:
       tags: [Community]
-      summary: Create a text-only community post
+      summary: Create a categorized community post with up to four images
       operationId: createCommunityPost
       security:
       - bearerAuth: []
@@ -3002,6 +3066,17 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/CreateCommunityPostRequest' }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [body, category]
+              properties:
+                body: {type: string, minLength: 1, maxLength: 2000}
+                category: {$ref: '#/components/schemas/CommunityCategory'}
+                images:
+                  type: array
+                  maxItems: 4
+                  items: {type: string, format: binary}
       responses:
         '201':
           description: Community post created
@@ -3017,6 +3092,70 @@ paths:
       x-permission: Authenticated Candidate or Recruiter only
       description: 'Permission: authenticated CANDIDATE or RECRUITER only. Text-only body is trimmed by the server and must contain 1 to 2,000 characters after trimming.'
       x-mvp-scope: P2_DEMO
+  /community/posts/{postId}/images/{imageId}:
+    get:
+      tags: [Community]
+      summary: Download a Community post image
+      operationId: getCommunityPostImage
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/CommunityPostId'
+      - name: imageId
+        in: path
+        required: true
+        schema: {type: string}
+      responses:
+        '200':
+          description: PNG, JPEG, or WebP image bytes
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+            image/webp: {schema: {type: string, format: binary}}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /community/posts/{postId}/direct-conversation:
+    post:
+      tags: [Community]
+      summary: Create or reuse an isolated Community direct conversation with the post author
+      operationId: startCommunityDirectConversation
+      parameters: [{$ref: '#/components/parameters/CommunityPostId'}]
+      responses:
+        '201': {description: Community direct conversation, content: {application/json: {schema: {$ref: '#/components/schemas/CommunityDirectConversationResponse'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /community/direct-conversations/{conversationId}:
+    get:
+      tags: [Community]
+      summary: Get a Community direct conversation visible only to its participants
+      operationId: getCommunityDirectConversation
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      responses:
+        '200': {description: Community direct conversation, content: {application/json: {schema: {$ref: '#/components/schemas/CommunityDirectConversationResponse'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /community/direct-conversations/{conversationId}/messages:
+    get:
+      tags: [Community]
+      summary: List messages visible only to the two Community conversation participants
+      operationId: listCommunityDirectMessages
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200': {description: Messages, content: {application/json: {schema: {$ref: '#/components/schemas/CommunityDirectMessageListResponse'}}}}
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      tags: [Community]
+      summary: Send a Community direct message
+      operationId: sendCommunityDirectMessage
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CreateCommunityCommentRequest'}}}
+      responses:
+        '201': {description: Message sent}
+        '404': {$ref: '#/components/responses/NotFound'}
   /community/posts/{postId}:
     get:
       tags: [Community]
@@ -3647,11 +3786,16 @@ components:
     CommunityPost:
       type: object
       additionalProperties: false
-      required: [id, author, body, likeCount, commentCount, likedByCurrentUser, createdAt, updatedAt]
+      required: [id, author, body, category, images, likeCount, commentCount, likedByCurrentUser, createdAt, updatedAt]
       properties:
         id: { type: string }
         author: { $ref: '#/components/schemas/CommunityAuthor' }
         body: { type: string }
+        category: {$ref: '#/components/schemas/CommunityCategory'}
+        images:
+          type: array
+          maxItems: 4
+          items: {$ref: '#/components/schemas/CommunityImage'}
         likeCount: { type: integer, minimum: 0 }
         commentCount: { type: integer, minimum: 0 }
         likedByCurrentUser: { type: boolean }
@@ -3687,7 +3831,7 @@ components:
     CreateCommunityPostRequest:
       type: object
       additionalProperties: false
-      required: [body]
+      required: [body, category]
       properties:
         body:
           type: string
@@ -3698,6 +3842,45 @@ components:
           x-normalization: trim
           x-trimmed-minLength: 1
           x-trimmed-maxLength: 2000
+        category: {$ref: '#/components/schemas/CommunityCategory'}
+    CommunityCategory:
+      type: string
+      enum: [JOB_SEEKING, RECRUITING, TECH_DISCUSSION, HELP, GENERAL]
+    CommunityImage:
+      type: object
+      required: [imageId, url, contentType, sizeBytes]
+      properties:
+        imageId: {type: string}
+        url: {type: string}
+        contentType: {type: string, enum: [image/png, image/jpeg, image/webp]}
+        sizeBytes: {type: integer, minimum: 1, maximum: 5242880}
+    CommunityDirectConversationResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [conversationId, participant, createdAt, updatedAt]
+          properties:
+            conversationId: {type: string}
+            participant: {$ref: '#/components/schemas/CommunityAuthor'}
+            createdAt: {type: string, format: date-time}
+            updatedAt: {type: string, format: date-time}
+    CommunityDirectMessage:
+      type: object
+      required: [messageId, conversationId, senderId, body, sentAt]
+      properties:
+        messageId: {type: string}
+        conversationId: {type: string}
+        senderId: {type: string}
+        body: {type: string, minLength: 1, maxLength: 2000}
+        sentAt: {type: string, format: date-time}
+    CommunityDirectMessageListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/CommunityDirectMessage'}}
+        meta: {$ref: '#/components/schemas/PageMeta'}
     CreateCommunityCommentRequest:
       type: object
       additionalProperties: false
@@ -3783,6 +3966,38 @@ components:
         password:
           type: string
           format: password
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 255 }
+    PasswordResetConfirmRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code, newPassword]
+      properties:
+        email: { type: string, format: email, maxLength: 255 }
+        code: { type: string, pattern: '^\\d{6}$' }
+        newPassword: { type: string, format: password, minLength: 8, maxLength: 128 }
+    CandidateOnboardingRequest:
+      type: object
+      additionalProperties: false
+      required: [headline, location, age, resumeSummary, skills, desiredTitle, preferredLocation, workplaceType, employmentType]
+      properties:
+        headline: { type: string, minLength: 1, maxLength: 200 }
+        location: { type: string, minLength: 1, maxLength: 100 }
+        age: { type: integer, minimum: 16, maximum: 100 }
+        resumeSummary: { type: string, minLength: 1, maxLength: 5000 }
+        skills:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { type: string, minLength: 1, maxLength: 200 }
+        desiredTitle: { type: string, minLength: 1, maxLength: 200 }
+        preferredLocation: { type: string, minLength: 1, maxLength: 200 }
+        workplaceType: { $ref: '#/components/schemas/WorkplaceType' }
+        employmentType: { $ref: '#/components/schemas/EmploymentType' }
     RefreshTokenRequest:
       type: object
       additionalProperties: false
@@ -3837,6 +4052,9 @@ components:
             properties:
               user:
                 $ref: '#/components/schemas/AuthUser'
+              onboardingRequired:
+                type: [boolean, 'null']
+                description: Present for Candidate accounts; omitted or null for Recruiter accounts.
     TokenResponse:
       type: object
       required:

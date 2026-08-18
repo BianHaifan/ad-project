@@ -15,21 +15,34 @@ class SessionManager(
     private val refreshMutex = Mutex()
     private val mutableSessionActive = MutableStateFlow<Boolean?>(null)
     val sessionActive: StateFlow<Boolean?> = mutableSessionActive
+    private val mutableOnboardingRequired = MutableStateFlow<Boolean?>(null)
+    val onboardingRequired: StateFlow<Boolean?> = mutableOnboardingRequired
 
     suspend fun load() {
-        mutableSessionActive.value = tokenStore.read() != null
+        val stored = tokenStore.read()
+        mutableSessionActive.value = stored != null
+        mutableOnboardingRequired.value = stored?.onboardingRequired ?: false
     }
 
     suspend fun tokens(): SessionTokens? = tokenStore.read()
 
-    suspend fun save(accessToken: String, refreshToken: String) {
-        tokenStore.write(SessionTokens(accessToken, refreshToken))
+    suspend fun save(accessToken: String, refreshToken: String, onboardingRequired: Boolean? = null) {
+        val required = onboardingRequired ?: tokenStore.read()?.onboardingRequired ?: false
+        tokenStore.write(SessionTokens(accessToken, refreshToken, required))
         mutableSessionActive.value = true
+        mutableOnboardingRequired.value = required
+    }
+
+    suspend fun markOnboardingComplete() {
+        val current = tokenStore.read() ?: return
+        tokenStore.write(current.copy(onboardingRequired = false))
+        mutableOnboardingRequired.value = false
     }
 
     suspend fun clear() {
         tokenStore.clear()
         mutableSessionActive.value = false
+        mutableOnboardingRequired.value = false
     }
 
     suspend fun refreshAfterUnauthorized(failedAccessToken: String): String? = refreshMutex.withLock {

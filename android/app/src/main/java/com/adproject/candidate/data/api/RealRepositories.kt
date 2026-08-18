@@ -5,6 +5,9 @@ import com.adproject.candidate.data.contract.CandidateJob
 import com.adproject.candidate.data.contract.CandidateJobApplicationState
 import com.adproject.candidate.data.contract.CandidateJobDetail
 import com.adproject.candidate.data.contract.CandidateRegisterRequest
+import com.adproject.candidate.data.contract.CandidateOnboardingRequest
+import com.adproject.candidate.data.contract.PasswordResetRequest
+import com.adproject.candidate.data.contract.PasswordResetConfirmRequest
 import com.adproject.candidate.data.contract.ConversationDetail
 import com.adproject.candidate.data.contract.ConversationSummary
 import com.adproject.candidate.data.contract.CursorMeta
@@ -49,6 +52,9 @@ interface AuthRepository {
     suspend fun login(email: String, password: String): ApiResult<Unit>
     suspend fun register(fullName: String, email: String, password: String): ApiResult<Unit>
     suspend fun logout(): ApiResult<Unit>
+    suspend fun requestPasswordReset(email: String): ApiResult<Unit> = ApiResult.Failure("Password reset is unavailable.")
+    suspend fun confirmPasswordReset(email: String, code: String, newPassword: String): ApiResult<Unit> = ApiResult.Failure("Password reset is unavailable.")
+    suspend fun completeOnboarding(request: CandidateOnboardingRequest): ApiResult<Unit> = ApiResult.Failure("Onboarding is unavailable.")
 }
 
 class RealAuthRepository(
@@ -87,13 +93,37 @@ class RealAuthRepository(
         }
     }
 
+    override suspend fun requestPasswordReset(email: String): ApiResult<Unit> = callUnit {
+        publicApi.requestPasswordReset(PasswordResetRequest(email))
+    }
+
+    override suspend fun confirmPasswordReset(email: String, code: String, newPassword: String): ApiResult<Unit> = callUnit {
+        publicApi.confirmPasswordReset(PasswordResetConfirmRequest(email, code, newPassword))
+    }
+
+    override suspend fun completeOnboarding(request: CandidateOnboardingRequest): ApiResult<Unit> {
+        val result = callUnit { authenticatedApi.completeOnboarding(request) }
+        if (result is ApiResult.Success) sessionManager.markOnboardingComplete()
+        return result
+    }
+
+    private suspend fun callUnit(call: suspend () -> retrofit2.Response<Unit>): ApiResult<Unit> = try {
+        val response = call()
+        if (response.isSuccessful) ApiResult.Success(Unit)
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to connect. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("Something went wrong. Please try again.")
+    }
+
     private suspend fun callAuth(call: suspend () -> retrofit2.Response<com.adproject.candidate.data.contract.DataEnvelope<com.adproject.candidate.data.contract.AuthData>>): ApiResult<Unit> {
         return try {
             val response = call()
             val data = response.body()?.data
             if (!response.isSuccessful || data == null) return errors.failure(response.code(), response.errorBody()?.string())
             if (data.user.role.name != "CANDIDATE") return ApiResult.Failure("Please use a Candidate account.")
-            sessionManager.save(data.accessToken, data.refreshToken)
+            sessionManager.save(data.accessToken, data.refreshToken, data.onboardingRequired ?: false)
             ApiResult.Success(Unit)
         } catch (_: IOException) {
             ApiResult.Failure("Unable to connect. Check your network and try again.")

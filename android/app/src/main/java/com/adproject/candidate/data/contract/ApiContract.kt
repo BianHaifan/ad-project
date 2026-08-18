@@ -324,6 +324,8 @@ data class InterviewContext(
 
 data class LoginRequest(val email: String, val password: String)
 data class RefreshTokenRequest(val refreshToken: String)
+data class PasswordResetRequest(val email: String)
+data class PasswordResetConfirmRequest(val email: String, val code: String, val newPassword: String)
 data class CandidateRegisterRequest(
     val role: UserRole = UserRole.CANDIDATE,
     val fullName: String,
@@ -353,6 +355,18 @@ data class AuthData(
     val expiresIn: Int,
     val refreshExpiresIn: Int,
     val user: AuthUser,
+    val onboardingRequired: Boolean? = null,
+)
+data class CandidateOnboardingRequest(
+    val headline: String,
+    val location: String,
+    val age: Int,
+    val resumeSummary: String,
+    val skills: List<String>,
+    val desiredTitle: String,
+    val preferredLocation: String,
+    val workplaceType: WorkplaceType,
+    val employmentType: EmploymentType,
 )
 data class SubmitApplicationRequest(val resumeId: String, val contactEmail: String, val shareProfile: Boolean)
 data class SendMessageRequest(val body: String, val clientMessageId: String)

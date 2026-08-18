@@ -15,7 +15,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-data class SessionTokens(val accessToken: String, val refreshToken: String)
+data class SessionTokens(val accessToken: String, val refreshToken: String, val onboardingRequired: Boolean = false)
 
 interface TokenStore {
     suspend fun read(): SessionTokens?

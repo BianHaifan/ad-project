@@ -21,6 +21,10 @@ data class CommunityUiState(
     val draft: String = "",
     val loadError: String? = null,
     val publishError: String? = null,
+    val query: String = "",
+    val category: CommunityCategory? = null,
+    val images: List<CommunityImageUpload> = emptyList(),
+    val publishedPostId: String? = null,
 )
 
 class CommunityViewModel(private val repository: CommunityRepository) : ViewModel() {
@@ -30,8 +34,16 @@ class CommunityViewModel(private val repository: CommunityRepository) : ViewMode
     init { loadFirst() }
 
     fun updateDraft(value: String) = mutableState.update { it.copy(draft = value, publishError = null) }
+    fun updateQuery(value: String) = mutableState.update { it.copy(query = value, loadError = null) }
+    fun selectCategory(value: CommunityCategory?) { mutableState.update { it.copy(category = value) }; loadFirst(refreshing = true) }
+    fun updateImages(value: List<CommunityImageUpload>) = mutableState.update { it.copy(images = value.take(4), publishError = null) }
+    fun consumePublished() = mutableState.update { it.copy(publishedPostId = null) }
+    fun search() = loadFirst(refreshing = true)
     fun retry() = loadFirst()
     fun refresh() = loadFirst(refreshing = true)
+    fun applyPostUpdate(post: CommunityPost) {
+        mutableState.update { state -> state.copy(posts = state.posts.map { if (it.id == post.id) post else it }) }
+    }
     fun loadMore() {
         val current = mutableState.value
         if (!current.hasNext || current.loadingMore || current.loading || current.refreshing) return
@@ -44,9 +56,10 @@ class CommunityViewModel(private val repository: CommunityRepository) : ViewMode
         if (current.submitting || current.draft.isBlank() || length > 2000) return
         mutableState.update { it.copy(submitting = true, publishError = null) }
         viewModelScope.launch {
-            when (val result = repository.create(current.draft)) {
+            when (val result = repository.create(current.draft, current.category ?: CommunityCategory.GENERAL, current.images)) {
                 is ApiResult.Success -> {
-                    mutableState.update { it.copy(submitting = false, draft = "", publishError = null) }
+                    mutableState.update { it.copy(submitting = false, draft = "", images = emptyList(), publishError = null,
+                        publishedPostId = result.value.id) }
                     loadFirst(refreshing = true)
                 }
                 is ApiResult.Failure -> mutableState.update { it.copy(submitting = false, publishError = result.message) }
@@ -66,7 +79,7 @@ class CommunityViewModel(private val repository: CommunityRepository) : ViewMode
                     loadingMore = append, loadError = null,
                 )
             }
-            when (val result = repository.posts(page)) {
+            when (val result = repository.search(page, 20, current.query.takeIf(String::isNotBlank), current.category)) {
                 is ApiResult.Success -> mutableState.update {
                     it.copy(
                         posts = if (append) (it.posts + result.value.posts).distinctBy(CommunityPost::id) else result.value.posts,

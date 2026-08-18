@@ -24,6 +24,9 @@ data class CommunityDetailUiState(
     val commentDraft: String = "",
     val error: String? = null,
     val commentError: String? = null,
+    val startingMessage: Boolean = false,
+    val directConversationId: String? = null,
+    val messageError: String? = null,
 )
 
 class CommunityDetailViewModel(private val postId: String, private val repository: CommunityRepository) : ViewModel() {
@@ -87,6 +90,15 @@ class CommunityDetailViewModel(private val postId: String, private val repositor
                 is ApiResult.Failure -> mutableState.update { it.copy(submitting = false, commentError = result.message) }
             }
         }
+    }
+
+    fun messageAuthor() {
+        if (mutableState.value.startingMessage) return
+        mutableState.update { it.copy(startingMessage=true,messageError=null) }
+        viewModelScope.launch { when(val result=repository.startDirect(postId)) {
+            is ApiResult.Success -> mutableState.update { it.copy(startingMessage=false,directConversationId=result.value.conversationId) }
+            is ApiResult.Failure -> mutableState.update { it.copy(startingMessage=false,messageError=result.message) }
+        } }
     }
 
     private fun loadPost(clearError: Boolean = true) = viewModelScope.launch {

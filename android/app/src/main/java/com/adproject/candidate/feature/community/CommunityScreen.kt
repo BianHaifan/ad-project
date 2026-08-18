@@ -3,6 +3,7 @@ package com.adproject.candidate.feature.community
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -13,21 +14,33 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.adproject.candidate.R
+import com.adproject.candidate.core.designsystem.FigmaSvg
 import coil3.compose.AsyncImage
 import com.adproject.candidate.core.designsystem.AdBackground
 import com.adproject.candidate.core.designsystem.AdBottomBar
@@ -56,8 +69,10 @@ fun communityScreenMode(state: CommunityUiState) = when {
 fun CommunityScreen(
     state: CommunityUiState,
     onTab: (MainTab) -> Unit,
-    onDraft: (String) -> Unit,
-    onPublish: () -> Unit,
+    onQuery: (String) -> Unit,
+    onSearch: () -> Unit,
+    onCategory: (CommunityCategory?) -> Unit,
+    onCreate: () -> Unit,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
     onLoadMore: () -> Unit,
@@ -68,25 +83,21 @@ fun CommunityScreen(
         containerColor = AdBackground,
         topBar = { AdTopBar("Community") },
         bottomBar = { AdBottomBar(MainTab.Community, onTab) },
+        floatingActionButton = { FloatingActionButton(onClick = onCreate, containerColor = AdTealSoft) {
+            FigmaSvg(R.raw.hirex_add, "Create post", Modifier.size(26.dp))
+        } },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item {
-                AdCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Share an update", color = AdText, fontWeight = FontWeight.Bold)
-                        OutlinedTextField(
-                            value = state.draft, onValueChange = onDraft, modifier = Modifier.fillMaxWidth(),
-                            minLines = 3, placeholder = { Text("What would you like to share?") },
-                            supportingText = { Text("$length / 2000") }, isError = length > 2000,
-                        )
-                        state.publishError?.let { Text(it, color = Color(0xFFB42318), fontSize = 12.sp) }
-                        PrimaryButton(
-                            if (state.submitting) "Publishing…" else "Publish", onPublish, Modifier.fillMaxWidth(),
-                            enabled = !state.submitting && state.draft.isNotBlank() && length <= 2000,
-                        )
-                    }
+            item { Column(Modifier.fillMaxWidth().background(Color.White).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(state.query,onQuery,Modifier.weight(1f),placeholder={Text("Search Community")},singleLine=true)
+                    FigmaSvg(R.raw.hirex_search,"Search posts",Modifier.size(28.dp).clickable(onClick=onSearch))
                 }
-            }
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement=Arrangement.spacedBy(7.dp)) {
+                    FilterChip(selected=state.category==null,onClick={onCategory(null)},label={Text("All")})
+                    CommunityCategory.entries.forEach { category -> FilterChip(selected=state.category==category,onClick={onCategory(category)},label={Text(category.label())}) }
+                }
+            } }
             item {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), horizontalArrangement = Arrangement.End) {
                     SecondaryButton(if (state.refreshing) "Refreshing…" else "Refresh", onRefresh, enabled = !state.refreshing)
@@ -118,6 +129,58 @@ fun CommunityScreen(
     }
 }
 
+@Composable
+fun CommunityCreatePostScreen(state: CommunityUiState, onBack: () -> Unit, onDraft: (String) -> Unit,
+                              onCategory: (CommunityCategory?) -> Unit, onImages: (List<CommunityImageUpload>) -> Unit,
+                              onPublish: () -> Unit) {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        val selected = uris.take(4).mapNotNull { uri -> runCatching {
+            val type = context.contentResolver.getType(uri) ?: return@runCatching null
+            if (type !in setOf("image/png","image/jpeg","image/webp")) return@runCatching null
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@runCatching null
+            if (bytes.size > 5 * 1024 * 1024) return@runCatching null
+            CommunityImageUpload(bytes,type)
+        }.getOrNull() }
+        onImages(selected)
+    }
+    val length=state.draft.codePointCount(0,state.draft.length)
+    Scaffold(containerColor=AdBackground,topBar={AdTopBar("Create post",onBack)}) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            Text("CATEGORY",color=AdMuted,fontSize=10.sp,fontWeight=FontWeight.Bold)
+            CommunityCategory.entries.forEach { category -> FilterChip(selected=(state.category?:CommunityCategory.GENERAL)==category,onClick={onCategory(category)},label={Text(category.label())}) }
+            OutlinedTextField(state.draft,onDraft,Modifier.fillMaxWidth().weight(1f),placeholder={Text("What would you like to share?")},supportingText={Text("$length / 2000")},isError=length>2000)
+            SecondaryButton("Choose images (${state.images.size}/4)",{launcher.launch("image/*")},Modifier.fillMaxWidth(),enabled=!state.submitting)
+            if (state.images.isNotEmpty()) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    itemsIndexed(state.images) { index, image ->
+                        Column(Modifier.width(112.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            AsyncImage(
+                                model = image.bytes,
+                                contentDescription = "Selected image ${index + 1}",
+                                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)),
+                                contentScale = ContentScale.Crop,
+                            )
+                            Text(
+                                "Remove",
+                                Modifier.fillMaxWidth().clickable(enabled = !state.submitting) {
+                                    onImages(state.images.filterIndexed { selectedIndex, _ -> selectedIndex != index })
+                                },
+                                color = AdTeal,
+                                fontSize = 11.sp,
+                            )
+                        }
+                    }
+                }
+            }
+            state.publishError?.let { Text(it,color=Color(0xFFB42318),fontSize=12.sp) }
+            PrimaryButton(if(state.submitting)"Publishing…" else "Publish post",onPublish,Modifier.fillMaxWidth(),enabled=!state.submitting&&state.draft.isNotBlank()&&length<=2000)
+        }
+    }
+}
+
+fun CommunityCategory.label()=name.replace('_',' ').lowercase().replaceFirstChar(Char::uppercase)
+
 @Composable internal fun StateBox(content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().padding(40.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
@@ -136,7 +199,11 @@ fun CommunityScreen(
             Text(post.body, color = AdText, lineHeight = 21.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(localTime(post.createdAt), color = AdMuted, fontSize = 11.sp)
-                Text("♡ ${post.likeCount}   Comments ${post.commentCount}", color = AdMuted, fontSize = 11.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FigmaSvg(if (post.likedByCurrentUser) R.raw.hirex_like_active else R.raw.hirex_like_inactive,
+                        if (post.likedByCurrentUser) "Liked" else "Not liked", Modifier.size(18.dp))
+                    Text("${post.likeCount}   Comments ${post.commentCount}", color = AdMuted, fontSize = 11.sp)
+                }
             }
         }
     }

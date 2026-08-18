@@ -23,6 +23,10 @@ import com.adproject.community.infrastructure.CommunityPostLikeRepository;
 import com.adproject.community.infrastructure.CommunityPostMetricsRepository;
 import com.adproject.community.infrastructure.CommunityPostMetricsRepository.Metrics;
 import com.adproject.community.infrastructure.CommunityPostRepository;
+import com.adproject.community.infrastructure.CommunityPostImageEntity;
+import com.adproject.community.infrastructure.CommunityPostImageRepository;
+import com.adproject.community.domain.CommunityCategory;
+import com.adproject.community.api.CommunityDtos.CommunityImage;
 import com.adproject.company.infrastructure.CompanyMemberRepository;
 import com.adproject.company.infrastructure.CompanyRepository;
 import com.adproject.user.domain.UserRole;
@@ -38,6 +42,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,7 +64,9 @@ public class CommunityService {
     private final CompanyMemberRepository memberRepository;
     private final CompanyRepository companyRepository;
     private final Clock clock;
+    private final CommunityPostImageRepository imageRepository;
 
+    @Autowired
     public CommunityService(CommunityPostRepository postRepository,
                             CommunityPostLikeRepository likeRepository,
                             CommunityCommentRepository commentRepository,
@@ -62,7 +74,7 @@ public class CommunityService {
                             UserRepository userRepository,
                             CompanyMemberRepository memberRepository,
                             CompanyRepository companyRepository,
-                            Clock clock) {
+                            Clock clock, CommunityPostImageRepository imageRepository) {
         this.postRepository = postRepository;
         this.likeRepository = likeRepository;
         this.commentRepository = commentRepository;
@@ -71,19 +83,39 @@ public class CommunityService {
         this.memberRepository = memberRepository;
         this.companyRepository = companyRepository;
         this.clock = clock;
+        this.imageRepository = imageRepository;
+    }
+
+    public CommunityService(CommunityPostRepository postRepository, CommunityPostLikeRepository likeRepository,
+                     CommunityCommentRepository commentRepository, CommunityPostMetricsRepository metricsRepository,
+                     UserRepository userRepository, CompanyMemberRepository memberRepository,
+                     CompanyRepository companyRepository, Clock clock) {
+        this(postRepository, likeRepository, commentRepository, metricsRepository, userRepository, memberRepository,
+                companyRepository, clock, null);
+    }
+
+    public CommunityFeedResponse list(AuthenticatedUser currentUser, int page, int pageSize) {
+        return list(currentUser, null, null, page, pageSize);
     }
 
     @Transactional(readOnly = true)
-    public CommunityFeedResponse list(AuthenticatedUser currentUser, int page, int pageSize) {
+    public CommunityFeedResponse list(AuthenticatedUser currentUser, String q, CommunityCategory category, int page, int pageSize) {
         requireAllowedRole(currentUser);
         Sort sort = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
-        var result = postRepository.findAll(PageRequest.of(page - 1, pageSize, sort));
+        Specification<CommunityPostEntity> specification = Specification.where(null);
+        if (q != null && !q.isBlank()) {
+            String pattern = "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
+            specification = specification.and((root, query, cb) -> cb.like(cb.lower(root.get("body")), pattern));
+        }
+        if (category != null) specification = specification.and((root, query, cb) -> cb.equal(root.get("category"), category));
+        var result = postRepository.findAll(specification, PageRequest.of(page - 1, pageSize, sort));
         Map<String, UserEntity> authors = authors(result.getContent());
         Map<String, Metrics> metrics = metricsRepository.findForPosts(
                 result.getContent().stream().map(CommunityPostEntity::getId).toList(), currentUser.userId());
+        Map<String,List<CommunityImage>> images = images(result.getContent().stream().map(CommunityPostEntity::getId).toList());
         var data = result.getContent().stream()
                 .map(post -> toPost(post, requireAuthor(authors, post.getAuthorId()),
-                        metrics.getOrDefault(post.getId(), ZERO_METRICS)))
+                        metrics.getOrDefault(post.getId(), ZERO_METRICS), images.getOrDefault(post.getId(), List.of())))
                 .toList();
         return new CommunityFeedResponse(data,
                 new PageMeta(page, pageSize, result.getTotalElements(), result.hasNext()));
@@ -91,14 +123,21 @@ public class CommunityService {
 
     @Transactional
     public CommunityPostResponse create(AuthenticatedUser currentUser, CreateCommunityPostRequest request) {
+        return create(currentUser, request, List.of());
+    }
+
+    @Transactional
+    public CommunityPostResponse create(AuthenticatedUser currentUser, CreateCommunityPostRequest request, List<MultipartFile> files) {
         requireAllowedRole(currentUser);
         String body = CommunityTextNormalizer.normalize(request == null ? null : request.body(), "body", 2000);
         UserEntity author = userRepository.findById(currentUser.userId())
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "User no longer exists"));
         Instant now = DatabaseTimePrecision.micros(clock.instant());
+        CommunityCategory category = request.category() == null ? CommunityCategory.GENERAL : request.category();
         CommunityPostEntity post = postRepository.save(new CommunityPostEntity(
-                UUID.randomUUID().toString(), author.getId(), body, now, now));
-        return new CommunityPostResponse(toPost(post, author, ZERO_METRICS));
+                UUID.randomUUID().toString(), author.getId(), body, category, now, now));
+        List<CommunityPostImageEntity> stored = storeImages(post.getId(), files, now);
+        return new CommunityPostResponse(toPost(post, author, ZERO_METRICS, stored.stream().map(this::toImage).toList()));
     }
 
     @Transactional(readOnly = true)
@@ -106,7 +145,8 @@ public class CommunityService {
         requireAllowedRole(currentUser);
         CommunityPostEntity post = requirePost(postId);
         UserEntity author = requireUser(post.getAuthorId());
-        return new CommunityPostResponse(toPost(post, author, metrics(postId, currentUser.userId())));
+        return new CommunityPostResponse(toPost(post, author, metrics(postId, currentUser.userId()),
+                imageRepository.findByPostIdOrderByPositionAsc(postId).stream().map(this::toImage).toList()));
     }
 
     @Transactional
@@ -191,9 +231,54 @@ public class CommunityService {
                 new CommunityInteraction(postId, likeCount, likeRepository.exists(postId, viewerId)));
     }
 
-    private CommunityPost toPost(CommunityPostEntity post, UserEntity author, Metrics metrics) {
-        return new CommunityPost(post.getId(), toAuthor(author), post.getBody(), metrics.likeCount(),
+    public CommunityPostImageEntity image(AuthenticatedUser currentUser, String postId, String imageId) {
+        requirePost(postId);
+        return imageRepository.findById(imageId).filter(value -> value.getPostId().equals(postId))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Community image not found"));
+    }
+
+    private CommunityPost toPost(CommunityPostEntity post, UserEntity author, Metrics metrics, List<CommunityImage> images) {
+        return new CommunityPost(post.getId(), toAuthor(author), post.getBody(), post.getCategory(), images, metrics.likeCount(),
                 metrics.commentCount(), metrics.likedByCurrentUser(), post.getCreatedAt(), post.getUpdatedAt());
+    }
+
+    private List<CommunityPostImageEntity> storeImages(String postId, List<MultipartFile> files, Instant now) {
+        List<MultipartFile> safe = files == null ? List.of() : files.stream().filter(file -> file != null && !file.isEmpty()).toList();
+        if (safe.size() > 4) throw validation("images", "must contain at most 4 images");
+        java.util.ArrayList<CommunityPostImageEntity> stored = new java.util.ArrayList<>();
+        for (int index = 0; index < safe.size(); index++) {
+            byte[] bytes;
+            try { bytes = safe.get(index).getBytes(); }
+            catch (IOException exception) { throw validation("images", "contains an unreadable image"); }
+            if (bytes.length > 5 * 1024 * 1024) throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", "Each image must be at most 5 MB");
+            String type = detectImageType(bytes);
+            var image = new CommunityPostImageEntity(UUID.randomUUID().toString(), postId, index, type, bytes, now);
+            imageRepository.save(image); stored.add(image);
+        }
+        return List.copyOf(stored);
+    }
+
+    private static String detectImageType(byte[] bytes) {
+        if (bytes.length >= 8 && bytes[0]==(byte)0x89 && bytes[1]==0x50 && bytes[2]==0x4e && bytes[3]==0x47) return "image/png";
+        if (bytes.length >= 3 && bytes[0]==(byte)0xff && bytes[1]==(byte)0xd8 && bytes[2]==(byte)0xff) return "image/jpeg";
+        if (bytes.length >= 12 && bytes[0]=='R' && bytes[1]=='I' && bytes[2]=='F' && bytes[3]=='F'
+                && bytes[8]=='W' && bytes[9]=='E' && bytes[10]=='B' && bytes[11]=='P') return "image/webp";
+        throw validation("images", "must contain only PNG, JPEG, or WebP images");
+    }
+
+    private Map<String,List<CommunityImage>> images(List<String> postIds) {
+        if (postIds.isEmpty()) return Map.of();
+        return imageRepository.findByPostIdInOrderByPostIdAscPositionAsc(postIds).stream()
+                .collect(Collectors.groupingBy(CommunityPostImageEntity::getPostId, Collectors.mapping(this::toImage, Collectors.toList())));
+    }
+
+    private CommunityImage toImage(CommunityPostImageEntity image) {
+        return new CommunityImage(image.getId(), "/api/v1/community/posts/" + image.getPostId() + "/images/" + image.getId(),
+                image.getContentType(), image.getSizeBytes());
+    }
+
+    private static ApiException validation(String field, String detail) {
+        return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request validation failed", Map.of(field, detail));
     }
 
     private CommunityAuthor toAuthor(UserEntity user) {

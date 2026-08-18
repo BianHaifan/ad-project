@@ -49,6 +49,8 @@ export interface RegisterRecruiterInput {
   acceptedTermsVersion: string;
 }
 
+export interface PasswordResetConfirmInput { email: string; code: string; newPassword: string }
+
 export interface ApiErrorDetail {
   code: string;
   message: string;
@@ -121,6 +123,20 @@ export class AuthClient {
     });
     const auth = await this.readAuthResponse(response);
     return this.acceptRecruiter(auth, false);
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const response = await this.send(apiPaths.passwordResetRequest, {
+      method: 'POST', body: JSON.stringify({email: email.trim()}),
+    });
+    if (!response.ok) await this.throwApiError(response);
+  }
+
+  async confirmPasswordReset(input: PasswordResetConfirmInput): Promise<void> {
+    const response = await this.send(apiPaths.passwordResetConfirm, {
+      method: 'POST', body: JSON.stringify({...input, email: input.email.trim()}),
+    });
+    if (!response.ok) await this.throwApiError(response);
   }
 
   async logout(): Promise<void> {

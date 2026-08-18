@@ -41,9 +41,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         try {
-            AuthenticatedUser parsed = jwtService.parse(authorization.substring(7));
+            var parsed = jwtService.parseAccessToken(authorization.substring(7));
             var user = userRepository.findById(parsed.userId()).orElseThrow();
-            if (user.getStatus() != UserStatus.ACTIVE || user.getRole() != parsed.role()) {
+            if (user.getStatus() != UserStatus.ACTIVE || user.getRole() != parsed.role()
+                    || user.getAuthVersion() != parsed.authVersion()) {
                 throw new IllegalArgumentException("Inactive or mismatched account");
             }
             boolean platformAdmin = adminGrantRepository.existsByUserIdAndActiveTrue(parsed.userId());

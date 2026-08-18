@@ -141,8 +141,7 @@ fun JobFeedScreen(
                             singleLine = true,
                             shape = RoundedCornerShape(24.dp),
                         )
-                        Text("Search", Modifier.clickable(onClick = onSearch), color = AdTealDark,
-                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        FigmaSvg(R.raw.hirex_search, "Search", Modifier.size(28.dp).clickable(onClick = onSearch))
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
@@ -154,10 +153,9 @@ fun JobFeedScreen(
                             }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Filter", Modifier.clickable(onClick = { showFilters = true }), color = AdTealDark, fontSize = 13.sp)
-                            Text(if (state.refreshing) "Refreshing…" else "Refresh",
-                                Modifier.clickable(enabled = !state.refreshing, onClick = onRefresh),
-                                color = AdTealDark, fontSize = 13.sp)
+                            FigmaSvg(R.raw.hirex_filter, "Filter jobs", Modifier.size(26.dp).clickable { showFilters = true })
+                            if (state.refreshing) CircularProgressIndicator(Modifier.size(22.dp), color = AdTeal, strokeWidth = 2.dp)
+                            else FigmaSvg(R.raw.hirex_refresh, "Refresh jobs", Modifier.size(26.dp).clickable(onClick = onRefresh))
                         }
                     }
                     val activeFilters = buildList {
@@ -258,10 +256,10 @@ fun JobFeedScreen(
 internal fun JobCard(job: Job, onJob: (String) -> Unit, onToggleSave: (String) -> Unit) {
     AdCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp).clickable { onJob(job.jobId) }) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Text(job.title, Modifier.weight(1f), color = AdText, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold)
-                Text(job.salary, color = AdTeal, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            }
+            Text(job.title, Modifier.fillMaxWidth(), color = AdText, fontSize = 20.sp, lineHeight = 26.sp,
+                fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text(job.salary, Modifier.fillMaxWidth(), color = AdTeal, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text("${job.company} · ${job.companyMeta}", color = AdMuted, fontSize = 14.sp)
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -274,15 +272,9 @@ internal fun JobCard(job: Job, onJob: (String) -> Unit, onToggleSave: (String) -
                     Modifier.weight(1f), color = Color(0xFF34404B), fontSize = 12.sp)
                 job.match?.let { TagChip("AI Match $it%", accent = true) }
                 Spacer(Modifier.width(10.dp))
-                Text(
-                    if (job.isSaved) "Saved" else "Save",
-                    Modifier.clip(RoundedCornerShape(8.dp))
-                        .clickable { onToggleSave(job.jobId) }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    color = if (job.isSaved) AdTealDark else AdMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                FigmaSvg(if (job.isSaved) R.raw.hirex_star_active else R.raw.hirex_star_inactive,
+                    if (job.isSaved) "Remove saved job" else "Save job",
+                    Modifier.size(28.dp).clickable { onToggleSave(job.jobId) })
             }
         }
     }

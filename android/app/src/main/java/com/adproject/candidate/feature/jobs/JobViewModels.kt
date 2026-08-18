@@ -419,7 +419,7 @@ private fun toUiJob(job: CandidateJob) = Job(
     company = job.company.name,
     companyInitial = job.company.name.take(1).uppercase(),
     companyMeta = listOfNotNull(job.company.stage, job.company.employeeRange).joinToString(" · ").ifBlank { "Verified company" },
-    salary = "${job.salary.currency} ${job.salary.min}–${job.salary.max} / ${job.salary.period.lowercase()}",
+    salary = formatSalary(job.salary.currency, job.salary.min.toLong(), job.salary.max.toLong(), job.salary.period),
     skills = job.skills,
     match = job.matchScore,
     recruiter = job.recruiter?.let { RecruiterContact(it.recruiterId, it.fullName, it.title) },
@@ -433,13 +433,25 @@ private fun toUiJob(job: RecommendedJob) = Job(
     company = job.companyName,
     companyInitial = job.companyName.take(1).uppercase(),
     companyMeta = "${job.location} • Recommended #${job.rank}",
-    salary = "${job.salaryCurrency} ${job.salaryMin}-${job.salaryMax} / ${job.salaryPeriod.lowercase()}",
+    salary = formatSalary(job.salaryCurrency, job.salaryMin.toLong(), job.salaryMax.toLong(), job.salaryPeriod),
     skills = job.skills,
     match = job.matchScore,
     recruiter = null,
     companyId = job.companyId,
     isSaved = job.isSaved ?: false,
 )
+
+internal fun formatSalary(currency: String, minimum: Long, maximum: Long, period: String): String {
+    val symbol = if (currency.equals("SGD", ignoreCase = true)) "S$" else currency
+    val cadence = when (period.uppercase()) {
+        "MONTH" -> "monthly"
+        "YEAR" -> "yearly"
+        "DAY" -> "daily"
+        "HOUR" -> "hourly"
+        else -> period.lowercase()
+    }
+    return "$symbol%,d–%,d · $cadence".format(minimum, maximum)
+}
 
 private fun toUiDetail(job: CandidateJob, analysis: MatchAnalysis?,
                        applicationState: com.adproject.candidate.data.contract.CandidateJobApplicationState) = JobDetailData(

@@ -34,7 +34,7 @@ export function AppShell({client = authClient, sessions = authSession}: {
   const company = recruiter.company!;
   return <main className="app-shell">
     <header className="topnav">
-      <NavLink className="brand" to="/recruiter/dashboard">AD Recruiter</NavLink>
+      <NavLink className="brand" to="/recruiter/dashboard">HireX Recruiter</NavLink>
       <nav>
         <NavLink to="/recruiter/dashboard">Dashboard</NavLink>
         <NavLink to="/recruiter/jobs">Jobs</NavLink>
