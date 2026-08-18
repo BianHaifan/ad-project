@@ -40,3 +40,8 @@ ml-service/.ruff_cache/
 ml-service/**/__pycache__/
 ml-service/**/*.pyc
 ml-service/src/*.egg-info/
+ml-service/build/
+
+# Python coverage data
+.coverage
+htmlcov/
