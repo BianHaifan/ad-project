@@ -188,6 +188,7 @@ jobs:
             trivy-backend.txt
             trivy-web.txt
             trivy-android.txt
+            trivy-ml.txt
 
   docker-build:              
     runs-on: ubuntu-latest
