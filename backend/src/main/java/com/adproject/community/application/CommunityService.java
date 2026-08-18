@@ -221,7 +221,7 @@ public class CommunityService {
     }
 
     private Metrics metrics(String postId, String viewerId) {
-        return metricsRepository.findForPosts(java.util.List.of(postId), viewerId)
+        return metricsRepository.findForPosts(List.of(postId), viewerId)
                 .getOrDefault(postId, ZERO_METRICS);
     }
 

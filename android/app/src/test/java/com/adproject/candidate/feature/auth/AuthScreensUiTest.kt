@@ -19,7 +19,7 @@ class AuthScreensUiTest {
     @Test
     fun signInRendersDefaultAndSubmittingStates() {
         composeRule.setContent {
-            SignInScreen(SignInUiState(), {}, {}, {}, {})
+            SignInScreen(SignInUiState(), {}, {}, {}, {}, {})
         }
         composeRule.onNodeWithText("Welcome back").assertIsDisplayed()
         composeRule.onNodeWithText("Sign in to continue your career journey").assertIsDisplayed()
@@ -41,6 +41,7 @@ class AuthScreensUiTest {
                 onPassword = {},
                 onSignIn = {},
                 onCreateAccount = {},
+                onForgotPassword = {},
             )
         }
 
@@ -55,6 +56,7 @@ class AuthScreensUiTest {
     fun signInInvokesCallbacks() {
         var signInClicks = 0
         var createAccountClicks = 0
+        var forgotPasswordClicks = 0
         composeRule.setContent {
             SignInScreen(
                 state = SignInUiState(email = "a@b.com", password = "abc"),
@@ -62,15 +64,18 @@ class AuthScreensUiTest {
                 onPassword = {},
                 onSignIn = { signInClicks++ },
                 onCreateAccount = { createAccountClicks++ },
+                onForgotPassword = { forgotPasswordClicks++ },
             )
         }
 
         composeRule.onNodeWithText("a@b.com").assertIsDisplayed()
         composeRule.onNodeWithText("Sign in").performClick()
         composeRule.onNodeWithText("New here?  Create an account").performClick()
+        composeRule.onNodeWithText("Forgot password?").performClick()
 
         assertEquals(1, signInClicks)
         assertEquals(1, createAccountClicks)
+        assertEquals(1, forgotPasswordClicks)
     }
 
     @Test

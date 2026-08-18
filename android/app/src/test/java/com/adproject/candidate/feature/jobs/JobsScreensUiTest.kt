@@ -2,6 +2,7 @@ package com.adproject.candidate.feature.jobs
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -48,7 +49,7 @@ class JobsScreensUiTest {
             JobFeedScreen(JobFeedUiState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
         }
         composeRule.onNodeWithText("Recommended for you").assertIsDisplayed()
-        composeRule.onNodeWithText("Search").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Search").assertIsDisplayed()
     }
 
     @Test
@@ -125,7 +126,7 @@ class JobsScreensUiTest {
         composeRule.onNodeWithText("Mia Chen - Hiring Manager").assertExists()
 
         composeRule.onNodeWithText("Backend Engineer").performClick()
-        composeRule.onNodeWithText("Save").performClick()
+        composeRule.onNodeWithContentDescription("Save job").performClick()
         composeRule.onNodeWithText("Jobs").performClick()
 
         assertEquals(1, toggleSave)
@@ -155,7 +156,7 @@ class JobsScreensUiTest {
             )
         }
 
-        composeRule.onNodeWithText("Filter").performClick()
+        composeRule.onNodeWithContentDescription("Filter jobs").performClick()
         composeRule.onNodeWithText("Filter jobs").assertIsDisplayed()
         composeRule.onNodeWithText("Job type").assertIsDisplayed()
         composeRule.onNodeWithText("Minimum salary").assertIsDisplayed()
@@ -243,7 +244,7 @@ class JobsScreensUiTest {
         composeRule.onNodeWithText("Deadline: 2026-09-01").assertExists()
         composeRule.onNodeWithText("Published: 2026-08-11").assertExists()
 
-        composeRule.onNodeWithText("Save").performClick()
+        composeRule.onNodeWithContentDescription("Save job").performClick()
         composeRule.onNodeWithText("Apply").performClick()
         composeRule.onNodeWithText("Real Company").performClick()
         composeRule.onNodeWithText("View profile →").performScrollTo().performClick()
@@ -332,7 +333,7 @@ class JobsScreensUiTest {
 
         composeRule.onNodeWithText("1 saved").assertIsDisplayed()
         composeRule.onNodeWithText("Unable to remove this job.").assertExists()
-        composeRule.onNodeWithText("Saved").performClick()
+        composeRule.onNodeWithContentDescription("Remove saved job").performClick()
         composeRule.onNodeWithText("You're all caught up").assertExists()
         assertEquals("job-1", unsave)
     }

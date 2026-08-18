@@ -51,6 +51,28 @@ mvn spring-boot:run
 
 服务默认监听 `http://localhost:8080`，API 前缀为 `/api/v1`。启动时 Flyway 自动迁移数据库，Hibernate 只校验结构，不创建表。
 
+### Resend 密码重置邮件
+
+密码重置邮件通过 Resend SMTP 发送。先在 Resend 验证发件域名并创建 API Key，然后在本地未跟踪的 `.env` 中设置：
+
+```dotenv
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=587
+SMTP_USERNAME=resend
+SMTP_PASSWORD=re_your_api_key
+SMTP_FROM_ADDRESS=no-reply@your-verified-domain.example
+SMTP_STARTTLS=true
+```
+
+根目录 `.env` 已被 Git 忽略，真实 API Key 不得写入 `.env.example` 或任何已跟踪文件。
+
+生产环境的 CD 使用 GitHub `production` Environment 配置：
+
+- Secret `RESEND_API_KEY`：Resend API Key。
+- Variable `RESEND_FROM_ADDRESS`：已验证域名下的发件地址，例如 `no-reply@example.com`。
+
+推送 `main` 后，CD 会把这两个值作为运行时环境变量传给服务器上的后端容器，不会把密钥写进 Git 仓库。若 GitHub 中未配置这两个值，部署会继续使用服务器 `/opt/adproject/infra/docker/.env` 内的 `SMTP_PASSWORD` 和 `SMTP_FROM_ADDRESS`；其余 Resend SMTP 参数已有安全默认值。
+
 运行全部测试和打包：
 
 ```bash
