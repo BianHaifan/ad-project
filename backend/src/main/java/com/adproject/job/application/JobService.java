@@ -208,7 +208,7 @@ public class JobService {
     }
 
     private Map<String, String> validateUpdate(UpdateJobRequest request, Instant effectiveDeadline) {
-        java.util.LinkedHashMap<String, String> errors = new java.util.LinkedHashMap<>();
+        LinkedHashMap<String, String> errors = new LinkedHashMap<>();
         if (request.getTitle() != null && request.getTitle().isBlank()) errors.put("title", "must not be blank");
         if (request.getLocation() != null && request.getLocation().isBlank()) {
             errors.put("location", "must not be blank");

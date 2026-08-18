@@ -23,8 +23,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp")
@@ -358,8 +356,10 @@ class MessagesScreensUiTest {
 
     @Test
     fun interviewTimeFormatted() {
-        val formatter = DateTimeFormatter.ofPattern("EEEE, MMM d · h:mm a")
-        val expected = OffsetDateTime.parse("2026-08-15T09:00:00+08:00").format(formatter) + " · Online"
+        val expected = formatLocalTimestamp(
+            "2026-08-15T09:00:00+08:00",
+            "EEEE, MMM d · h:mm a",
+        ) + " · Online"
         composeRule.setContent {
             ChatScreen(
                 ChatUiState(loading = false, conversation = detail()),
