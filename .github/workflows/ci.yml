@@ -192,10 +192,12 @@ jobs:
 
   docker-build:              
     runs-on: ubuntu-latest
-    needs: [ backend, web ]
+    needs: [ backend, web, ml ]
     steps:
       - uses: actions/checkout@v4
       - name: build backend image
         run: docker build -f infra/docker/Dockerfile.backend -t adproject-backend .
       - name: build web image
         run: docker build -f infra/docker/Dockerfile.web -t adproject-web .
+      - name: build ml image
+        run: docker build -f infra/docker/Dockerfile.ml -t adproject-ml .
