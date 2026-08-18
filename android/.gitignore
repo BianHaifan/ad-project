@@ -3,5 +3,6 @@
 .android-user-home/
 local.properties
 **/build/
+**/gradle.lockfile
 *.iml
 .idea/
