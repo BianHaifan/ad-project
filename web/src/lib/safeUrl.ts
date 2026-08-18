@@ -1,14 +1,15 @@
 export function sanitizePreviewUrl(url: string | null | undefined): string | null {
   if (!url) return null;
-  if (url.startsWith('blob:')) return url;
-  if (url.startsWith('/')) return url;
+  if (!isSafePreviewUrl(url)) return null;
+  return encodeURI(url);
+}
+
+function isSafePreviewUrl(url: string): boolean {
+  if (url.startsWith('blob:') || url.startsWith('/')) return true;
   try {
     const parsed = new URL(url);
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      return parsed.href;
-    }
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
   } catch {
-    return null;
+    return false;
   }
-  return null;
 }
