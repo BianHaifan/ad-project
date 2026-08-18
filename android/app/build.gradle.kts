@@ -97,6 +97,29 @@ dependencyLocking {
     lockAllConfigurations()
 }
 
+configurations.configureEach {
+    resolutionStrategy {
+        force(
+            "io.netty:netty-buffer:4.1.136.Final",
+            "io.netty:netty-codec:4.1.136.Final",
+            "io.netty:netty-codec-dns:4.1.136.Final",
+            "io.netty:netty-codec-http:4.1.136.Final",
+            "io.netty:netty-codec-http2:4.1.136.Final",
+            "io.netty:netty-codec-socks:4.1.136.Final",
+            "io.netty:netty-common:4.1.136.Final",
+            "io.netty:netty-handler:4.1.136.Final",
+            "io.netty:netty-handler-proxy:4.1.136.Final",
+            "io.netty:netty-resolver:4.1.136.Final",
+            "io.netty:netty-resolver-dns:4.1.136.Final",
+            "io.netty:netty-transport:4.1.136.Final",
+            "io.netty:netty-transport-classes-epoll:4.1.136.Final",
+            "io.netty:netty-transport-native-unix-common:4.1.136.Final",
+            "com.google.protobuf:protobuf-java:3.25.5",
+            "com.google.protobuf:protobuf-kotlin:3.25.5",
+        )
+    }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.activity:activity-compose:1.10.1")
@@ -132,7 +155,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
-    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("org.robolectric:robolectric:4.17-beta-2")
     testImplementation("androidx.test:core:1.6.1")
     testImplementation("androidx.test.ext:junit:1.2.1")
     testImplementation(platform("androidx.compose:compose-bom:2025.12.00"))

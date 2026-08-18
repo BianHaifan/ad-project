@@ -133,7 +133,7 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew dependencies --write-locks --no-daemon
+          ./gradlew :app:dependencies --write-locks --no-daemon
       - name: scan backend (Maven)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -188,6 +188,7 @@ jobs:
             trivy-backend.txt
             trivy-web.txt
             trivy-android.txt
+            trivy-ml.txt
 
   docker-build:              
     runs-on: ubuntu-latest
