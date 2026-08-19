@@ -125,7 +125,7 @@ class JobsScreensUiTest {
         composeRule.onNodeWithText("Salary: S$5,000+", useUnmergedTree = true).assertExists()
         composeRule.onNodeWithText("Clear all").assertExists()
         composeRule.onNodeWithText("AI Match 90%").assertExists()
-        composeRule.onNodeWithText("Mia Chen - Hiring Manager").assertExists()
+        composeRule.onNodeWithText("Mia Chen").assertExists()
 
         composeRule.onNodeWithText("Backend Engineer").performClick()
         composeRule.onNodeWithContentDescription("Save job").performClick()

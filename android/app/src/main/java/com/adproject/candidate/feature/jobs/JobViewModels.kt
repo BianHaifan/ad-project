@@ -435,7 +435,7 @@ private fun toUiJob(job: CandidateJob) = Job(
     salary = formatSalary(job.salary.currency, job.salary.min.toLong(), job.salary.max.toLong(), job.salary.period),
     skills = job.skills,
     match = job.matchScore,
-    recruiter = job.recruiter?.let { RecruiterContact(it.recruiterId, it.fullName, it.title) },
+    recruiter = job.recruiter?.let { RecruiterContact(it.recruiterId, it.fullName, it.title, it.avatarUrl) },
     companyId = job.company.companyId,
     isSaved = job.isSaved ?: false,
 )
@@ -449,7 +449,7 @@ private fun toUiJob(job: RecommendedJob) = Job(
     salary = formatSalary(job.salaryCurrency, job.salaryMin.toLong(), job.salaryMax.toLong(), job.salaryPeriod),
     skills = job.skills,
     match = job.matchScore,
-    recruiter = null,
+    recruiter = job.recruiter?.let { RecruiterContact(it.recruiterId, it.fullName, it.title, it.avatarUrl) },
     companyId = job.companyId,
     isSaved = job.isSaved ?: false,
 )

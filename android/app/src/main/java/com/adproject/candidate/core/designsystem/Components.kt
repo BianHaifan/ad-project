@@ -4,6 +4,7 @@ import androidx.annotation.RawRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -135,10 +137,11 @@ fun LabeledField(
 
 @Composable
 fun Logo(size: Int = 56) {
-    Box(
-        Modifier.size(size.dp).clip(RoundedCornerShape((size * .32f).dp)).background(AdTeal),
-        contentAlignment = Alignment.Center,
-    ) { Text("HX", color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size * .32f).sp) }
+    Image(
+        painterResource(R.drawable.app_logo),
+        contentDescription = "HireX",
+        modifier = Modifier.size(size.dp),
+    )
 }
 
 @Composable
