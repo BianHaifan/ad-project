@@ -77,6 +77,14 @@ android {
             isIncludeAndroidResources = true
         }
     }
+
+    applicationVariants.all {
+        val variant = this
+        outputs.all {
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                "HireX.apk"
+        }
+    }
 }
 
 kover {
