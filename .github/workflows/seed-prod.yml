@@ -1,0 +1,36 @@
+name: Seed Production Demo Data
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: deploy-prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: upload seed sql to target server B
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: scripts/seed-prod-demo.sql
+          target: /opt/adproject/
+          strip_components: 1
+          overwrite: true
+
+      - name: run seed sql in mysql container
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            set -e
+            docker exec -i adproject-mysql sh -c 'exec mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
+              < /opt/adproject/seed-prod-demo.sql
+            echo "seed done"
