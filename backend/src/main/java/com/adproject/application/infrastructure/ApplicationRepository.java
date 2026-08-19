@@ -16,6 +16,8 @@ import org.springframework.data.repository.query.Param;
 public interface ApplicationRepository extends JpaRepository<ApplicationEntity, String>, JpaSpecificationExecutor<ApplicationEntity> {
     boolean existsByJobIdAndCandidateId(String jobId, String candidateId);
 
+    Optional<ApplicationEntity> findByJobIdAndCandidateId(String jobId, String candidateId);
+
     @Query("select application.status from ApplicationEntity application " +
             "where application.jobId = :jobId and application.candidateId = :candidateId")
     Optional<ApplicationStatus> findStatus(@Param("jobId") String jobId, @Param("candidateId") String candidateId);

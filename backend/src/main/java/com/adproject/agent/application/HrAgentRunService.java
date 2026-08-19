@@ -65,6 +65,7 @@ public class HrAgentRunService implements AgentRunsPort {
     private static final String CANCEL = "cancel_interview";
     private static final int POOL_CAP = 30;
     private static final TypeReference<List<Object>> OBJECT_LIST = new TypeReference<>() {};
+    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
     private final AgentRunRepository runs;
     private final AgentStepRepository steps;
@@ -181,7 +182,7 @@ public class HrAgentRunService implements AgentRunsPort {
                                  AgentDtos.ConfirmRunRequest request) {
         requireRecruiter(principal);
         String idempotencyKey = requireUuid(rawIdempotencyKey, "Idempotency-Key");
-        AgentRunEntity run = runs.findOwnedForUpdate(runId, principal.userId()).orElseThrow(HrAgentRunService::notFound);
+        AgentRunEntity run = ownedRunForUpdate(runId, principal.userId());
 
         if (run.getStatus() == AgentRunStatus.COMPLETED) {
             if (idempotencyKey.equals(run.getExecutionIdempotencyKey())
@@ -235,7 +236,7 @@ public class HrAgentRunService implements AgentRunsPort {
     @Transactional(readOnly = true)
     public AgentDtos.RunResponse get(AuthenticatedUser principal, String runId) {
         requireRecruiter(principal);
-        AgentRunEntity run = runs.findByIdAndUserId(runId, principal.userId()).orElseThrow(HrAgentRunService::notFound);
+        AgentRunEntity run = ownedRun(runId, principal.userId());
         return response(run);
     }
 
@@ -271,7 +272,7 @@ public class HrAgentRunService implements AgentRunsPort {
     @Transactional
     public AgentDtos.RunResponse cancel(AuthenticatedUser principal, String runId) {
         requireRecruiter(principal);
-        AgentRunEntity run = runs.findOwnedForUpdate(runId, principal.userId()).orElseThrow(HrAgentRunService::notFound);
+        AgentRunEntity run = ownedRunForUpdate(runId, principal.userId());
         if (run.getStatus() == AgentRunStatus.CANCELLED) {
             return response(run);
         }
@@ -371,7 +372,7 @@ public class HrAgentRunService implements AgentRunsPort {
                     resume.getHeadline(),
                     resume.getLocation(),
                     resume.getSummary(),
-                    jsonList(resume.getSkillsJson()),
+                    jsonStringList(resume.getSkillsJson()),
                     jsonList(resume.getExperiencesJson()),
                     application == null ? null : application.getStatus().name()));
         }
@@ -426,6 +427,17 @@ public class HrAgentRunService implements AgentRunsPort {
         }
         try {
             return mapper.readValue(json, OBJECT_LIST);
+        } catch (Exception exception) {
+            return List.of();
+        }
+    }
+
+    private List<String> jsonStringList(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return mapper.readValue(json, STRING_LIST);
         } catch (Exception exception) {
             return List.of();
         }
@@ -903,6 +915,25 @@ public class HrAgentRunService implements AgentRunsPort {
 
     private static ApiException notFound() {
         return new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Agent run not found");
+    }
+
+    /** Locked ownership lookup: a run owned by another user is 403, a missing run is 404. */
+    private AgentRunEntity ownedRunForUpdate(String runId, String userId) {
+        return runs.findOwnedForUpdate(runId, userId).orElseGet(() -> {
+            if (runs.existsById(runId)) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Insufficient permission");
+            }
+            throw notFound();
+        });
+    }
+
+    private AgentRunEntity ownedRun(String runId, String userId) {
+        return runs.findByIdAndUserId(runId, userId).orElseGet(() -> {
+            if (runs.existsById(runId)) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Insufficient permission");
+            }
+            throw notFound();
+        });
     }
 
     private static final class PlanClarification extends RuntimeException {

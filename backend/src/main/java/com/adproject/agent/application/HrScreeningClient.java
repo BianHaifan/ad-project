@@ -2,7 +2,6 @@ package com.adproject.agent.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.net.ConnectTimeoutException;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -191,7 +190,7 @@ public class HrScreeningClient {
     private static boolean isTimeout(ResourceAccessException exception) {
         Throwable cause = exception;
         while (cause != null) {
-            if (cause instanceof SocketTimeoutException || cause instanceof ConnectTimeoutException) {
+            if (cause instanceof SocketTimeoutException) {
                 return true;
             }
             cause = cause.getCause();
