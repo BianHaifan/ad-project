@@ -442,6 +442,7 @@ data class RecommendedJob(
     val rank: Int,
     val matchAnalysis: MatchAnalysis,
     val isSaved: Boolean? = null,
+    val recruiter: RecruiterContact? = null,
 )
 
 data class RecommendationMeta(

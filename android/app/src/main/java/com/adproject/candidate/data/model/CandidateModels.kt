@@ -22,7 +22,12 @@ data class Job(
     val isSaved: Boolean = false,
 )
 
-data class RecruiterContact(val recruiterId: String, val fullName: String, val title: String)
+data class RecruiterContact(
+    val recruiterId: String,
+    val fullName: String,
+    val title: String,
+    val avatarUrl: String? = null,
+)
 
 data class JobFeedData(
     val searchSuggestion: String,

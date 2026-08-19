@@ -47,6 +47,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import com.adproject.candidate.BuildConfig
 import com.adproject.candidate.R
 import com.adproject.candidate.core.designsystem.AdBackground
 import com.adproject.candidate.core.designsystem.AdBottomBar
@@ -67,10 +69,12 @@ import com.adproject.candidate.data.model.CandidateProfile
 import com.adproject.candidate.data.model.Job
 import com.adproject.candidate.data.model.JobFeedData
 import com.adproject.candidate.data.model.ProfileTool
+import com.adproject.candidate.data.model.RecruiterContact
 import com.adproject.candidate.feature.profile.NumberWheelSheet
 import com.adproject.candidate.feature.profile.SALARY_OPTIONS
 import com.adproject.candidate.feature.profile.SelectorField
 import com.adproject.candidate.feature.profile.SingleSelectSheet
+import com.adproject.candidate.feature.profile.resolveAvatarUrl
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
@@ -270,16 +274,31 @@ internal fun JobCard(job: Job, onJob: (String) -> Unit, onToggleSave: (String) -
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) { job.skills.forEach { JobSkillChip(it) } }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                FigmaSvg(R.raw.recruiter_avatar, "Recruiter avatar", Modifier.size(28.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(job.recruiter?.let { "${it.fullName} - ${it.title}" } ?: "Recruiter details unavailable",
-                    Modifier.weight(1f), color = Color(0xFF34404B), fontSize = 12.sp)
+                job.recruiter?.let { recruiter ->
+                    RecruiterAvatar(recruiter)
+                    Spacer(Modifier.width(8.dp))
+                    Text(recruiter.fullName, Modifier.weight(1f), color = Color(0xFF34404B), fontSize = 12.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                } ?: Spacer(Modifier.weight(1f))
                 job.match?.let { TagChip("AI Match $it%", accent = true) }
                 Spacer(Modifier.width(10.dp))
                 FigmaSvg(if (job.isSaved) R.raw.hirex_star_active else R.raw.hirex_star_inactive,
                     if (job.isSaved) "Remove saved job" else "Save job",
                     Modifier.size(28.dp).clickable { onToggleSave(job.jobId) })
             }
+        }
+    }
+}
+
+@Composable
+private fun RecruiterAvatar(recruiter: RecruiterContact) {
+    val url = resolveAvatarUrl(recruiter.avatarUrl, 0L, BuildConfig.API_BASE_URL)
+    if (url != null) {
+        AsyncImage(url, recruiter.fullName, Modifier.size(28.dp).clip(CircleShape))
+    } else {
+        Box(Modifier.size(28.dp).clip(CircleShape).background(AdTealSoft), contentAlignment = Alignment.Center) {
+            Text(recruiter.fullName.take(1).uppercase().ifBlank { "?" }, color = AdTeal, fontSize = 11.sp,
+                fontWeight = FontWeight.Bold)
         }
     }
 }
