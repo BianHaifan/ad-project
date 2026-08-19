@@ -37,3 +37,11 @@ services:
       dockerfile: infra/docker/Dockerfile.web
     ports:
       - "80:80"
+
+  agent:
+    image: adproject-agent:dast
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.agent
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
