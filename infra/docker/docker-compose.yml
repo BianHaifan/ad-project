@@ -40,9 +40,27 @@ services:
       ML_ENABLED: ${ML_ENABLED:-true}
       ML_BASE_URL: http://ml:8000
       ML_INTERNAL_TOKEN: ${ML_INTERNAL_TOKEN}
+      AGENT_PLANNER_BASE_URL: http://agent:8090
     depends_on:
       mysql:
         condition: service_healthy
+      agent:
+        condition: service_healthy
+    networks: [internal]
+
+  agent:
+    image: adproject-agent:latest
+    restart: unless-stopped
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_TIMEOUT_SECONDS: ${DEEPSEEK_TIMEOUT_SECONDS:-15}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks: [internal]
 
   ml:

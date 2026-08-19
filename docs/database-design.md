@@ -223,7 +223,9 @@ MVP 每个求职者最多一份简历，由 `UNIQUE(candidate_id)` 强制保证�
 
 ### agent_runs / agent_steps
 
-`agent_runs` 保存用户、目标类型/ID、状态、确认状态、最终输出摘要和时间；`agent_steps` 保存步骤序号、工具名、输入/输出摘要、状态、耗时和错误。不得记录密钥、密码或完整认证令牌。
+`agent_runs` 保存用户、原始指令、客户端上下文摘要、目标类型/ID、状态、确认状态、字段级预览、预览过期时间、一次性确认 ID、执行幂等键、确认/完成时间、结构化结果摘要、错误码、版本和时间。`confirmation_id` 唯一；同一用户的非空 `execution_idempotency_key` 唯一。`agent_steps` 保存步骤序号、步骤类型、工具名、输入/输出摘要、状态、耗时和错误。不得记录密钥、密码、完整认证令牌或不必要的完整简历原文。
+
+Run 状态为 `PROCESSING|AWAITING_CONFIRMATION|NEEDS_CLARIFICATION|FAILED|CANCELLED|EXECUTING|COMPLETED`。每个 Run 的 `(run_id, sequence_no)` 必须唯一，所有 Run 查询、确认和取消均按 `user_id` 做所有权过滤。确认成功后保存 `apply_resume_patch` Step 和结果版本；相同幂等键只能产生一次业务写入。
 
 ### audit_logs
 

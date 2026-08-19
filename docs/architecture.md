@@ -5,7 +5,7 @@
 - Spring Boot 是唯一对客户端公开的业务后端。
 - Android 和 React 不得直接访问数据库、ML 服务或大模型供应商。
 - 先采用模块化单体，避免 MVP 阶段拆分大量微服务。
-- Python 仅承载自训练推荐模型的数据处理、训练、评估与推理，通过内部 API 被 Spring Boot 调用。
+- Python 仅承载自训练推荐模型的数据处理、训练、评估与推理，以及不接触业务数据的 Agent 结构化计划生成；两者都只通过内部 API 被 Spring Boot 调用，不承载认证或招聘业务写入。
 - 核心业务在 ML/LLM 不可用时仍能运行。
 - OpenAPI 是前后端接口契约的唯一来源。
 
@@ -26,10 +26,13 @@
              ┌──────▼───┐ ┌───▼────────────┐
              │  MySQL   │ │ Python ML API  │
              └──────────┘ └────────────────┘
+                    │ internal HTTP
+          ┌─────────▼──────────────┐
+          │ Python Agent Planner   │
+          │ LangGraph + LLM adapter│
+          └─────────┬──────────────┘
                     │
-                Agent Adapter
-                    │
-             Approved LLM Provider
+          Approved LLM Provider
 ```
 
 ## 3. 仓库结构建议
@@ -42,6 +45,7 @@ adproject/
 ├── android/                 # Kotlin + Jetpack Compose
 ├── web/                     # React + TypeScript
 ├── ml-service/              # Python 推荐模型训练、评估与推理
+├── agent-service/           # Python Agent 计划生成；不执行业务写操作
 ├── contracts/               # OpenAPI、共享 schema 和生成物
 ├── infra/                   # Docker Compose、部署配置
 └── scripts/                 # 本地开发与验证脚本
@@ -130,6 +134,8 @@ POST /internal/v1/recommend
 训练代码、特征定义、随机种子、数据版本、模型产物摘要和测试集指标必须可追踪。模型上线由配置指定版本，不能在请求期间临时训练。
 
 ## 9. Agent 安全边界
+
+Agent 采用“Python 规划、Spring Boot 授权与执行”的内部服务模式，详细契约见 `docs/agent-design.md`。Python Agent Planner 只把自然语言转换为结构化计划，不对客户端公开、不接收客户端 JWT、不访问业务数据库，也不直接执行任何有副作用的业务操作。
 
 - Agent 所有工具调用必须携带当前用户上下文并由服务端鉴权。
 - 读取工具和写入工具分开注册。

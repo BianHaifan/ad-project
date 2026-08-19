@@ -4,12 +4,12 @@
 
 ## Summary and counting
 
-- Unique operations: **45**
-- Candidate operations: **20**
+- Unique operations: **49**
+- Candidate operations: **24**
 - Recruiter operations: **29**
 - Shared operations: **4**
 
-Counting formula: `20 + 29 - 4 = 45`.
+Counting formula: `24 + 29 - 4 = 49`.
 
 ## Frozen unified rules
 
@@ -154,6 +154,15 @@ Counting formula: `20 + 29 - 4 = 45`.
 | Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | DRAFT | MVP | GET | `/features/learning` | `getLearningFeature` | YES | NO | Candidate role | — | 200 | 401, 403 |
+
+### Agent
+
+| Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| IMPLEMENTED | MVP | POST | `/agent/runs` | `createAgentRun` | YES | NO | Candidate self only; creation does not write | body: CreateAgentRunRequest | 201 | 400, 401, 403, 422 |
+| IMPLEMENTED | MVP | GET | `/agent/runs/{runId}` | `getAgentRun` | YES | NO | Run owner only | params: runId | 200 | 401, 403, 404 |
+| IMPLEMENTED | MVP | POST | `/agent/runs/{runId}/cancel` | `cancelAgentRun` | YES | NO | Run owner only; no business write | params: runId | 200 | 401, 403, 404, 409 |
+| IMPLEMENTED | MVP | POST | `/agent/runs/{runId}/confirm` | `confirmAgentRun` | YES | NO | Run owner only; confirmation/version/idempotency required | params: runId/Idempotency-Key; body: ConfirmAgentRunRequest | 200 | 401, 403, 404, 409, 422 |
 
 ## Frozen MVP decisions and deferred scope
 

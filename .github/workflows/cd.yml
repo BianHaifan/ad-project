@@ -9,6 +9,7 @@ env:
   IMAGE_BACKEND: adproject-backend:latest
   IMAGE_WEB: adproject-web:latest
   IMAGE_ML: adproject-ml:latest
+  IMAGE_AGENT: adproject-agent:latest
 
 jobs:
   build-images:
@@ -42,9 +43,17 @@ jobs:
           load: true
           tags: ${{ env.IMAGE_ML }}
 
+      - name: Build agent image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.agent
+          load: true
+          tags: ${{ env.IMAGE_AGENT }}
+
       - name: Export images to tar
         run: |
-          docker save -o /tmp/images.tar ${{ env.IMAGE_BACKEND }} ${{ env.IMAGE_WEB }} ${{ env.IMAGE_ML }}
+          docker save -o /tmp/images.tar ${{ env.IMAGE_BACKEND }} ${{ env.IMAGE_WEB }} ${{ env.IMAGE_ML }} ${{ env.IMAGE_AGENT }}
           ls -lh /tmp/images.tar
 
       - name: Upload image tar
@@ -94,11 +103,12 @@ jobs:
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM_ADDRESS: ${{ vars.RESEND_FROM_ADDRESS }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         with:
           host: ${{ vars.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: RESEND_API_KEY,RESEND_FROM_ADDRESS
+          envs: RESEND_API_KEY,RESEND_FROM_ADDRESS,DEEPSEEK_API_KEY
           command_timeout: 20m
           script: |
             set -e
@@ -109,6 +119,9 @@ jobs:
             fi
             if [ -n "${RESEND_FROM_ADDRESS:-}" ]; then
               export SMTP_FROM_ADDRESS="$RESEND_FROM_ADDRESS"
+            fi
+            if [ -n "${DEEPSEEK_API_KEY:-}" ]; then
+              export DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY"
             fi
             docker compose --env-file /opt/adproject/infra/docker/.env up -d --remove-orphans
             docker image prune -f >/dev/null 2>&1 || true

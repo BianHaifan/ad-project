@@ -132,20 +132,19 @@ MVP 只支持一份结构化在线简历。多简历、文件上传和默认简�
 | GET | `/jobs/{jobId}/match` | 获取推荐解释或职位详情匹配依据 | Candidate |
 | POST | `/agent/runs` | 提交自然语言操作指令并创建 Agent Run | Authenticated |
 | GET | `/agent/runs/{id}` | 查询自己的 Agent Run | Owning Candidate |
-| POST | `/agent/runs/{id}/confirm` | 确认 Agent 提出的具体写操作 | Run Owner |
+| POST | `/agent/runs/{id}/confirm` | 使用一次性确认标识、Run 版本和 Idempotency-Key 确认具体写操作 | Run Owner |
 | POST | `/agent/runs/{id}/cancel` | 取消尚未执行的操作 | Run Owner |
 
 推荐响应必须包含 `modelVersion`、`generatedAt` 和每个职位的 `matchScore/rank/matchAnalysis`。推荐不可用时 Spring Boot 返回明确的 fallback 标识及规则排序结果。
+
+Agent 的 Python Planner 仅通过内部接口 `POST /internal/v1/agent/plan` 被 Spring Boot 调用。该接口不对客户端开放，不接收 JWT 或业务实体；简历年龄用例只允许生成 `get_my_resume` 与 `preview_resume_patch` 计划。Spring Boot 负责 Run 所有权、工具白名单、字段与版本校验、预览持久化、确认后调用 `apply_resume_patch` 和审计。Planner 不得直接执行写操作。
 
 Agent 创建请求示例：
 
 ```json
 {
   "instruction": "把我默认简历里的年龄改成28",
-  "clientContext": {
-    "screen": "RESUME_DETAIL",
-    "resumeId": "uuid"
-  }
+  "conversationId": "uuid"
 }
 ```
 

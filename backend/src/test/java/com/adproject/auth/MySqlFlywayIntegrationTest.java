@@ -43,8 +43,8 @@ class MySqlFlywayIntegrationTest {
                 "select count(*) from information_schema.tables where table_schema = database() and table_name in " +
                         "('users','companies','company_members','refresh_tokens','jobs','job_audit_events','candidate_profiles','resumes'," +
                         "'resume_snapshots','applications','application_status_events','idempotency_records'," +
-                        "'conversations','messages','conversation_read_states')", Integer.class);
-        assertThat(count).isEqualTo(15);
+                        "'conversations','messages','conversation_read_states','agent_runs','agent_steps')", Integer.class);
+        assertThat(count).isEqualTo(17);
         Integer indexes = jdbcTemplate.queryForObject(
                 "select count(distinct index_name) from information_schema.statistics where table_schema = database() " +
                         "and table_name = 'jobs' and index_name in " +
@@ -55,6 +55,42 @@ class MySqlFlywayIntegrationTest {
                         "and table_name = 'job_audit_events' and index_name in " +
                         "('idx_job_audit_job_occurred','idx_job_audit_company_occurred')", Integer.class);
         assertThat(auditIndexes).isEqualTo(2);
+    }
+
+    @Test
+    void v27MigrationCreatesAgentAuditSchemaAndOwnershipIndexes() {
+        Integer tables = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.tables where table_schema = database() and table_name in " +
+                        "('agent_runs','agent_steps')", Integer.class);
+        assertThat(tables).isEqualTo(2);
+
+        Integer uniqueSequence = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.table_constraints where table_schema = database() " +
+                        "and constraint_type = 'UNIQUE' and constraint_name = 'uk_agent_steps_run_sequence'",
+                Integer.class);
+        assertThat(uniqueSequence).isEqualTo(1);
+
+        Integer indexes = jdbcTemplate.queryForObject(
+                "select count(distinct index_name) from information_schema.statistics where table_schema = database() " +
+                        "and index_name in ('idx_agent_runs_user_created','idx_agent_runs_status_expiry'," +
+                        "'idx_agent_steps_run_created')", Integer.class);
+        assertThat(indexes).isEqualTo(3);
+    }
+
+    @Test
+    void v28MigrationAddsConfirmationExecutionAndIdempotencySchema() {
+        Integer columns = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.columns where table_schema = database() " +
+                        "and table_name = 'agent_runs' and column_name in " +
+                        "('confirmation_id','execution_idempotency_key','confirmed_at','completed_at','result_json')",
+                Integer.class);
+        assertThat(columns).isEqualTo(5);
+
+        Integer constraints = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.table_constraints where table_schema = database() " +
+                        "and table_name = 'agent_runs' and constraint_type = 'UNIQUE' and constraint_name in " +
+                        "('uk_agent_runs_confirmation','uk_agent_runs_user_execution_key')", Integer.class);
+        assertThat(constraints).isEqualTo(2);
     }
 
     @Test

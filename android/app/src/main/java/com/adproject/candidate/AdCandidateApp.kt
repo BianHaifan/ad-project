@@ -33,6 +33,8 @@ import com.adproject.candidate.feature.auth.SignInScreen
 import com.adproject.candidate.feature.auth.PasswordResetScreen
 import com.adproject.candidate.feature.auth.CandidateOnboardingScreen
 import com.adproject.candidate.feature.auth.AuthViewModel
+import com.adproject.candidate.feature.agent.AgentScreen
+import com.adproject.candidate.feature.agent.AgentViewModel
 import com.adproject.candidate.feature.jobs.JobDetailScreen
 import com.adproject.candidate.feature.jobs.JobFeedScreen
 import com.adproject.candidate.feature.jobs.SavedJobsScreen
@@ -89,6 +91,7 @@ private object Route {
     const val CommunityDetail = "community/{postId}"
     const val CommunityCreate = "community-create"
     const val CommunityDirect = "community-direct/{conversationId}"
+    const val Agent = "agent"
 
     fun jobDetail(id: String) = "job-detail/$id"
     fun chatDetail(id: String) = "chat-detail/$id"
@@ -193,6 +196,7 @@ fun AdCandidateApp(
         val route = when (tab) {
             MainTab.Jobs -> Route.Jobs
             MainTab.Community -> Route.Community
+            MainTab.Agent -> Route.Agent
             MainTab.Messages -> Route.Messages
             MainTab.Me -> Route.Profile
         }
@@ -375,6 +379,7 @@ fun AdCandidateApp(
                     },
                     onOpenPreferences = { navController.navigate(Route.JobPreferences) },
                     onOpenSavedJobs = { navController.navigate(Route.SavedJobs) },
+                    onOpenAgent = { navController.navigate(Route.Agent) },
                     onLogout = authViewModel::logout,
                     onTab = ::openTab,
                 )
@@ -392,6 +397,24 @@ fun AdCandidateApp(
                     onDeleteAvatar = profileViewModel::deleteAvatar,
                     onCancelAvatar = profileViewModel::cancelAvatar,
                     onAvatarTooLarge = profileViewModel::rejectAvatarTooLarge,
+                )
+            }
+            composable(Route.Agent) {
+                val agentViewModel: AgentViewModel = viewModel(
+                    factory = AgentViewModel.factory(container.candidateAgentRepository),
+                )
+                val state by agentViewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(agentViewModel) { agentViewModel.loadHistory() }
+                AgentScreen(
+                    state = state,
+                    onTab = ::openTab,
+                    onInstruction = agentViewModel::updateInstruction,
+                    onCreate = agentViewModel::create,
+                    onRefresh = agentViewModel::refresh,
+                    onConfirm = agentViewModel::confirm,
+                    onCancel = agentViewModel::cancel,
+                    onStartAnother = agentViewModel::startNewConversation,
+                    onOpenConversation = agentViewModel::openConversation,
                 )
             }
             composable(Route.Community) {

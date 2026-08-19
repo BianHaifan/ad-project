@@ -25,6 +25,7 @@ tags:
 - name: Features
 - name: Admin
 - name: Community
+- name: Agent
 security:
 - bearerAuth: []
 paths:
@@ -1133,6 +1134,227 @@ paths:
         the company, or the company has a published public job; missing or unreachable resources return 404. Status:
         IMPLEMENTED. Clients: Candidate.'
       x-mvp-scope: MVP
+  /agent/runs:
+    post:
+      tags:
+      - Agent
+      summary: Create a Candidate Agent run for a resume query or confirmable change preview
+      operationId: createAgentRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRunRequest'
+      responses:
+        '201':
+          description: Agent run created; reads may complete immediately and writes may require confirmation or clarification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunResponse'
+        '400':
+          description: Malformed request body or unknown field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      x-status: IMPLEMENTED
+      x-clients:
+      - Candidate
+      x-permission: Candidate self only; creation reads and previews but does not write
+      description: 'Permission: Candidate self only. Status: IMPLEMENTED. Python creates a structured plan; Spring Boot executes get_my_resume, read_resume_section, and preview_resume_patch for age, summary, skills, and experiences. Only the separate confirm endpoint may write.'
+      x-mvp-scope: MVP
+  /agent/conversations:
+    get:
+      tags: [Agent]
+      summary: List the current Candidate's Agent conversations
+      operationId: listAgentConversations
+      responses:
+        '200':
+          description: Up to 30 owned conversations, newest activity first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConversationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-status: IMPLEMENTED
+      x-clients: [Candidate]
+      x-permission: Candidate self only
+      x-mvp-scope: MVP
+  /agent/conversations/recent:
+    get:
+      tags: [Agent]
+      summary: Restore the current Candidate's most recent Agent conversation
+      operationId: getRecentAgentConversation
+      responses:
+        '200':
+          description: Most recent conversation, or an empty conversation when no history exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConversationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-status: IMPLEMENTED
+      x-clients: [Candidate]
+      x-permission: Candidate self only
+      x-mvp-scope: MVP
+  /agent/conversations/{conversationId}:
+    get:
+      tags: [Agent]
+      summary: Get an owned persistent Agent conversation
+      operationId: getAgentConversation
+      parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Owned conversation with up to 50 recent runs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConversationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-status: IMPLEMENTED
+      x-clients: [Candidate]
+      x-permission: Conversation owner only; another user's conversation returns 404
+      x-mvp-scope: MVP
+  /agent/runs/{runId}:
+    get:
+      tags:
+      - Agent
+      summary: Get an owned Agent run with steps and preview
+      operationId: getAgentRun
+      parameters:
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Owned Agent run
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-status: IMPLEMENTED
+      x-clients:
+      - Candidate
+      x-permission: Run owner only; another user's run returns 404
+      description: 'Permission: Run owner only. Status: IMPLEMENTED.'
+      x-mvp-scope: MVP
+  /agent/runs/{runId}/cancel:
+    post:
+      tags:
+      - Agent
+      summary: Cancel an owned Agent run that has not executed
+      operationId: cancelAgentRun
+      parameters:
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Agent run cancelled, or the already-cancelled representation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-status: IMPLEMENTED
+      x-clients:
+      - Candidate
+      x-permission: Run owner only; only AWAITING_CONFIRMATION or NEEDS_CLARIFICATION can be cancelled
+      description: 'Permission: Run owner only. Status: IMPLEMENTED. Cancellation has no effect on resume data.'
+      x-mvp-scope: MVP
+  /agent/runs/{runId}/confirm:
+    post:
+      tags:
+      - Agent
+      summary: Confirm and idempotently execute an owned Agent preview
+      operationId: confirmAgentRun
+      parameters:
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmAgentRunRequest'
+      responses:
+        '200':
+          description: Confirmed change completed, or the original result for an idempotent replay
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Run, confirmation, expiry, idempotency, or target resource version conflict
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/ErrorResponse'
+                - $ref: '#/components/schemas/AgentRunResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      x-status: IMPLEMENTED
+      x-clients:
+      - Candidate
+      x-permission: Run owner only; valid one-time confirmation and idempotency key required
+      description: 'Permission: Run owner only. Status: IMPLEMENTED. Spring Boot rechecks expiry, Run version, resume ownership and resume version before applying only the previewed age change.'
+      x-mvp-scope: MVP
   /recruiter/me:
     get:
       tags:
@@ -1163,78 +1385,78 @@ paths:
           $ref: '#/components/responses/Forbidden'
       description: 'Permission: Recruiter self. Status: DRAFT. Clients: Recruiter.'
       x-mvp-scope: MVP
-    /recruiter/profile:
-      get:
-        tags:
-        - Profile
-        summary: Get recruiter profile
-        operationId: getRecruiterProfile
-        x-status: DRAFT
-        x-clients:
-        - Recruiter
-        x-permission: Recruiter self
-        responses:
-          '200':
-            description: Success
-            content:
-              application/json:
-                schema:
-                  type: object
-                  required:
-                  - data
-                  properties:
-                    data:
-                      $ref: '#/components/schemas/RecruiterProfileDetail'
-          '401':
-            $ref: '#/components/responses/Unauthorized'
-          '403':
-            $ref: '#/components/responses/Forbidden'
-        description: 'Permission: Recruiter self. Status: DRAFT. Clients: Recruiter. Returns only the current
-          recruiter''s own profile and never exposes password hashes, refresh tokens, Google OAuth data, or resume bodies.'
-        x-mvp-scope: MVP
-      patch:
-        tags:
-        - Profile
-        summary: Update recruiter profile
-        operationId: updateRecruiterProfile
-        x-status: DRAFT
-        x-clients:
-        - Recruiter
-        x-permission: Recruiter self
-        requestBody:
-          required: true
+  /recruiter/profile:
+    get:
+      tags:
+      - Profile
+      summary: Get recruiter profile
+      operationId: getRecruiterProfile
+      x-status: DRAFT
+      x-clients:
+      - Recruiter
+      x-permission: Recruiter self
+      responses:
+        '200':
+          description: Success
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UpdateRecruiterProfileRequest'
-        responses:
-          '200':
-            description: Success
-            content:
-              application/json:
-                schema:
-                  type: object
-                  required:
-                  - data
-                  properties:
-                    data:
-                      $ref: '#/components/schemas/RecruiterProfileDetail'
-          '401':
-            $ref: '#/components/responses/Unauthorized'
-          '403':
-            $ref: '#/components/responses/Forbidden'
-            '400':
-              description: Malformed request body or unknown read-only field
-              content:
-                application/json:
-                  schema:
-                    $ref: '#/components/schemas/ErrorResponse'
-          '422':
-            $ref: '#/components/responses/ValidationError'
-        description: 'Permission: Recruiter self. Status: DRAFT. Clients: Recruiter. Only fullName, title, and bio are
-          editable; avatarUrl is read-only and managed by the avatar endpoints (/profile/avatar). Email, company, role,
-          avatarUrl, and createdAt are rejected as unknown fields. Unknown fields return 400 INVALID_REQUEST.'
-        x-mvp-scope: MVP
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RecruiterProfileDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      description: 'Permission: Recruiter self. Status: DRAFT. Clients: Recruiter. Returns only the current
+        recruiter''s own profile and never exposes password hashes, refresh tokens, Google OAuth data, or resume bodies.'
+      x-mvp-scope: MVP
+    patch:
+      tags:
+      - Profile
+      summary: Update recruiter profile
+      operationId: updateRecruiterProfile
+      x-status: DRAFT
+      x-clients:
+      - Recruiter
+      x-permission: Recruiter self
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRecruiterProfileRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RecruiterProfileDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '400':
+          description: Malformed request body or unknown read-only field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: 'Permission: Recruiter self. Status: DRAFT. Clients: Recruiter. Only fullName, title, and bio are
+        editable; avatarUrl is read-only and managed by the avatar endpoints (/profile/avatar). Email, company, role,
+        avatarUrl, and createdAt are rejected as unknown fields. Unknown fields return 400 INVALID_REQUEST.'
+      x-mvp-scope: MVP
 
   /profile/avatar:
     post:
@@ -4037,6 +4259,316 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/TokenData'
+    CreateAgentRunRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - instruction
+      properties:
+        instruction:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        conversationId:
+          type: [string, 'null']
+          format: uuid
+          maxLength: 36
+          description: Existing owned conversation to continue; omit to create a new conversation.
+    ConfirmAgentRunRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - confirmationId
+      - expectedRunVersion
+      properties:
+        confirmationId:
+          type: string
+          maxLength: 100
+        expectedRunVersion:
+          type: integer
+          minimum: 1
+    AgentRunStatus:
+      type: string
+      enum:
+      - PROCESSING
+      - AWAITING_CONFIRMATION
+      - NEEDS_CLARIFICATION
+      - NO_ACTION_REQUIRED
+      - FAILED
+      - CANCELLED
+      - EXECUTING
+      - COMPLETED
+      description: EXECUTING and COMPLETED are produced only by the confirmed-write endpoint.
+    AgentConfirmationStatus:
+      type: string
+      enum:
+      - NOT_REQUIRED
+      - PENDING
+      - CONFIRMED
+      - CANCELLED
+      - EXPIRED
+    AgentTarget:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - id
+      properties:
+        type:
+          type: string
+          const: RESUME
+        id:
+          type: string
+    AgentFieldChange:
+      type: object
+      additionalProperties: false
+      required:
+      - field
+      - oldValue
+      - newValue
+      properties:
+        field:
+          type: string
+          enum: [age, summary, skills, experiences]
+        oldValue:
+          description: Previous complete value of the changed field. The runtime type follows field.
+        newValue:
+          description: Proposed complete value of the changed field. The runtime type follows field.
+    AgentPreview:
+      type: object
+      additionalProperties: false
+      required:
+      - confirmationId
+      - targetType
+      - targetId
+      - expectedVersion
+      - expiresAt
+      - changes
+      properties:
+        confirmationId:
+          type: string
+        targetType:
+          type: string
+          const: RESUME
+        targetId:
+          type: string
+        expectedVersion:
+          type: integer
+          minimum: 1
+        expiresAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+        changes:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/AgentFieldChange'
+    AgentStep:
+      type: object
+      additionalProperties: false
+      required:
+      - sequence
+      - type
+      - status
+      - durationMs
+      - createdAt
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+        type:
+          type: string
+          enum: [PLAN, TOOL, SYSTEM]
+        tool:
+          oneOf:
+          - type: string
+            enum: [get_my_resume, read_resume_section, preview_resume_patch, apply_resume_patch]
+          - type: 'null'
+        status:
+          type: string
+          enum: [SUCCEEDED, FAILED]
+        inputSummary:
+          type: [string, 'null']
+        outputSummary:
+          type: [string, 'null']
+        errorCode:
+          type: [string, 'null']
+        durationMs:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+    AgentRun:
+      type: object
+      additionalProperties: false
+      required:
+      - runId
+      - conversationId
+      - instruction
+      - status
+      - confirmationStatus
+      - steps
+      - version
+      - createdAt
+      - updatedAt
+      properties:
+        runId:
+          type: string
+        conversationId:
+          type: string
+          format: uuid
+        instruction:
+          type: string
+        status:
+          $ref: '#/components/schemas/AgentRunStatus'
+        confirmationStatus:
+          $ref: '#/components/schemas/AgentConfirmationStatus'
+        target:
+          oneOf:
+          - $ref: '#/components/schemas/AgentTarget'
+          - type: 'null'
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentStep'
+        preview:
+          oneOf:
+          - $ref: '#/components/schemas/AgentPreview'
+          - type: 'null'
+        result:
+          oneOf:
+          - $ref: '#/components/schemas/AgentExecutionResult'
+          - type: 'null'
+        message:
+          type: [string, 'null']
+        errorCode:
+          type: [string, 'null']
+        version:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+    AgentExecutionResult:
+      type: object
+      additionalProperties: false
+      required:
+      - operation
+      - targetType
+      - targetId
+      - previousVersion
+      - newVersion
+      - completedAt
+      - appliedChanges
+      properties:
+        operation:
+          type: string
+          enum: [READ_RESUME, UPDATE_RESUME]
+        targetType:
+          type: string
+          const: RESUME
+        targetId:
+          type: string
+        previousVersion:
+          type: integer
+          minimum: 1
+        newVersion:
+          type: integer
+          minimum: 1
+        completedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
+        appliedChanges:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentFieldChange'
+        queryResult:
+          oneOf:
+          - $ref: '#/components/schemas/AgentQueryResult'
+          - type: 'null'
+    AgentQueryResult:
+      type: object
+      additionalProperties: false
+      required: [section]
+      properties:
+        section:
+          type: string
+          enum: [summary, skills, experiences]
+        summary:
+          type: [string, 'null']
+        skills:
+          oneOf:
+          - type: array
+            items: { type: string }
+          - type: 'null'
+        experiences:
+          oneOf:
+          - type: array
+            items:
+              $ref: '#/components/schemas/Experience'
+          - type: 'null'
+    AgentRunResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/AgentRun'
+    AgentConversation:
+      type: object
+      additionalProperties: false
+      required: [conversationId, runs]
+      properties:
+        conversationId:
+          type: [string, 'null']
+          format: uuid
+        runs:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/AgentRun'
+    AgentConversationResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AgentConversation'
+    AgentConversationSummary:
+      type: object
+      additionalProperties: false
+      required: [conversationId, lastInstruction, updatedAt]
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+        lastInstruction:
+          type: string
+        lastMessage:
+          type: [string, 'null']
+        updatedAt:
+          type: string
+          format: date-time
+    AgentConversationListResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/AgentConversationSummary'
     EmploymentType:
       type: string
       enum:
@@ -6953,8 +7485,8 @@ components:
           - $ref: '#/components/schemas/AdminUserDetail'
 
 x-catalog-counts:
-  uniqueOperations: 92
-  candidateOperations: 34
+  uniqueOperations: 96
+  candidateOperations: 38
   recruiterOperations: 42
   sharedOperations: 11
   adminOperations: 14

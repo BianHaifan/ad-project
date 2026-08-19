@@ -38,7 +38,13 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.adproject.candidate.R
 
-enum class MainTab(val label: String) { Jobs("Jobs"), Community("Community"), Messages("Messages"), Me("Me") }
+enum class MainTab(val label: String) {
+    Jobs("Jobs"),
+    Community("Community"),
+    Agent("Agent"),
+    Messages("Messages"),
+    Me("Me"),
+}
 
 @Composable
 fun FigmaSvg(@RawRes resource: Int, contentDescription: String?, modifier: Modifier = Modifier) {
@@ -149,6 +155,7 @@ fun AdBottomBar(selected: MainTab, onSelected: (MainTab) -> Unit) {
     val icons = mapOf(
         MainTab.Jobs to (R.raw.hirex_jobs_active to R.raw.hirex_jobs_inactive),
         MainTab.Community to (R.raw.hirex_community_active to R.raw.hirex_community_inactive),
+        MainTab.Agent to (R.raw.hirex_agent_active to R.raw.hirex_agent_inactive),
         MainTab.Messages to (R.raw.hirex_messages_active to R.raw.hirex_messages_inactive),
         MainTab.Me to (R.raw.hirex_me_active to R.raw.hirex_me_inactive),
     )
@@ -161,7 +168,7 @@ fun AdBottomBar(selected: MainTab, onSelected: (MainTab) -> Unit) {
             MainTab.entries.forEach { tab ->
                 val active = selected == tab
                 Column(
-                    Modifier.width(80.dp).clickable { onSelected(tab) },
+                    Modifier.weight(1f).clickable { onSelected(tab) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {

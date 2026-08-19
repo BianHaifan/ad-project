@@ -77,7 +77,7 @@ class ProfileScreensUiTest {
     @Test
     fun realProfileLoadingShowsSpinner() {
         composeRule.setContent {
-            RealProfileScreen(ProfileUiState(), ResumeUiState(), ApplicationCounts(0, 0, 0), {}, {}, {}, {}, {}, {}, {}, {})
+            RealProfileScreen(ProfileUiState(), ResumeUiState(), ApplicationCounts(0, 0, 0), {}, {}, {}, {}, {}, {}, {}, {}, {})
         }
     }
 
@@ -88,7 +88,7 @@ class ProfileScreensUiTest {
             RealProfileScreen(
                 ProfileUiState(loading = false, message = "Network unavailable"),
                 ResumeUiState(), ApplicationCounts(0, 0, 0),
-                onRetry = { retries++ }, {}, {}, {}, {}, {}, {}, {},
+                onRetry = { retries++ }, {}, {}, {}, {}, {}, {}, {}, {},
             )
         }
         composeRule.onNodeWithText("Network unavailable").assertIsDisplayed()
@@ -101,7 +101,7 @@ class ProfileScreensUiTest {
         composeRule.setContent {
             RealProfileScreen(
                 ProfileUiState(loading = false),
-                ResumeUiState(), ApplicationCounts(0, 0, 0), {}, {}, {}, {}, {}, {}, {}, {},
+                ResumeUiState(), ApplicationCounts(0, 0, 0), {}, {}, {}, {}, {}, {}, {}, {}, {},
             )
         }
         composeRule.onNodeWithText("Unable to load profile").assertIsDisplayed()
@@ -114,7 +114,7 @@ class ProfileScreensUiTest {
                 ProfileUiState(loading = false, data = profile()),
                 ResumeUiState(loading = false, data = resume()),
                 ApplicationCounts(2, 1, 3),
-                {}, {}, {}, {}, {}, {}, {}, {},
+                {}, {}, {}, {}, {}, {}, {}, {}, {},
             )
         }
         composeRule.onNodeWithText("My applications").assertIsDisplayed()
@@ -138,7 +138,7 @@ class ProfileScreensUiTest {
             RealProfileScreen(
                 ProfileUiState(loading = false, data = profile()),
                 ResumeUiState(loading = false, data = null, notCreated = false),
-                ApplicationCounts(2, 1, 3), {}, {}, {}, {}, {}, {}, {}, {},
+                ApplicationCounts(2, 1, 3), {}, {}, {}, {}, {}, {}, {}, {}, {},
             )
         }
         composeRule.onNodeWithText("Unavailable").assertExists()
@@ -150,7 +150,7 @@ class ProfileScreensUiTest {
             RealProfileScreen(
                 ProfileUiState(loading = false, data = profile()),
                 ResumeUiState(loading = false, data = resume(summary = " ", skills = emptyList(), experiences = emptyList())),
-                ApplicationCounts(2, 1, 3), {}, {}, {}, {}, {}, {}, {}, {},
+                ApplicationCounts(2, 1, 3), {}, {}, {}, {}, {}, {}, {}, {}, {},
             )
         }
         composeRule.onNodeWithText("Add summary, skills, experience").assertExists()
@@ -162,7 +162,7 @@ class ProfileScreensUiTest {
             RealProfileScreen(
                 ProfileUiState(loading = false, data = profile()),
                 ResumeUiState(loading = true),
-                ApplicationCounts(2, 1, 3), {}, {}, {}, {}, {}, {}, {}, {},
+                ApplicationCounts(2, 1, 3), {}, {}, {}, {}, {}, {}, {}, {}, {},
             )
         }
         composeRule.onNodeWithText("Loading…").assertExists()
@@ -187,6 +187,7 @@ class ProfileScreensUiTest {
                 onOpenResume = { openResume++ },
                 onOpenPreferences = { openPrefs++ },
                 onOpenSavedJobs = { openSaved++ },
+                onOpenAgent = {},
                 onLogout = { logout++ },
                 onTab = {},
             )

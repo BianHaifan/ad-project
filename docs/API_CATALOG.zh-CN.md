@@ -4,12 +4,12 @@
 
 ## 汇总与计数口径
 
-- 唯一接口：**45**
-- Candidate 使用：**20**
+- 唯一接口：**49**
+- Candidate 使用：**24**
 - Recruiter 使用：**29**
 - 共享接口：**4**
 
-计数公式：`20 + 29 - 4 = 45`。
+计数公式：`24 + 29 - 4 = 49`。
 
 ## 已冻结的统一规则
 
@@ -154,6 +154,15 @@
 | 状态 | MVP 范围 | Method | Path | operationId | Candidate | Recruiter | 权限 | 请求 | 成功 | 主要错误 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | DRAFT | MVP | GET | `/features/learning` | `getLearningFeature` | YES | NO | Candidate role | — | 200 | 401, 403 |
+
+### Agent
+
+| 状态 | MVP 范围 | Method | Path | operationId | Candidate | Recruiter | 权限 | 请求 | 成功 | 主要错误 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| IMPLEMENTED | MVP | POST | `/agent/runs` | `createAgentRun` | YES | NO | Candidate self only; creation does not write | body: CreateAgentRunRequest | 201 | 400, 401, 403, 422 |
+| IMPLEMENTED | MVP | GET | `/agent/runs/{runId}` | `getAgentRun` | YES | NO | Run owner only | params: runId | 200 | 401, 403, 404 |
+| IMPLEMENTED | MVP | POST | `/agent/runs/{runId}/cancel` | `cancelAgentRun` | YES | NO | Run owner only; no business write | params: runId | 200 | 401, 403, 404, 409 |
+| IMPLEMENTED | MVP | POST | `/agent/runs/{runId}/confirm` | `confirmAgentRun` | YES | NO | Run owner only; confirmation/version/idempotency required | params: runId/Idempotency-Key; body: ConfirmAgentRunRequest | 200 | 401, 403, 404, 409, 422 |
 
 ## 已冻结的 MVP 决策与延期范围
 
