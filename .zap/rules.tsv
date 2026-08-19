@@ -12,3 +12,5 @@
 10109	INFO	(Modern Web Application - ZAP states no changes are required)
 90005	IGNORE	(Sec-Fetch-* request headers are sent by the browser and cannot be set server-side)
 40038	INFO	(nginx SPA fallback returns index.html, not a 403 bypass)
+100000	INFO	(Error response codes are expected 4xx auth rejections and DAST-injected malformed payloads; no real exploit)
+100001	INFO	(direct :8080 contact outside nginx returns 400 with default content type)
