@@ -1,0 +1,66 @@
+{
+  "decision": {
+    "active_ranker": "KEEP_MATCH_HGB_RETRIEVAL_V4",
+    "collaborative_filtering": "BLOCKED_UNTIL_REAL_BEHAVIOR_EVENTS_EXIST",
+    "neural_embedding_direct_blend": "REJECT_FOR_CURRENT_VERSION",
+    "neural_embedding_retrieval": "PROMISING_SECONDARY_RECALL_EXPERIMENT_NOT_DEPLOYED"
+  },
+  "collaborative_filtering_stability": {
+    "configuration": {
+      "cf_dimensions": 32,
+      "embedding_dimensions": 64,
+      "positive_threshold": 2.5
+    },
+    "seeds": {
+      "7": {
+        "selected_cf_weight": 0.0,
+        "frozen_hybrid_map_at_10": 0.965625,
+        "frozen_ranker_map_at_10": 0.965625
+      },
+      "42": {
+        "selected_cf_weight": 0.1,
+        "frozen_hybrid_map_at_10": 0.984861,
+        "frozen_ranker_map_at_10": 0.965625
+      },
+      "99": {
+        "selected_cf_weight": 0.0,
+        "frozen_hybrid_map_at_10": 0.965625,
+        "frozen_ranker_map_at_10": 0.965625
+      }
+    },
+    "seeds_selecting_nonzero_cf": 1,
+    "seed_count": 3,
+    "conclusion": "NONZERO_CF_GAIN_DID_NOT_REPLICATE_ACROSS_SEEDS"
+  },
+  "neural_embedding_reranking": {
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "c315f904dfc467d8b9c40ab4ed50b3a8d0866c15",
+    "device": "cpu",
+    "ranker_map_at_10": 0.991667,
+    "embedding_only_map_at_10": 0.347782,
+    "ranker_90_embedding_10_map_at_10": 0.964292,
+    "conclusion": "DIRECT_SCORE_BLEND_DEGRADED_FROZEN_TEACHER_AGREEMENT"
+  },
+  "neural_embedding_full_catalog_retrieval": {
+    "catalog_jobs": 25298,
+    "query_count": 20,
+    "top_k": 300,
+    "mean_overlap_with_existing_pool": 54.05,
+    "mean_new_neural_jobs": 245.95,
+    "existing_pool_relevant_pairs": 1839,
+    "neural_pool_relevant_pairs": 1634,
+    "union_relevant_pairs": 2996,
+    "new_relevant_pairs_added_to_existing_pool": 1157,
+    "relative_relevant_pool_increase": 0.629146,
+    "existing_retrieval_then_v4_map_at_10": 0.991667,
+    "neural_retrieval_then_v4_map_at_10": 0.985714,
+    "union_retrieval_then_v4_map_at_10": 0.99,
+    "conclusion": "NEURAL_RETRIEVAL_IS_COMPLEMENTARY_BUT_NEEDS_HUMAN_AND_ONLINE_VALIDATION"
+  },
+  "evidence_limits": [
+    "All relevance labels are AI teacher labels rather than human blind labels.",
+    "Collaborative filtering interactions are synthesized from teacher relevance.",
+    "Only twenty frozen query groups are available.",
+    "No production user behavior or A/B test was used."
+  ]
+}

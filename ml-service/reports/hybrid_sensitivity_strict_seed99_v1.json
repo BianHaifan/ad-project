@@ -1,0 +1,151 @@
+{
+  "cold_start_teacher_agreement": {
+    "frozen_test": {
+      "embedding_score": {
+        "eligible_query_count": 20.0,
+        "map_at_10": 0.364024,
+        "map_at_10_eligible": 0.364024,
+        "ndcg_at_10": 0.59253,
+        "precision_at_5": 0.49,
+        "query_count": 20.0,
+        "recall_at_10": 0.076111,
+        "relevant_query_coverage": 1.0
+      },
+      "hybrid_cold_score": {
+        "eligible_query_count": 20.0,
+        "map_at_10": 0.991667,
+        "map_at_10_eligible": 0.991667,
+        "ndcg_at_10": 0.984582,
+        "precision_at_5": 0.97,
+        "query_count": 20.0,
+        "recall_at_10": 0.237906,
+        "relevant_query_coverage": 1.0
+      },
+      "ranker_score": {
+        "eligible_query_count": 20.0,
+        "map_at_10": 0.991667,
+        "map_at_10_eligible": 0.991667,
+        "ndcg_at_10": 0.984582,
+        "precision_at_5": 0.97,
+        "query_count": 20.0,
+        "recall_at_10": 0.237906,
+        "relevant_query_coverage": 1.0
+      }
+    },
+    "tuned_on_development": {
+      "embedding_weight": 0.0,
+      "map_at_10": 0.95614,
+      "ranker_weight": 1.0
+    }
+  },
+  "data": {
+    "development_queries": 100,
+    "frozen_pairs": 6000,
+    "frozen_queries": 20,
+    "synthetic_interactions": 54840,
+    "training_pairs": 738900,
+    "training_queries": 2463,
+    "unique_jobs": 20083,
+    "warm_development_queries": 72,
+    "warm_frozen_queries": 16
+  },
+  "evidence": {
+    "cold_start_labels": "FROZEN_AI_TEACHER_LABELS_NOT_HUMAN_BLIND_LABELS",
+    "collaborative_filtering_feedback": "SYNTHETIC_IMPLICIT_FEEDBACK_DERIVED_FROM_AI_TEACHER_RELEVANCE",
+    "deployment_decision": "EXPERIMENT_ONLY_DO_NOT_REPLACE_ACTIVE_MODEL"
+  },
+  "experiment_type": "OFFLINE_HYBRID_PROTOTYPE_NOT_PRODUCTION_BEHAVIOR_EVALUATION",
+  "limitations": [
+    "No real impression, click, save, application, interview, or hire event log was available.",
+    "CF feedback was synthesized from the same AI teacher relevance used by the ranker.",
+    "Frozen labels are teacher labels, not independently reviewed human ground truth.",
+    "LSA is a dense scikit-learn embedding baseline, not a neural sentence embedding.",
+    "The active ranker saw development query labels during its original training."
+  ],
+  "models": {
+    "active_ranker": {
+      "algorithm": "GuardedPrelabelFeaturesV3+MonotonicHistGradientBoostingRegressor",
+      "version": "match-hgb-retrieval-v4"
+    },
+    "collaborative_filtering": {
+      "algorithm": "IMPLICIT_FEEDBACK_TRUNCATED_SVD_BASELINE",
+      "dimensions": 32,
+      "explained_variance_ratio": 0.390558
+    },
+    "embedding": {
+      "algorithm": "TFIDF_PLUS_TRUNCATED_SVD_LSA",
+      "dimensions": 64,
+      "explained_variance_ratio": 0.119303
+    }
+  },
+  "timing_seconds": {
+    "active_ranker_selected_scoring": 46.058,
+    "cf_fit_tuning_and_scoring": 15.91,
+    "embedding_fit_and_selected_scoring": 33.882,
+    "teacher_labeling": 9.952,
+    "total": 115.703
+  },
+  "warm_start_synthetic_holdout": {
+    "frozen_test": {
+      "cf_score": {
+        "eligible_query_count": 16.0,
+        "map_at_10": 0.635764,
+        "map_at_10_eligible": 0.635764,
+        "ndcg_at_10": 0.734969,
+        "precision_at_5": 0.7375,
+        "query_count": 16.0,
+        "recall_at_10": 0.089984,
+        "relevant_query_coverage": 1.0
+      },
+      "embedding_score": {
+        "eligible_query_count": 16.0,
+        "map_at_10": 0.307753,
+        "map_at_10_eligible": 0.307753,
+        "ndcg_at_10": 0.561545,
+        "precision_at_5": 0.4875,
+        "query_count": 16.0,
+        "recall_at_10": 0.063692,
+        "relevant_query_coverage": 1.0
+      },
+      "hybrid_warm_score": {
+        "eligible_query_count": 16.0,
+        "map_at_10": 0.965625,
+        "map_at_10_eligible": 0.965625,
+        "ndcg_at_10": 0.932426,
+        "precision_at_5": 0.9875,
+        "query_count": 16.0,
+        "recall_at_10": 0.152678,
+        "relevant_query_coverage": 1.0
+      },
+      "popularity_score": {
+        "eligible_query_count": 16.0,
+        "map_at_10": 0.141706,
+        "map_at_10_eligible": 0.141706,
+        "ndcg_at_10": 0.442991,
+        "precision_at_5": 0.25,
+        "query_count": 16.0,
+        "recall_at_10": 0.02931,
+        "relevant_query_coverage": 1.0
+      },
+      "ranker_score": {
+        "eligible_query_count": 16.0,
+        "map_at_10": 0.965625,
+        "map_at_10_eligible": 0.965625,
+        "ndcg_at_10": 0.932426,
+        "precision_at_5": 0.9875,
+        "query_count": 16.0,
+        "recall_at_10": 0.152678,
+        "relevant_query_coverage": 1.0
+      }
+    },
+    "holdout_fraction": 0.2,
+    "positive_threshold": 2.5,
+    "training_history_items_are_excluded_from_ranking": true,
+    "tuned_on_development": {
+      "cf_weight": 0.0,
+      "embedding_weight": 0.0,
+      "map_at_10": 0.998611,
+      "ranker_weight": 1.0
+    }
+  }
+}

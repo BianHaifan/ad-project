@@ -39,17 +39,35 @@ class MlRecommendationClientTest {
                 .andExpect(jsonPath("$.jobs[0].workplace_type").value("HYBRID"))
                 .andRespond(withSuccess("""
                         {
-                          "model_version": "match-hgb-v1",
-                          "feature_version": "pair-features-v1",
+                          "model_version": "match-hybrid-lsa-cf-v1",
+                          "feature_version": "pair-features-v1+lsa64+cf32",
                           "generated_at": "2026-08-12T08:00:00Z",
                           "inference_ms": 5,
+                          "hybrid": {
+                            "enabled": true,
+                            "components": ["RANKER", "LSA_EMBEDDING", "COLLABORATIVE_SVD"],
+                            "weights": {"ranker": 0.85, "embedding": 0.10, "collaborative": 0.05},
+                            "embedding_algorithm": "TFIDF_TRUNCATED_SVD_LSA",
+                            "collaborative_algorithm": "IMPLICIT_FEEDBACK_TRUNCATED_SVD",
+                            "collaborative_feedback_source": "SYNTHETIC_IMPLICIT_FEEDBACK"
+                          },
                           "items": [{
                             "entity_id": "job-1",
                             "score": 98,
                             "rank": 1,
                             "strong_matches": ["Skills matched: 4 of 4"],
                             "gaps": [],
-                            "evidence": ["python"]
+                            "evidence": ["python"],
+                            "component_scores": {
+                              "ranker": 98.0,
+                              "embedding_cosine": 0.91,
+                              "collaborative_latent": 0.72,
+                              "hybrid_final": 98.0
+                            },
+                            "component_modes": {
+                              "candidate_cf": "EMBEDDING_BRIDGED",
+                              "job_cf": "EMBEDDING_BRIDGED"
+                            }
                           }]
                         }
                         """, MediaType.APPLICATION_JSON));
@@ -64,11 +82,18 @@ class MlRecommendationClientTest {
                         "FULL_TIME", new MlSalary(6000L, 9000L, "SGD", "MONTH"), 3.0)),
                 1);
 
-        assertThat(response.modelVersion()).isEqualTo("match-hgb-v1");
+        assertThat(response.modelVersion()).isEqualTo("match-hybrid-lsa-cf-v1");
+        assertThat(response.hybrid().enabled()).isTrue();
+        assertThat(response.hybrid().components())
+                .containsExactly("RANKER", "LSA_EMBEDDING", "COLLABORATIVE_SVD");
+        assertThat(response.hybrid().weights()).containsEntry("collaborative", 0.05);
         assertThat(response.items()).singleElement().satisfies(item -> {
             assertThat(item.entityId()).isEqualTo("job-1");
             assertThat(item.score()).isEqualTo(98);
             assertThat(item.evidence()).containsExactly("python");
+            assertThat(item.componentScores()).containsEntry("embedding_cosine", 0.91);
+            assertThat(item.componentModes())
+                    .containsEntry("candidate_cf", "EMBEDDING_BRIDGED");
         });
         server.verify();
     }
