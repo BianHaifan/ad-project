@@ -41,6 +41,7 @@ services:
       ML_BASE_URL: http://ml:8000
       ML_INTERNAL_TOKEN: ${ML_INTERNAL_TOKEN}
       AGENT_PLANNER_BASE_URL: http://agent:8090
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     depends_on:
       mysql:
         condition: service_healthy
