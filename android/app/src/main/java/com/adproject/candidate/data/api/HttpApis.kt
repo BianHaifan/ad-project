@@ -149,6 +149,11 @@ interface CandidateAgentHttpApi {
     suspend fun cancel(
         @Path("runId") runId: String,
     ): Response<DataEnvelope<com.adproject.candidate.data.contract.AgentRun>>
+
+    @DELETE("agent/conversations/{conversationId}")
+    suspend fun deleteConversation(
+        @Path("conversationId") conversationId: String,
+    ): Response<Unit>
 }
 
 interface CandidateApplicationHttpApi {

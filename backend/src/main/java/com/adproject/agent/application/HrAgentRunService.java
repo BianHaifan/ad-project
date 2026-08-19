@@ -50,7 +50,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Recruiter-side agent runs. The planner (agent-service) never sees business data; screening is
@@ -80,13 +83,15 @@ public class HrAgentRunService implements AgentRunsPort {
     private final CompanyMemberRepository members;
     private final ObjectMapper mapper;
     private final Clock clock;
+    private final TransactionTemplate executionTemplate;
 
     public HrAgentRunService(AgentRunRepository runs, AgentStepRepository steps,
                              AgentPlannerClient planner, HrScreeningClient screening,
                              AgentProperties properties, InterviewService interviewService,
                              InterviewRepository interviews, ApplicationRepository applications,
                              ResumeRepository resumes, JobRepository jobs,
-                             CompanyMemberRepository members, ObjectMapper mapper, Clock clock) {
+                             CompanyMemberRepository members, ObjectMapper mapper, Clock clock,
+                             PlatformTransactionManager transactionManager) {
         this.runs = runs;
         this.steps = steps;
         this.planner = planner;
@@ -100,6 +105,8 @@ public class HrAgentRunService implements AgentRunsPort {
         this.members = members;
         this.mapper = mapper;
         this.clock = clock;
+        this.executionTemplate = new TransactionTemplate(transactionManager);
+        this.executionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Transactional
@@ -269,6 +276,16 @@ public class HrAgentRunService implements AgentRunsPort {
         return conversationResponse(principal.userId(), conversationId);
     }
 
+    @Override
+    @Transactional
+    public void deleteConversation(AuthenticatedUser principal, String rawConversationId) {
+        requireRecruiter(principal);
+        String conversationId = requireUuid(rawConversationId, "conversationId");
+        if (!runs.existsByConversationIdAndUserId(conversationId, principal.userId())) throw notFound();
+        steps.deleteAllByConversation(principal.userId(), conversationId);
+        runs.deleteAllByUserIdAndConversationId(principal.userId(), conversationId);
+    }
+
     @Transactional
     public AgentDtos.RunResponse cancel(AuthenticatedUser principal, String runId) {
         requireRecruiter(principal);
@@ -388,7 +405,7 @@ public class HrAgentRunService implements AgentRunsPort {
             HrScreeningClient.Candidate candidate = byId.get(ranking.candidateId());
             return new AgentDtos.RankedCandidate(candidate.candidateId(), candidate.applicationId(),
                     candidate.fullName(), candidate.applicationStatus(), ranking.rank(),
-                    ranking.strongMatches(), ranking.gaps());
+                    ranking.strongMatches(), ranking.gaps(), ranking.recommendation());
         }).toList();
         return new AgentDtos.ScreeningResult(job.getId(), job.getTitle(), ranked,
                 shortlistMessage(output.message(), ranked));
@@ -404,13 +421,13 @@ public class HrAgentRunService implements AgentRunsPort {
         for (AgentDtos.RankedCandidate candidate : ranked.stream().limit(5).toList()) {
             StringBuilder entry = new StringBuilder(candidate.rank() + ". " + candidate.fullName() + "(");
             if (candidate.applicationStatus() == null) {
-                entry.append("未投递");
+                entry.append("not applied");
             } else {
                 entry.append(candidate.applicationStatus()).append(", applicationId=").append(candidate.applicationId());
             }
             entries.add(entry.append(")").toString());
         }
-        String summary = " 筛选结果: " + String.join("; ", entries);
+        String summary = " Screening: " + String.join("; ", entries);
         int available = Math.max(0, 500 - summary.length() - 1);
         if (available == 0) {
             return summary.length() <= 500 ? summary : summary.substring(0, 500);
@@ -571,8 +588,11 @@ public class HrAgentRunService implements AgentRunsPort {
         String requestId = "agent:" + run.getId();
         try {
             if (execution.create() != null) {
-                InterviewDtos.Interview saved = interviewService.create(
-                        principal, preview.targetId(), execution.create(), requestId);
+                // InterviewService manages its own transaction; running it in a new one keeps a
+                // business conflict (version, duplicate, transition) from poisoning this run's
+                // transaction, so the failure can still be recorded on the run.
+                InterviewDtos.Interview saved = executionTemplate.execute(status -> interviewService.create(
+                        principal, preview.targetId(), execution.create(), requestId));
                 addStep(run, sequence, AgentStepType.TOOL, execution.tool(),
                         "applicationId=" + preview.targetId(), "interviewId=" + saved.interviewId(),
                         AgentStepStatus.SUCCEEDED, null, 0);
@@ -581,8 +601,8 @@ public class HrAgentRunService implements AgentRunsPort {
                         clock.instant(), preview.changes(), null);
                 run.complete(writeJson(result), "The interview was scheduled successfully.", clock.instant());
             } else {
-                InterviewDtos.Interview saved = interviewService.update(
-                        principal, preview.targetId(), execution.update(), requestId);
+                InterviewDtos.Interview saved = executionTemplate.execute(status -> interviewService.update(
+                        principal, preview.targetId(), execution.update(), requestId));
                 String operation = CANCEL.equals(execution.tool()) ? "CANCEL_INTERVIEW" : "RESCHEDULE_INTERVIEW";
                 String message = CANCEL.equals(execution.tool())
                         ? "The interview was cancelled successfully."
@@ -821,14 +841,11 @@ public class HrAgentRunService implements AgentRunsPort {
 
     private InterviewMode modeArgument(Map<String, Object> arguments) {
         String mode = blankToNull(stringArgument(arguments, "mode"));
-        if (mode == null) {
+        if (mode == null || "ONLINE".equals(mode)) {
             return InterviewMode.ONLINE;
         }
-        try {
-            return InterviewMode.valueOf(mode);
-        } catch (IllegalArgumentException exception) {
-            throw new PlanClarification("The interview mode must be ONLINE, ONSITE, or PHONE.");
-        }
+        throw new PlanClarification("The agent can only schedule online interviews "
+                + "(Google Meet is provided automatically).");
     }
 
     private String requiredStringArgument(Map<String, Object> arguments, String key, String clarification) {

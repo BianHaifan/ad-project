@@ -72,7 +72,8 @@ public final class AgentDtos {
             String applicationStatus,
             int rank,
             List<String> strongMatches,
-            List<String> gaps
+            List<String> gaps,
+            String recommendation
     ) {}
 
     public record ScreeningResult(

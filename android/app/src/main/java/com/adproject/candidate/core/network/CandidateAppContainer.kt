@@ -36,6 +36,7 @@ import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 
@@ -57,6 +58,7 @@ class CandidateAppContainer(context: Context) {
         .client(
             OkHttpClient.Builder()
                 .addInterceptor(ReadRetryInterceptor())
+                .readTimeout(30, TimeUnit.SECONDS)
                 .sslSocketFactory(sslSocketFactory, trustManager)
                 .certificatePinner(pinner)
                 .build(),
@@ -67,6 +69,7 @@ class CandidateAppContainer(context: Context) {
     private val authenticatedClient = OkHttpClient.Builder()
         .sslSocketFactory(sslSocketFactory, trustManager)
         .certificatePinner(pinner)
+        .readTimeout(30, TimeUnit.SECONDS)
         .addInterceptor(ReadRetryInterceptor())
         .addInterceptor(AccessTokenInterceptor(sessionManager))
         .authenticator(RefreshAuthenticator(sessionManager))

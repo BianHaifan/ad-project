@@ -415,6 +415,7 @@ fun AdCandidateApp(
                     onCancel = agentViewModel::cancel,
                     onStartAnother = agentViewModel::startNewConversation,
                     onOpenConversation = agentViewModel::openConversation,
+                    onDeleteConversation = agentViewModel::deleteConversation,
                 )
             }
             composable(Route.Community) {

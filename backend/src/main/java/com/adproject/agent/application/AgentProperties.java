@@ -1,9 +1,11 @@
 package com.adproject.agent.application;
 
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app.agent")
-public record AgentProperties(String plannerBaseUrl, long previewTtlSeconds) {
+public record AgentProperties(String plannerBaseUrl, long previewTtlSeconds,
+                              Duration connectTimeout, Duration readTimeout) {
     public AgentProperties {
         if (plannerBaseUrl == null || plannerBaseUrl.isBlank()) {
             throw new IllegalArgumentException("Agent planner base URL is required");

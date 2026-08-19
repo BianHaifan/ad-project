@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -36,4 +37,8 @@ public interface AgentRunRepository extends JpaRepository<AgentRunEntity, String
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select run from AgentRunEntity run where run.id = :id and run.userId = :userId")
     Optional<AgentRunEntity> findOwnedForUpdate(@Param("id") String id, @Param("userId") String userId);
+
+    @Modifying
+    @Query("delete from AgentRunEntity run where run.userId = :userId and run.conversationId = :conversationId")
+    void deleteAllByUserIdAndConversationId(@Param("userId") String userId, @Param("conversationId") String conversationId);
 }

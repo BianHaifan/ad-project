@@ -146,6 +146,13 @@ Agent 采用“Python 规划、Spring Boot 授权与执行”的内部服务模�
 - 保存 Agent Run、步骤、工具名称、输入摘要、结果和错误。
 - 日志不得保存密码、完整 JWT、API Key 或不必要的敏感简历原文。
 
+Recruiter Agent 在同一组接口上按角色分派到 `HrAgentRunService`：
+
+- 规划阶段由 agent-service 的 Recruiter 系统提示生成白名单计划，仅携带指令与历史，不接收岗位、简历等业务数据。
+- 筛选执行由 Spring Boot 直接调用后端 Java DeepSeek 客户端：后端先汇集自己岗位的候选人简历池（上限 30 条、不含 `age`），再让模型输出按 `applicationId` 索引的排名与事实性理由。模型失败只保存安全错误码，供应商响应正文与简历内容绝不进入 Run message 或 Step。
+- 面试工具复用 `InterviewService`，只允许 ONLINE 模式；调度/改期/取消全部先预览后确认，确认时重查面试版本并校验 15 分钟有效期与幂等键。
+- Run 所有权按用户隔离：他人的 Run 返回 403，不存在的 Run 返回 404。
+
 ## 10. 配置与环境
 
 - `local`、`test`、`production` 使用独立配置。

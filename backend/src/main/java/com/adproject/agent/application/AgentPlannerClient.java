@@ -1,6 +1,5 @@
 package com.adproject.agent.application;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -15,8 +14,8 @@ public class AgentPlannerClient {
 
     public AgentPlannerClient(AgentProperties properties) {
         var requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofSeconds(2));
-        requestFactory.setReadTimeout(Duration.ofSeconds(5));
+        requestFactory.setConnectTimeout(properties.connectTimeout());
+        requestFactory.setReadTimeout(properties.readTimeout());
         this.restClient = RestClient.builder()
                 .baseUrl(properties.plannerBaseUrl())
                 .requestFactory(requestFactory)
@@ -39,8 +38,16 @@ public class AgentPlannerClient {
             throw exception;
         } catch (HttpServerErrorException exception) {
             String body = exception.getResponseBodyAsString();
-            if (body != null && body.contains("invalid_plan")) {
-                throw new PlannerException("AGENT_PLAN_REJECTED", "Agent planner produced an invalid plan", exception);
+            if (body != null) {
+                if (body.contains("invalid_plan")) {
+                    throw new PlannerException("AGENT_PLAN_REJECTED", "Agent planner produced an invalid plan", exception);
+                }
+                if (body.contains("no_api_key")) {
+                    throw new PlannerException("AGENT_PLANNER_NOT_CONFIGURED", "Agent planner has no API key configured", exception);
+                }
+                if (body.contains("invalid_response") || body.contains("incomplete_response")) {
+                    throw new PlannerException("AGENT_PLANNER_INVALID_RESPONSE", "Agent planner returned an invalid response", exception);
+                }
             }
             throw new PlannerException("AGENT_PLANNER_UNAVAILABLE", "Agent planner is unavailable", exception);
         } catch (RestClientException exception) {

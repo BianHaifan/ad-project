@@ -50,6 +50,11 @@ class AgentViewModel(private val repository: CandidateAgentRepository) : ViewMod
                         conversationId = result.value.conversationId,
                         conversations = summaries.ifEmpty { it.conversations },
                         runs = result.value.runs,
+                        message = if (conversations is ApiResult.Failure) {
+                            "Couldn't load your conversation history."
+                        } else {
+                            null
+                        },
                     )
                 }
                 is ApiResult.Failure -> {
@@ -188,6 +193,28 @@ class AgentViewModel(private val repository: CandidateAgentRepository) : ViewMod
                 }
                 is ApiResult.Failure -> mutable.update {
                     it.copy(loadingHistory = false, message = result.message)
+                }
+            }
+        }
+    }
+
+    fun deleteConversation(conversationId: String) {
+        val current = mutable.value
+        if (current.submitting) return
+        mutable.update { it.copy(submitting = true, message = null) }
+        viewModelScope.launch {
+            when (val result = repository.deleteConversation(conversationId)) {
+                is ApiResult.Success -> mutable.update {
+                    val deletedCurrent = it.conversationId == conversationId
+                    it.copy(
+                        submitting = false,
+                        conversations = it.conversations.filterNot { c -> c.conversationId == conversationId },
+                        conversationId = if (deletedCurrent) null else it.conversationId,
+                        runs = if (deletedCurrent) emptyList() else it.runs,
+                    )
+                }
+                is ApiResult.Failure -> mutable.update {
+                    it.copy(submitting = false, message = result.message)
                 }
             }
         }

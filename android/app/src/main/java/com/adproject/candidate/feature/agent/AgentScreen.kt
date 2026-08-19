@@ -30,8 +30,10 @@ fun AgentScreen(
     onCancel: () -> Unit,
     onStartAnother: () -> Unit,
     onOpenConversation: (String) -> Unit = {},
+    onDeleteConversation: (String) -> Unit = {},
 ) {
     var historyVisible by remember { mutableStateOf(false) }
+    var pendingDeleteId by remember { mutableStateOf<String?>(null) }
     val blockingRun = state.runs.lastOrNull {
         it.status in setOf("AWAITING_CONFIRMATION", "PROCESSING", "EXECUTING")
     }
@@ -41,7 +43,6 @@ fun AgentScreen(
     val conversationItemCount =
         state.runs.size * 2 +
             (if (state.runs.isEmpty() && !state.submitting && !state.loadingHistory && state.message == null) 1 else 0) +
-            (if (controlsVisible) 1 else 0) +
             (if (state.submitting && state.instruction.isNotBlank()) 1 else 0) +
             (if (state.submitting) 1 else 0) +
             (if (state.message != null) 1 else 0)
@@ -56,6 +57,23 @@ fun AgentScreen(
         containerColor = AdBackground,
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
+            if (controlsVisible) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (state.runs.isNotEmpty() && blockingRun == null && !state.submitting) {
+                        OutlinedButton(onClick = onStartAnother, modifier = Modifier.weight(1f)) {
+                            Text("＋ New")
+                        }
+                    }
+                    if (state.conversations.isNotEmpty()) {
+                        OutlinedButton(onClick = { historyVisible = true }, modifier = Modifier.weight(1f)) {
+                            Text("History (${state.conversations.size})")
+                        }
+                    }
+                }
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -79,31 +97,14 @@ fun AgentScreen(
                             )
                             SecondaryButton(
                                 "Try: Show my resume skills",
-                                { onInstruction("查看我的技能") },
+                                { onInstruction("Show my resume skills") },
                                 Modifier.fillMaxWidth(),
                             )
                             SecondaryButton(
                                 "Try: Add Python to my skills",
-                                { onInstruction("添加技能：Python") },
+                                { onInstruction("Add Python to my skills") },
                                 Modifier.fillMaxWidth(),
                             )
-                        }
-                    }
-                }
-
-                if (controlsVisible) {
-                    item {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (state.runs.isNotEmpty() && blockingRun == null && !state.submitting) {
-                                OutlinedButton(onClick = onStartAnother, modifier = Modifier.weight(1f)) {
-                                    Text("＋ New")
-                                }
-                            }
-                            if (state.conversations.isNotEmpty()) {
-                                OutlinedButton(onClick = { historyVisible = true }, modifier = Modifier.weight(1f)) {
-                                    Text("History (${state.conversations.size})")
-                                }
-                            }
                         }
                     }
                 }
@@ -185,24 +186,32 @@ fun AgentScreen(
                                     Color(0xFFE8F7F4) else Color.White,
                             ),
                         ) {
-                            Column(
+                            Row(
                                 Modifier.fillMaxWidth().padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(5.dp),
+                                verticalAlignment = Alignment.Top,
                             ) {
-                                Text(
-                                    conversation.lastInstruction,
-                                    color = AdText,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 2,
-                                )
-                                conversation.lastMessage?.takeIf { it.isNotBlank() }?.let {
-                                    Text(it, color = AdMuted, fontSize = 12.sp, maxLines = 2)
+                                Column(
+                                    Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                                ) {
+                                    Text(
+                                        conversation.lastInstruction,
+                                        color = AdText,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2,
+                                    )
+                                    conversation.lastMessage?.takeIf { it.isNotBlank() }?.let {
+                                        Text(it, color = AdMuted, fontSize = 12.sp, maxLines = 2)
+                                    }
+                                    Text(
+                                        conversation.updatedAt.replace('T', ' ').take(16),
+                                        color = AdMuted,
+                                        fontSize = 10.sp,
+                                    )
                                 }
-                                Text(
-                                    conversation.updatedAt.replace('T', ' ').take(16),
-                                    color = AdMuted,
-                                    fontSize = 10.sp,
-                                )
+                                IconButton(onClick = { pendingDeleteId = conversation.conversationId }) {
+                                    Text("✕", color = AdMuted, fontSize = 16.sp)
+                                }
                             }
                         }
                     }
@@ -210,6 +219,23 @@ fun AgentScreen(
             }
             Spacer(Modifier.height(16.dp))
         }
+    }
+
+    state.conversations.firstOrNull { it.conversationId == pendingDeleteId }?.let { conversation ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteId = null },
+            title = { Text("Delete conversation?") },
+            text = { Text("This removes the conversation and all of its messages from your history.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteConversation(conversation.conversationId)
+                    pendingDeleteId = null
+                }) { Text("Delete", color = Color(0xFFB42318)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteId = null }) { Text("Cancel") }
+            },
+        )
     }
 }
 
@@ -303,15 +329,6 @@ private fun AgentRunContent(
         Text(label, color = AdMuted, fontSize = 12.sp)
     }
 
-    if (run.status != "NO_ACTION_REQUIRED" && run.steps.isNotEmpty()) {
-        AgentSection("Plan") {
-            run.steps.sortedBy { it.sequence }.forEach { step ->
-                val name = step.tool ?: step.type.lowercase().replaceFirstChar(Char::uppercase)
-                Text("${step.sequence}. ${toolLabel(name)} · ${stepStatusLabel(step.status)}", color = AdText, fontSize = 13.sp)
-            }
-        }
-    }
-
     run.preview?.let { preview ->
         AgentSection("Review exact changes", accent = true) {
             preview.changes.forEach { change ->
@@ -378,16 +395,6 @@ private fun AgentSection(title: String, accent: Boolean = false, content: @Compo
         }
     }
 }
-
-private fun toolLabel(tool: String) = when (tool) {
-    "get_my_resume" -> "Read your default resume"
-    "read_resume_section" -> "Read the requested resume section"
-    "preview_resume_patch" -> "Prepare a field-level preview"
-    "apply_resume_patch" -> "Apply the confirmed change"
-    else -> tool.replace('_', ' ').replaceFirstChar(Char::uppercase)
-}
-
-private fun stepStatusLabel(status: String) = status.lowercase().replace('_', ' ').replaceFirstChar(Char::uppercase)
 
 private fun statusLabel(status: String, readOnlyResult: Boolean = false) = when (status) {
     "AWAITING_CONFIRMATION" -> "Ready for your confirmation"
