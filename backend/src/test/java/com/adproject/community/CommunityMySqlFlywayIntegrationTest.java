@@ -43,10 +43,10 @@ class CommunityMySqlFlywayIntegrationTest {
     @Test
     void v26MigratesEmptyMySqlAndMatchesTheCompleteCommunitySchema() {
         // V24 adds categorized image posts, V25 adds isolated Community direct messages,
-        // and V26 removes the obsolete company verification state.
+        // and V26 removes the obsolete company verification state. V27-V31 add the agent schema.
         assertThat(jdbcTemplate.queryForObject(
                 "select version from flyway_schema_history where success = 1 order by installed_rank desc limit 1",
-                String.class)).isEqualTo("26");
+                String.class)).isEqualTo("31");
         assertThat(tableNames()).containsExactlyInAnyOrder(
                 "community_posts", "community_post_likes", "community_comments", "community_post_images",
                 "community_direct_conversations", "community_direct_messages");
