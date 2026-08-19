@@ -5,7 +5,9 @@ import com.adproject.agent.application.AgentRunsPort;
 import com.adproject.agent.application.HrAgentRunService;
 import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.user.domain.UserRole;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,6 +38,13 @@ public class AgentConversationController {
     AgentDtos.ConversationResponse get(@AuthenticationPrincipal AuthenticatedUser principal,
                                        @PathVariable String conversationId) {
         return service(principal).getConversation(principal, conversationId);
+    }
+
+    @DeleteMapping("/{conversationId}")
+    ResponseEntity<Void> delete(@AuthenticationPrincipal AuthenticatedUser principal,
+                                @PathVariable String conversationId) {
+        service(principal).deleteConversation(principal, conversationId);
+        return ResponseEntity.noContent().build();
     }
 
     private AgentRunsPort service(AuthenticatedUser principal) {

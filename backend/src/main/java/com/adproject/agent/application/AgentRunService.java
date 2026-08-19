@@ -92,11 +92,13 @@ public class AgentRunService implements AgentRunsPort {
         } catch (PlannerException exception) {
             addStep(run, 1, AgentStepType.PLAN, null, "instruction received", null,
                     AgentStepStatus.FAILED, exception.getCode(), elapsedMillis(planStarted));
-            if ("AGENT_PLAN_REJECTED".equals(exception.getCode())) {
-                run.needsClarification("Please provide a supported resume instruction with a concrete value: "
-                        + "age (16-100), summary text, skills, or experiences.", clock.instant());
+            String code = exception.getCode();
+            if ("AGENT_PLAN_REJECTED".equals(code)) {
+                run.needsClarification("I couldn't turn that into a safe resume action. Ask me for advice in "
+                        + "conversation, or give a concrete instruction such as 'set my summary to ...', "
+                        + "'add a skill: Java', or 'change my age to 28'.", clock.instant());
             } else {
-                run.fail(exception.getCode(), "The agent could not prepare a plan. Please try again.", clock.instant());
+                run.fail(code, failureMessage(code), clock.instant());
             }
             return response(run);
         }
@@ -326,6 +328,16 @@ public class AgentRunService implements AgentRunsPort {
         String conversationId = requireUuid(rawConversationId, "conversationId");
         if (!runs.existsByConversationIdAndUserId(conversationId, principal.userId())) throw notFound();
         return conversationResponse(principal.userId(), conversationId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteConversation(AuthenticatedUser principal, String rawConversationId) {
+        requireCandidate(principal);
+        String conversationId = requireUuid(rawConversationId, "conversationId");
+        if (!runs.existsByConversationIdAndUserId(conversationId, principal.userId())) throw notFound();
+        steps.deleteAllByConversation(principal.userId(), conversationId);
+        runs.deleteAllByUserIdAndConversationId(principal.userId(), conversationId);
     }
 
     @Transactional
@@ -762,6 +774,18 @@ public class AgentRunService implements AgentRunsPort {
     private static String safeMessage(String value, String fallback) {
         if (value == null || value.isBlank()) return fallback;
         return value.length() <= 500 ? value : value.substring(0, 500);
+    }
+
+    private static String failureMessage(String code) {
+        return switch (code) {
+            case "AGENT_PLANNER_NOT_CONFIGURED" ->
+                    "The AI service isn't configured on this server. Please contact the team administrator.";
+            case "AGENT_PLANNER_INVALID_RESPONSE" ->
+                    "The AI service returned an unexpected response. Please try again.";
+            case "AGENT_PLANNER_UNAVAILABLE" ->
+                    "The AI service is busy or temporarily unavailable. Please try again in a moment.";
+            default -> "The agent could not prepare a plan. Please try again.";
+        };
     }
 
     private static String safe(String value) {

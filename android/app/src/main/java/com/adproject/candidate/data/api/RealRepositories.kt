@@ -360,6 +360,7 @@ interface CandidateAgentRepository {
     suspend fun conversations(): ApiResult<List<com.adproject.candidate.data.contract.AgentConversationSummary>>
     suspend fun recentConversation(): ApiResult<com.adproject.candidate.data.contract.AgentConversation>
     suspend fun conversation(conversationId: String): ApiResult<com.adproject.candidate.data.contract.AgentConversation>
+    suspend fun deleteConversation(conversationId: String): ApiResult<Unit>
 }
 
 class RealCandidateAgentRepository(private val api: CandidateAgentHttpApi, moshi: Moshi) : CandidateAgentRepository {
@@ -386,6 +387,16 @@ class RealCandidateAgentRepository(private val api: CandidateAgentHttpApi, moshi
     override suspend fun recentConversation() = conversationCall { api.recentConversation() }
 
     override suspend fun conversation(conversationId: String) = conversationCall { api.conversation(conversationId) }
+
+    override suspend fun deleteConversation(conversationId: String): ApiResult<Unit> = try {
+        val response = api.deleteConversation(conversationId)
+        if (response.isSuccessful) ApiResult.Success(Unit)
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to reach the Agent service. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("The Agent request could not be completed.")
+    }
 
     private suspend fun call(block: suspend () -> retrofit2.Response<com.adproject.candidate.data.contract.DataEnvelope<com.adproject.candidate.data.contract.AgentRun>>): ApiResult<com.adproject.candidate.data.contract.AgentRun> = try {
         val response = block()

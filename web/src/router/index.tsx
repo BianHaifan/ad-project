@@ -2,6 +2,7 @@ import {createBrowserRouter, Navigate} from 'react-router-dom';
 import {AdminShell} from '../components/AdminShell';
 import {AppShell} from '../components/AppShell';
 import {AdminAuditPage} from '../pages/AdminAuditPage';
+import {AgentPage} from '../pages/AgentPage';
 import {AdminAuthPage} from '../pages/AdminAuthPage';
 import {AdminCompaniesPage} from '../pages/AdminCompaniesPage';
 import {AdminUsersPage} from '../pages/AdminUsersPage';
@@ -42,6 +43,7 @@ export const router = createBrowserRouter([
     {path: 'applications/:applicationId/review', element: <ResumeReviewPage/>},
     {path: 'messages', element: <MessagesPage/>},
     {path: 'messages/:conversationId', element: <MessagesPage/>},
+    {path: 'agent', element: <AgentPage/>},
     {path: 'community', element: <CommunityPage/>},
     {path: 'community/new', element: <CommunityCreatePage/>},
     {path: 'community/messages/:conversationId', element: <CommunityDirectMessagePage/>},

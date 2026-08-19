@@ -1138,7 +1138,7 @@ paths:
     post:
       tags:
       - Agent
-      summary: Create a Candidate Agent run for a resume query or confirmable change preview
+      summary: Create a Candidate or Recruiter Agent run
       operationId: createAgentRun
       requestBody:
         required: true
@@ -1168,13 +1168,14 @@ paths:
       x-status: IMPLEMENTED
       x-clients:
       - Candidate
-      x-permission: Candidate self only; creation reads and previews but does not write
-      description: 'Permission: Candidate self only. Status: IMPLEMENTED. Python creates a structured plan; Spring Boot executes get_my_resume, read_resume_section, and preview_resume_patch for age, summary, skills, and experiences. Only the separate confirm endpoint may write.'
+      - Recruiter
+      x-permission: Candidate or Recruiter, dispatched by role; creation reads and previews but does not write
+      description: 'Permission: Candidate or Recruiter; the controller dispatches by role. Status: IMPLEMENTED. Candidate runs: Python creates a structured plan; Spring Boot executes get_my_resume, read_resume_section, and preview_resume_patch for age, summary, skills, and experiences. Recruiter runs: screen_applicants ranks candidates for the recruiter''s own job (jobId preferred, otherwise a jobSelector matched against the recruiter''s jobs), and schedule_interview / reschedule_interview / cancel_interview prepare ONLINE interview previews through the existing InterviewService. Only the separate confirm endpoint may write.'
       x-mvp-scope: MVP
   /agent/conversations:
     get:
       tags: [Agent]
-      summary: List the current Candidate's Agent conversations
+      summary: List the current user's Agent conversations
       operationId: listAgentConversations
       responses:
         '200':
@@ -1188,13 +1189,13 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
       x-status: IMPLEMENTED
-      x-clients: [Candidate]
-      x-permission: Candidate self only
+      x-clients: [Candidate, Recruiter]
+      x-permission: Current user self only; conversations are scoped per role
       x-mvp-scope: MVP
   /agent/conversations/recent:
     get:
       tags: [Agent]
-      summary: Restore the current Candidate's most recent Agent conversation
+      summary: Restore the current user's most recent Agent conversation
       operationId: getRecentAgentConversation
       responses:
         '200':
@@ -1208,8 +1209,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
       x-status: IMPLEMENTED
-      x-clients: [Candidate]
-      x-permission: Candidate self only
+      x-clients: [Candidate, Recruiter]
+      x-permission: Current user self only; conversations are scoped per role
       x-mvp-scope: MVP
   /agent/conversations/{conversationId}:
     get:
@@ -1235,7 +1236,29 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
       x-status: IMPLEMENTED
-      x-clients: [Candidate]
+      x-clients: [Candidate, Recruiter]
+      x-permission: Conversation owner only; another user's conversation returns 404
+      x-mvp-scope: MVP
+    delete:
+      tags: [Agent]
+      summary: Delete an owned persistent Agent conversation
+      operationId: deleteAgentConversation
+      parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Conversation and all of its runs were deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-status: IMPLEMENTED
+      x-clients: [Candidate, Recruiter]
       x-permission: Conversation owner only; another user's conversation returns 404
       x-mvp-scope: MVP
   /agent/runs/{runId}:
@@ -1266,8 +1289,9 @@ paths:
       x-status: IMPLEMENTED
       x-clients:
       - Candidate
-      x-permission: Run owner only; another user's run returns 404
-      description: 'Permission: Run owner only. Status: IMPLEMENTED.'
+      - Recruiter
+      x-permission: Run owner only; another user's run returns 403
+      description: 'Permission: Run owner only; a run owned by another user returns 403 and a missing run returns 404. Status: IMPLEMENTED.'
       x-mvp-scope: MVP
   /agent/runs/{runId}/cancel:
     post:
@@ -1299,8 +1323,9 @@ paths:
       x-status: IMPLEMENTED
       x-clients:
       - Candidate
-      x-permission: Run owner only; only AWAITING_CONFIRMATION or NEEDS_CLARIFICATION can be cancelled
-      description: 'Permission: Run owner only. Status: IMPLEMENTED. Cancellation has no effect on resume data.'
+      - Recruiter
+      x-permission: Run owner only; another user's run returns 403; only AWAITING_CONFIRMATION or NEEDS_CLARIFICATION can be cancelled
+      description: 'Permission: Run owner only. Status: IMPLEMENTED. Cancellation has no effect on resume or interview data.'
       x-mvp-scope: MVP
   /agent/runs/{runId}/confirm:
     post:
@@ -1352,8 +1377,9 @@ paths:
       x-status: IMPLEMENTED
       x-clients:
       - Candidate
-      x-permission: Run owner only; valid one-time confirmation and idempotency key required
-      description: 'Permission: Run owner only. Status: IMPLEMENTED. Spring Boot rechecks expiry, Run version, resume ownership and resume version before applying only the previewed age change.'
+      - Recruiter
+      x-permission: Run owner only; another user's run returns 403; valid one-time confirmation and idempotency key required
+      description: 'Permission: Run owner only. Status: IMPLEMENTED. Spring Boot rechecks expiry, Run version and target resource version before applying only the previewed change: a resume field patch for Candidate runs, or the interview schedule/create/reschedule/cancel for Recruiter runs. Recruiter interviews are always ONLINE (Google Meet auto-provisioned). On a rejected confirmation the response body may be the refreshed AgentRun instead of an error envelope.'
       x-mvp-scope: MVP
   /recruiter/me:
     get:
@@ -4274,6 +4300,15 @@ components:
           format: uuid
           maxLength: 36
           description: Existing owned conversation to continue; omit to create a new conversation.
+        jobId:
+          type: [string, 'null']
+          format: uuid
+          maxLength: 36
+          description: Recruiter context job for screening; only meaningful on the first run of a new conversation. When absent the planner may fall back to a jobSelector matched against the recruiter's own jobs.
+        timezone:
+          type: [string, 'null']
+          maxLength: 64
+          description: IANA timezone of the client; travels with the run and is reused when scheduling interviews.
     ConfirmAgentRunRequest:
       type: object
       additionalProperties: false
@@ -4316,7 +4351,8 @@ components:
       properties:
         type:
           type: string
-          const: RESUME
+          enum: [RESUME, JOB, APPLICATION, INTERVIEW]
+          description: RESUME for candidate resume runs; JOB for recruiter screening runs.
         id:
           type: string
     AgentFieldChange:
@@ -4329,11 +4365,12 @@ components:
       properties:
         field:
           type: string
-          enum: [age, summary, skills, experiences]
+          enum: [age, summary, skills, experiences, scheduledAt, timezone, durationMinutes, mode, status]
+          description: Resume fields (age, summary, skills, experiences) come from Candidate runs; interview fields (scheduledAt, timezone, durationMinutes, mode, status) come from Recruiter interview previews.
         oldValue:
-          description: Previous complete value of the changed field. The runtime type follows field.
+          description: Previous complete value of the changed field. The runtime type follows field; null means the value did not exist.
         newValue:
-          description: Proposed complete value of the changed field. The runtime type follows field.
+          description: Proposed complete value of the changed field. The runtime type follows field; null means the value is removed.
     AgentPreview:
       type: object
       additionalProperties: false
@@ -4349,7 +4386,8 @@ components:
           type: string
         targetType:
           type: string
-          const: RESUME
+          enum: [RESUME, APPLICATION, INTERVIEW]
+          description: RESUME for candidate resume changes; APPLICATION for a new interview being scheduled; INTERVIEW for an interview update.
         targetId:
           type: string
         expectedVersion:
@@ -4383,7 +4421,7 @@ components:
         tool:
           oneOf:
           - type: string
-            enum: [get_my_resume, read_resume_section, preview_resume_patch, apply_resume_patch]
+            enum: [get_my_resume, read_resume_section, preview_resume_patch, apply_resume_patch, screen_applicants, schedule_interview, reschedule_interview, cancel_interview]
           - type: 'null'
         status:
           type: string
@@ -4442,6 +4480,11 @@ components:
           oneOf:
           - $ref: '#/components/schemas/AgentExecutionResult'
           - type: 'null'
+        screening:
+          oneOf:
+          - $ref: '#/components/schemas/AgentScreeningResult'
+          - type: 'null'
+          description: Present on completed Recruiter screening runs; run.message equals screening.message.
         message:
           type: [string, 'null']
         errorCode:
@@ -4471,10 +4514,12 @@ components:
       properties:
         operation:
           type: string
-          enum: [READ_RESUME, UPDATE_RESUME]
+          enum: [READ_RESUME, UPDATE_RESUME, SCREEN_CANDIDATES, SCHEDULE_INTERVIEW, RESCHEDULE_INTERVIEW, CANCEL_INTERVIEW]
+          description: Recruiter interview operations (SCHEDULE_INTERVIEW, RESCHEDULE_INTERVIEW, CANCEL_INTERVIEW) reuse the existing InterviewService; previousVersion and newVersion are the interview versions.
         targetType:
           type: string
-          const: RESUME
+          enum: [RESUME, APPLICATION, INTERVIEW]
+          description: APPLICATION for a newly scheduled interview; INTERVIEW for reschedules and cancellations.
         targetId:
           type: string
         previousVersion:
@@ -4516,6 +4561,62 @@ components:
             items:
               $ref: '#/components/schemas/Experience'
           - type: 'null'
+    AgentRankedCandidate:
+      type: object
+      additionalProperties: false
+      required:
+      - candidateId
+      - applicationId
+      - fullName
+      - applicationStatus
+      - rank
+      - strongMatches
+      - gaps
+      properties:
+        candidateId:
+          type: string
+        applicationId:
+          type: [string, 'null']
+          description: Null when the candidate has not applied to this job; scheduling and application links are only available when present.
+        fullName:
+          type: string
+        applicationStatus:
+          type: [string, 'null']
+          description: Application status for this job, or null when the candidate has not applied.
+        rank:
+          type: integer
+          minimum: 1
+        strongMatches:
+          type: array
+          items: { type: string }
+          description: Short factual reasons the resume fits the job. No numeric scores are exposed.
+        gaps:
+          type: array
+          items: { type: string }
+          description: Short factual mismatches between the resume and the job.
+        recommendation:
+          type: [string, 'null']
+          description: One-sentence LLM-generated reason to recommend this candidate, present only for the top 3 ranked candidates.
+    AgentScreeningResult:
+      type: object
+      additionalProperties: false
+      required:
+      - jobId
+      - jobTitle
+      - ranked
+      - message
+      properties:
+        jobId:
+          type: string
+        jobTitle:
+          type: string
+        ranked:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRankedCandidate'
+        message:
+          type: [string, 'null']
+          description: Model-generated summary including the shortlist with applicationIds, so follow-up interview instructions can reference candidates from this history.
     AgentRunResponse:
       type: object
       additionalProperties: false

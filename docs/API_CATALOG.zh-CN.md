@@ -159,10 +159,16 @@
 
 | 状态 | MVP 范围 | Method | Path | operationId | Candidate | Recruiter | 权限 | 请求 | 成功 | 主要错误 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| IMPLEMENTED | MVP | POST | `/agent/runs` | `createAgentRun` | YES | NO | Candidate self only; creation does not write | body: CreateAgentRunRequest | 201 | 400, 401, 403, 422 |
-| IMPLEMENTED | MVP | GET | `/agent/runs/{runId}` | `getAgentRun` | YES | NO | Run owner only | params: runId | 200 | 401, 403, 404 |
-| IMPLEMENTED | MVP | POST | `/agent/runs/{runId}/cancel` | `cancelAgentRun` | YES | NO | Run owner only; no business write | params: runId | 200 | 401, 403, 404, 409 |
-| IMPLEMENTED | MVP | POST | `/agent/runs/{runId}/confirm` | `confirmAgentRun` | YES | NO | Run owner only; confirmation/version/idempotency required | params: runId/Idempotency-Key; body: ConfirmAgentRunRequest | 200 | 401, 403, 404, 409, 422 |
+| IMPLEMENTED | MVP | POST | `/agent/runs` | `createAgentRun` | YES | YES | Candidate 或 Recruiter，按角色分派；创建不写入 | body: CreateAgentRunRequest（instruction；可选 conversationId/jobId/timezone） | 201 | 400, 401, 403, 422 |
+| IMPLEMENTED | MVP | GET | `/agent/runs/{runId}` | `getAgentRun` | YES | YES | 仅 Run 所有者；他人 Run 返回 403 | params: runId | 200 | 401, 403, 404 |
+| IMPLEMENTED | MVP | POST | `/agent/runs/{runId}/cancel` | `cancelAgentRun` | YES | YES | 仅 Run 所有者；他人 Run 返回 403；不写入业务数据 | params: runId | 200 | 401, 403, 404, 409 |
+| IMPLEMENTED | MVP | POST | `/agent/runs/{runId}/confirm` | `confirmAgentRun` | YES | YES | 仅 Run 所有者；他人 Run 返回 403；需要一次性确认/版本/幂等键 | params: runId/Idempotency-Key; body: ConfirmAgentRunRequest | 200 | 401, 403, 404, 409, 422 |
+| IMPLEMENTED | MVP | GET | `/agent/conversations` | `listAgentConversations` | YES | YES | 仅当前用户本人；会话按角色隔离 | — | 200 | 401, 403 |
+| IMPLEMENTED | MVP | GET | `/agent/conversations/recent` | `getRecentAgentConversation` | YES | YES | 仅当前用户本人；会话按角色隔离 | — | 200 | 401, 403 |
+| IMPLEMENTED | MVP | GET | `/agent/conversations/{conversationId}` | `getAgentConversation` | YES | YES | 仅会话所有者；他人会话返回 404 | params: conversationId | 200 | 401, 403, 404 |
+| IMPLEMENTED | MVP | DELETE | `/agent/conversations/{conversationId}` | `deleteAgentConversation` | YES | YES | 仅会话所有者；他人会话返回 404 | params: conversationId | 204 | 401, 403, 404 |
+
+Candidate Run 规划简历查询与变更预览（年龄、Summary、Skills、Experiences）。Recruiter Run 针对招聘者自己的岗位对候选人排序（`screen_applicants`，纯 LLM 筛选，不暴露数值评分），并生成 ONLINE 面试预览（`schedule_interview`、`reschedule_interview`、`cancel_interview` 复用现有 InterviewService）。只有 confirm 接口应用预览后才写入；确认被拒绝时响应可能是刷新后的 `AgentRun` 而不是错误封装。
 
 ## 已冻结的 MVP 决策与延期范围
 

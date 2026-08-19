@@ -25,4 +25,6 @@ public interface AgentRunsPort {
     AgentDtos.ConversationResponse recentConversation(AuthenticatedUser principal);
 
     AgentDtos.ConversationResponse getConversation(AuthenticatedUser principal, String rawConversationId);
+
+    void deleteConversation(AuthenticatedUser principal, String rawConversationId);
 }
