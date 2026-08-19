@@ -1,5 +1,6 @@
 package com.adproject.application.application;
 
+import com.adproject.auth.application.MailSender;
 import com.adproject.application.api.InterviewDtos;
 import com.adproject.application.api.RecruiterApplicationDtos;
 import com.adproject.application.domain.ApplicationStatus;
@@ -8,6 +9,7 @@ import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.common.time.DatabaseTimePrecision;
 import com.adproject.company.infrastructure.CompanyMemberRepository;
+import com.adproject.company.infrastructure.CompanyRepository;
 import com.adproject.job.infrastructure.JobEntity;
 import com.adproject.job.infrastructure.JobRepository;
 import com.adproject.profile.infrastructure.CandidateProfileRepository;
@@ -51,6 +53,8 @@ public class RecruiterApplicationService {
     private final UserRepository users;
     private final CandidateProfileRepository profiles;
     private final CompanyMemberRepository members;
+    private final CompanyRepository companies;
+    private final MailSender mailSender;
     private final CandidateApplicationResponseMapper mapper;
     private final CandidateJobRecommendationRepository recommendations;
     private final CandidateJobPreferenceRepository preferences;
@@ -64,6 +68,7 @@ public class RecruiterApplicationService {
                                        JobRepository jobs,
                                        UserRepository users, CandidateProfileRepository profiles,
                                        CompanyMemberRepository members,
+                                       CompanyRepository companies, MailSender mailSender,
                                        CandidateApplicationResponseMapper mapper,
                                        CandidateJobRecommendationRepository recommendations,
                                        CandidateJobPreferenceRepository preferences,
@@ -71,7 +76,8 @@ public class RecruiterApplicationService {
                                        ObjectMapper objectMapper, Clock clock) {
         this.applications = applications; this.events = events; this.snapshots = snapshots; this.interviews = interviews;
         this.jobs = jobs;
-        this.users = users; this.profiles = profiles; this.members = members; this.mapper = mapper;
+        this.users = users; this.profiles = profiles; this.members = members; this.companies = companies;
+        this.mailSender = mailSender; this.mapper = mapper;
         this.recommendations = recommendations; this.preferences = preferences; this.resumes = resumes;
         this.objectMapper = objectMapper; this.clock = clock;
     }
@@ -148,8 +154,31 @@ public class RecruiterApplicationService {
                 UUID.randomUUID().toString(), application.getId(), principal.userId(), companyId,
                 before, target, now, request.reason().trim(), requestId));
         applications.flush();
+        if (target == ApplicationStatus.OFFERED) {
+            sendOfferEmail(application, companyId, request.reason());
+        }
         return new RecruiterApplicationDtos.TransitionResponse(
                 new RecruiterApplicationDtos.TransitionResult(detail(application), audit(event)));
+    }
+
+    private void sendOfferEmail(ApplicationEntity application, String companyId, String reason) {
+        String recipient = application.getContactEmail();
+        if (recipient == null || recipient.isBlank()) return;
+        String jobTitle = jobs.findById(application.getJobId()).map(JobEntity::getTitle).orElse("the position");
+        String companyName = companies.findById(companyId).map(company -> company.getName()).orElse("the company");
+        String subject = "Job offer: " + jobTitle + " at " + companyName;
+        String body = "Congratulations! " + companyName + " has extended an offer for the position of " + jobTitle
+                + "." + (reason == null || reason.isBlank() ? "" : "\n\n" + reason.trim())
+                + "\n\nLog in to HireX to review your offer.";
+        if (!mailSender.isConfigured()) {
+            log.info("Skipping offer email for application {}: mail not configured", application.getId());
+            return;
+        }
+        try {
+            mailSender.send(recipient, subject, body);
+        } catch (RuntimeException ex) {
+            log.warn("Failed to send offer email for application {}: {}", application.getId(), ex.getMessage());
+        }
     }
 
     private Specification<ApplicationEntity> companyScope(String companyId) {

@@ -35,7 +35,7 @@ app:
     access-token-seconds: 7200
     refresh-token-seconds: 2592000
     jwt-secret: ${JWT_SECRET}
-  password-reset:
+  mail:
     smtp-host: ${SMTP_HOST:}
     smtp-port: ${SMTP_PORT:587}
     username: ${SMTP_USERNAME:}

@@ -1,18 +1,18 @@
 package com.adproject.auth.infrastructure;
 
-import com.adproject.auth.application.PasswordResetMailSender;
-import com.adproject.auth.application.PasswordResetProperties;
+import com.adproject.auth.application.MailProperties;
+import com.adproject.auth.application.MailSender;
 import java.util.Properties;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.stereotype.Component;
 
 @Component
-public class SmtpPasswordResetMailSender implements PasswordResetMailSender {
-    private final PasswordResetProperties properties;
+public class SmtpMailSender implements MailSender {
+    private final MailProperties properties;
     private final JavaMailSenderImpl sender;
 
-    public SmtpPasswordResetMailSender(PasswordResetProperties properties) {
+    public SmtpMailSender(MailProperties properties) {
         this.properties = properties;
         this.sender = new JavaMailSenderImpl();
         sender.setHost(properties.smtpHost() == null ? "" : properties.smtpHost());
@@ -28,12 +28,12 @@ public class SmtpPasswordResetMailSender implements PasswordResetMailSender {
     public boolean isConfigured() { return properties.configured(); }
 
     @Override
-    public void sendCode(String recipient, String code) {
+    public void send(String recipient, String subject, String text) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(properties.fromAddress());
         message.setTo(recipient);
-        message.setSubject("Your HireX password reset code");
-        message.setText("Your HireX verification code is " + code + ". It expires in 15 minutes.");
+        message.setSubject(subject);
+        message.setText(text);
         sender.send(message);
     }
 }

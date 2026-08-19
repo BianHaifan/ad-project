@@ -3,7 +3,7 @@ package com.adproject.auth;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
-import com.adproject.auth.application.PasswordResetMailSender;
+import com.adproject.auth.application.MailSender;
 import com.adproject.auth.application.PasswordResetService;
 import com.adproject.auth.infrastructure.PasswordResetCodeRepository;
 import com.adproject.auth.infrastructure.RefreshTokenRepository;
@@ -16,9 +16,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 class PasswordResetConfigurationTest {
     @Test
     void unconfiguredDeliveryFailsBeforeAccountLookup() {
-        PasswordResetMailSender disabled = new PasswordResetMailSender() {
+        MailSender disabled = new MailSender() {
             public boolean isConfigured() { return false; }
-            public void sendCode(String recipient, String code) { throw new AssertionError("must not send"); }
+            public void send(String recipient, String subject, String text) { throw new AssertionError("must not send"); }
         };
         var service = new PasswordResetService(mock(UserRepository.class), mock(PasswordResetCodeRepository.class),
                 mock(RefreshTokenRepository.class), mock(PasswordEncoder.class), disabled, Clock.systemUTC());

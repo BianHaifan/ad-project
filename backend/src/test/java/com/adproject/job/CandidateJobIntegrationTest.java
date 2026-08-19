@@ -53,7 +53,7 @@ class CandidateJobIntegrationTest {
                 .andExpect(jsonPath("$.data[0].company.companyId").value(recruiter.companyId()))
                 .andExpect(jsonPath("$.data[0].company.name").value(recruiter.companyName()))
                 .andExpect(jsonPath("$.data[0].matchScore").isEmpty())
-                .andExpect(jsonPath("$.data[0].recruiter").isEmpty())
+                .andExpect(jsonPath("$.data[0].recruiter.fullName").value("Recruiter One"))
                 .andExpect(jsonPath("$.data[0].publishedAt").value(org.hamcrest.Matchers.endsWith("Z")))
                 .andExpect(jsonPath("$.meta.page").value(1))
                 .andExpect(jsonPath("$.meta.pageSize").value(20))

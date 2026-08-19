@@ -5,7 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.adproject.auth.application.PasswordResetMailSender;
+import com.adproject.auth.application.MailSender;
 import com.adproject.auth.infrastructure.PasswordResetCodeEntity;
 import com.adproject.auth.infrastructure.PasswordResetCodeRepository;
 import com.adproject.user.infrastructure.UserRepository;
@@ -154,9 +154,12 @@ class PasswordResetIntegrationTest {
         @Bean @Primary FakeMailSender fakeMailSender() { return new FakeMailSender(); }
     }
 
-    static class FakeMailSender implements PasswordResetMailSender {
+    static class FakeMailSender implements MailSender {
         volatile String lastCode;
         public boolean isConfigured() { return true; }
-        public void sendCode(String recipient, String code) { lastCode = code; }
+        public void send(String recipient, String subject, String text) {
+            var m = java.util.regex.Pattern.compile("\\d{6}").matcher(text);
+            lastCode = m.find() ? m.group() : null;
+        }
     }
 }
