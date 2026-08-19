@@ -95,6 +95,38 @@ conda run -n ad-project-ml python scripts\evaluate_counterfactuals.py `
   --report reports\counterfactual_v4.json
 ```
 
+## Hybrid recommendation research
+
+The active `match-hybrid-lsa-cf-v1` artifact now executes three components in the real inference
+service: the guarded v4 ranker (85%), a 64-dimensional LSA embedding signal (10%), and a
+32-dimensional implicit-feedback SVD collaborative signal (5%). The collaborative matrix contains
+40,439 reproducible pseudo interactions across 284 warm candidates and 1,500 warm jobs. A new live
+Candidate or Job is mapped to the nearest warm entity in the fitted LSA space before CF scoring;
+the internal response reports this honestly as `EMBEDDING_BRIDGED` rather than direct history.
+
+This runtime proves integration, not a production lift. Direct score blending did not provide stable
+offline gains, CF feedback is teacher-derived rather than observed behavior, and the existing v4
+metrics remain teacher-agreement metrics. Full-catalog neural retrieval was complementary, so a
+future candidate architecture is a union of existing and neural Top-300 pools followed by reranking.
+See
+[HYBRID_RECOMMENDER_PLAN.zh-CN.md](HYBRID_RECOMMENDER_PLAN.zh-CN.md) for results, reproduction
+commands, real-event requirements, and deployment gates.
+
+Rebuild the hybrid runtime artifact from the processed v4 pairs with:
+
+```powershell
+conda run -n ad-project-ml python scripts\build_hybrid_runtime.py `
+  --base-model artifacts\active\model.joblib `
+  --training-pairs data\processed\training_pairs_retrieval_pseudo_v4.csv `
+  --output artifacts\active `
+  --warm-users 300 --warm-items 1500 `
+  --embedding-dimensions 64 --cf-dimensions 32 --seed 42
+```
+
+The raw processed pairs and sidecar JSONL files are not committed. Team members must obtain the
+versioned data package described in the import guide before rebuilding; normal service startup only
+needs the committed `artifacts/active/model.joblib` and `manifest.json`.
+
 Run a real-data in-process API smoke test with:
 
 ```powershell

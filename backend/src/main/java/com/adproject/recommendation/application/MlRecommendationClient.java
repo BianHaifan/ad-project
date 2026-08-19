@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -111,7 +112,17 @@ public class MlRecommendationClient {
             String featureVersion,
             Instant generatedAt,
             int inferenceMs,
-            List<MlItem> items) {}
+            List<MlItem> items,
+            HybridDiagnostics hybrid) {}
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record HybridDiagnostics(
+            boolean enabled,
+            List<String> components,
+            Map<String, Double> weights,
+            String embeddingAlgorithm,
+            String collaborativeAlgorithm,
+            String collaborativeFeedbackSource) {}
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record MlItem(
@@ -120,5 +131,7 @@ public class MlRecommendationClient {
             int rank,
             List<String> strongMatches,
             List<String> gaps,
-            List<String> evidence) {}
+            List<String> evidence,
+            Map<String, Double> componentScores,
+            Map<String, String> componentModes) {}
 }
