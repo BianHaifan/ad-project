@@ -18,7 +18,7 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           source: scripts/seed-prod-demo.sql
-          target: /opt/adproject/
+          target: /home/ubuntu/
           strip_components: 1
           overwrite: true
 
@@ -32,5 +32,5 @@ jobs:
           script: |
             set -e
             docker exec -i adproject-mysql sh -c 'exec mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
-              < /opt/adproject/seed-prod-demo.sql
+              < /home/ubuntu/seed-prod-demo.sql
             echo "seed done"
