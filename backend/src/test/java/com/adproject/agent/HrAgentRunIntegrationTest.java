@@ -119,6 +119,7 @@ class HrAgentRunIntegrationTest {
     /** The screening pool reads every resume, so each test starts from an empty pool. */
     @BeforeEach
     void cleanScreeningPool() {
+        jdbc.update("delete from message_attachments");
         jdbc.update("delete from conversation_read_states");
         jdbc.update("delete from messages");
         jdbc.update("delete from conversations");
