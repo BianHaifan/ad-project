@@ -58,7 +58,7 @@ Recruiter 系统提示把指令转换成白名单计划（`screen_applicants` �
 Spring Boot 验证白名单后执行。
 
 Planner 通过 DeepSeek Chat Completions API 使用
-`deepseek-v4-pro` 生成严格 JSON 计划；密钥只从进程环境读取。模型输出必须再次通过
+`deepseek-v4-flash` 生成严格 JSON 计划；密钥只从进程环境读取。模型输出必须再次通过
 Pydantic 契约和工具参数白名单校验，非法计划不会下发执行；未配置密钥或供应商调用
 失败时接口返回 503，Spring Boot 将 Run 保存为 `FAILED` 并返回安全错误。健康接口只
 暴露模式、模型、最近一次计划来源和最近错误码，不暴露密钥、用户指令或供应商响应正文。
