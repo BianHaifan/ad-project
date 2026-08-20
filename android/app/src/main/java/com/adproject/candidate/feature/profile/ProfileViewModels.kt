@@ -57,6 +57,15 @@ class CandidateProfileViewModel(
             }
         }
     }
+    /** Re-fetch without clearing the screen, so returning from another tab shows fresh data. */
+    fun refresh() {
+        viewModelScope.launch {
+            when (val result = repository.get()) {
+                is ApiResult.Success -> mutable.update { it.copy(loading = false, data = result.value, message = null) }
+                is ApiResult.Failure -> Unit
+            }
+        }
+    }
     fun edit() = mutable.update { it.copy(editing = true, saved = false, message = null) }
     fun cancelEdit() = mutable.update { it.copy(editing = false, saved = false, message = null, fieldErrors = emptyMap()) }
     fun clearSaved() = mutable.update { it.copy(saved = false) }
@@ -172,6 +181,17 @@ class CandidateResumeViewModel(private val repository: CandidateResumeRepository
                 is ApiResult.Success -> ResumeUiState(loading = false, data = result.value)
                 is ApiResult.Failure -> if (result.statusCode == 404) ResumeUiState(loading = false, notCreated = true)
                 else ResumeUiState(loading = false, message = result.message)
+            }
+        }
+    }
+    /** Re-fetch without clearing the screen, so agent edits show up when returning to Me. */
+    fun refresh() {
+        viewModelScope.launch {
+            when (val result = repository.get()) {
+                is ApiResult.Success -> mutable.update {
+                    it.copy(loading = false, data = result.value, message = null, notCreated = false)
+                }
+                is ApiResult.Failure -> Unit
             }
         }
     }

@@ -36,7 +36,7 @@ def test_deepseek_v4_flash_request_and_structured_response() -> None:
         assert request.url == "https://api.deepseek.com/chat/completions"
         assert request.headers["Authorization"] == "Bearer test-key"
         payload = json.loads(request.content)
-        assert payload["model"] == "deepseek-v4-flash"
+        assert payload["model"] == "deepseek-v4-pro"
         assert payload["thinking"] == {"type": "disabled"}
         assert payload["response_format"] == {"type": "json_object"}
         assert payload["messages"][1]["content"] == "请帮我优化并修改简历简介"

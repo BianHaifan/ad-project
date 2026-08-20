@@ -30,7 +30,7 @@ try {
             --restart unless-stopped `
             -p 8090:8090 `
             -e DEEPSEEK_API_KEY `
-            -e DEEPSEEK_MODEL=deepseek-v4-flash `
+            -e DEEPSEEK_MODEL=deepseek-v4-pro `
             -e DEEPSEEK_BASE_URL=https://api.deepseek.com `
             $imageName | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Agent container failed to start." }

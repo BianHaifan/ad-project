@@ -11,7 +11,7 @@ client = TestClient(app)
 
 
 class StubPlanner:
-    config = type("Config", (), {"model": "deepseek-v4-flash"})()
+    config = type("Config", (), {"model": "deepseek-v4-pro"})()
 
     def __init__(self, response: PlanResponse | None = None, error: str | None = None) -> None:
         self._response = response
@@ -104,7 +104,7 @@ def test_health_reports_deepseek_mode_after_successful_plan(monkeypatch: pytest.
 
     health = client.get("/health").json()
     assert health["plannerMode"] == "DEEPSEEK"
-    assert health["model"] == "deepseek-v4-flash"
+    assert health["model"] == "deepseek-v4-pro"
     assert health["lastPlanProvider"] == "deepseek"
     assert health["lastError"] == "none"
 
