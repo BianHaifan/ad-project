@@ -61,7 +61,7 @@ object FakeCandidateRepository : CandidateRepository {
             strongMatches = "Python, LLM / RAG, FastAPI",
             gap = "latency optimization evidence",
             description = "Build production AI services for LLM and RAG products. Own APIs, evaluation, observability, and scalable deployment.",
-            requirements = "2+ years  ·  Python / FastAPI  ·  Kubernetes",
+            requirements = listOf("2+ years of backend experience", "Python / FastAPI", "Kubernetes"),
         )
     }
 

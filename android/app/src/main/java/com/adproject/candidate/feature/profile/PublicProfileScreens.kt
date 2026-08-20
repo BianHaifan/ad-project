@@ -29,6 +29,7 @@ import com.adproject.candidate.core.designsystem.AdBackground
 import com.adproject.candidate.core.designsystem.AdCard
 import com.adproject.candidate.core.designsystem.AdMuted
 import com.adproject.candidate.core.designsystem.AdTeal
+import com.adproject.candidate.core.designsystem.AdTealDark
 import com.adproject.candidate.core.designsystem.AdTealSoft
 import com.adproject.candidate.core.designsystem.AdText
 import com.adproject.candidate.core.designsystem.AdTopBar
@@ -164,6 +165,7 @@ private fun CompanyPublicProfileContent(data: CompanyPublicProfile, onBack: () -
                 }
             }
             val hasDetails = !data.description.isNullOrBlank() || !data.location.isNullOrBlank()
+                    || !data.stage.isNullOrBlank() || !data.employeeRange.isNullOrBlank() || !data.website.isNullOrBlank()
             if (hasDetails) AdCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("About", color = AdText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
@@ -172,6 +174,29 @@ private fun CompanyPublicProfileContent(data: CompanyPublicProfile, onBack: () -
                     }
                     data.location?.takeIf { it.isNotBlank() }?.let {
                         Text("Location: $it", color = AdMuted, fontSize = 12.sp)
+                    }
+                    data.stage?.takeIf { it.isNotBlank() }?.let {
+                        Text("Stage: $it", color = AdMuted, fontSize = 12.sp)
+                    }
+                    data.employeeRange?.takeIf { it.isNotBlank() }?.let {
+                        Text("Team size: $it", color = AdMuted, fontSize = 12.sp)
+                    }
+                    data.website?.takeIf { it.isNotBlank() }?.let {
+                        Text("Website: $it", color = AdTealDark, fontSize = 12.sp, lineHeight = 17.sp)
+                    }
+                }
+            }
+            if (data.activeJobCount > 0) AdCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Open roles (${data.activeJobCount})", color = AdText, fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold)
+                    data.openJobs.forEach { job ->
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(job.title, color = AdText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text("${job.location} · ${job.employmentType.lowercase().replace('_', ' ')} · " +
+                                    job.workplaceType.lowercase().replaceFirstChar(Char::uppercase),
+                                color = AdMuted, fontSize = 11.sp, lineHeight = 16.sp)
+                        }
                     }
                 }
             }

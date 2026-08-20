@@ -1381,6 +1381,36 @@ paths:
       x-permission: Run owner only; another user's run returns 403; valid one-time confirmation and idempotency key required
       description: 'Permission: Run owner only. Status: IMPLEMENTED. Spring Boot rechecks expiry, Run version and target resource version before applying only the previewed change: a resume field patch for Candidate runs, or the interview schedule/create/reschedule/cancel for Recruiter runs. Recruiter interviews are always ONLINE (Google Meet auto-provisioned). On a rejected confirmation the response body may be the refreshed AgentRun instead of an error envelope.'
       x-mvp-scope: MVP
+  /agent/runs/{runId}/ranked-candidates/{candidateId}/conversation:
+    post:
+      tags: [Agent]
+      summary: Open an idempotent recruiter outreach conversation for an Agent-ranked candidate
+      operationId: createAgentRankedCandidateConversation
+      parameters:
+      - name: runId
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      - name: candidateId
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '201':
+          description: Existing or newly created standard message conversation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentOutreachConversationResponse'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+      x-status: IMPLEMENTED
+      x-clients: [Recruiter]
+      x-permission: Recruiter owner of a completed screening run; candidate must be present in that run and the job must still belong to the recruiter's company
+      x-mvp-scope: MVP
   /recruiter/me:
     get:
       tags:
@@ -7052,7 +7082,47 @@ components:
             - APPROVED
             - REJECTED
           - type: 'null'
-      description: Candidate-facing public company profile. Never contains internal audit fields.
+        stage:
+          oneOf:
+          - type: string
+          - type: 'null'
+        employeeRange:
+          oneOf:
+          - type: string
+          - type: 'null'
+        website:
+          oneOf:
+          - type: string
+            format: uri
+          - type: 'null'
+        activeJobCount:
+          type: integer
+          format: int64
+          minimum: 0
+        openJobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyOpenJob'
+      description: Candidate-facing public company profile. Includes only public company facts and active public jobs; never internal audit fields.
+    CompanyOpenJob:
+      type: object
+      required:
+      - jobId
+      - title
+      - location
+      - employmentType
+      - workplaceType
+      properties:
+        jobId:
+          type: string
+        title:
+          type: string
+        location:
+          type: string
+        employmentType:
+          type: string
+        workplaceType:
+          type: string
     ConversationParticipant:
       type: object
       required:
@@ -7151,15 +7221,20 @@ components:
       type: object
       required:
       - conversationId
-      - applicationId
+      - conversationType
       - jobId
       - createdAt
       - updatedAt
       properties:
         conversationId:
           type: string
-        applicationId:
+        conversationType:
           type: string
+          enum: [APPLICATION, RECRUITER_OUTREACH]
+        applicationId:
+          oneOf:
+          - type: string
+          - type: 'null'
         jobId:
           type: string
         createdAt:
@@ -7172,6 +7247,19 @@ components:
           format: date-time
           pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$
           description: ISO-8601 UTC date-time; the value MUST end with Z.
+    AgentOutreachConversation:
+      type: object
+      required: [conversationId]
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+    AgentOutreachConversationResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AgentOutreachConversation'
     ApplicationListFilter:
       type: string
       enum:

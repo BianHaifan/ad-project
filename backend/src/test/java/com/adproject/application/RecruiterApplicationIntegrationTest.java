@@ -47,7 +47,7 @@ class RecruiterApplicationIntegrationTest {
                 .andExpect(jsonPath("$.meta.counts.applied").value(1))
                 .andExpect(jsonPath("$.meta.counts.inReview").value(1))
                 .andExpect(jsonPath("$.data[0].candidate.fullName").value("Alice Candidate"))
-                .andExpect(jsonPath("$.data[0].matchScore").isEmpty())
+                .andExpect(jsonPath("$.data[0].matchScore").isNumber())
                 .andExpect(jsonPath("$.data[0].owner").isEmpty());
         mvc.perform(get("/api/v1/recruiter/applications").header("Authorization", recruiter(fixture))
                         .param("status", "IN_REVIEW"))
@@ -79,7 +79,8 @@ class RecruiterApplicationIntegrationTest {
                 .andExpect(jsonPath("$.data.timeline[0].toStatus").value("APPLIED"))
                 .andExpect(jsonPath("$.data.notes.length()").value(0))
                 .andExpect(jsonPath("$.data.interview").isEmpty())
-                .andExpect(jsonPath("$.data.matchAnalysis").isEmpty())
+                .andExpect(jsonPath("$.data.matchScore").isNumber())
+                .andExpect(jsonPath("$.data.matchAnalysis.score").isNumber())
                 .andReturn().getResponse().getContentAsString();
         assertThat(body).contains("Z");
         Fixture other = fixture("Other");
@@ -149,16 +150,17 @@ class RecruiterApplicationIntegrationTest {
                 .andExpect(jsonPath("$.data.matchAnalysis.generatedAt").isNotEmpty());
     }
 
-    @Test void staleRecommendationScoreIsOmitted() throws Exception {
+    @Test void staleRecommendationFallsBackToLiveApplicantScore() throws Exception {
         Fixture fixture = fixture("Stale Candidate");
         String jobId = job(fixture, "Stale Job");
         String id = submit(fixture, jobId);
         recommend(fixture.candidateId(), jobId, 91, 2, 1); // resume version drifted since snapshot was generated
         mvc.perform(get("/api/v1/recruiter/applications").header("Authorization", recruiter(fixture)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].matchScore").isEmpty());
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].matchScore").isNumber());
         mvc.perform(get("/api/v1/recruiter/applications/{id}", id).header("Authorization", recruiter(fixture)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.matchScore").isEmpty())
-                .andExpect(jsonPath("$.data.matchAnalysis").isEmpty());
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.matchScore").isNumber())
+                .andExpect(jsonPath("$.data.matchAnalysis.score").isNumber())
+                .andExpect(jsonPath("$.data.matchAnalysis.modelVersion").value("fallback-rules-v1"));
     }
 
     @Test void recommendationDoesNotLeakAcrossCompanies() throws Exception {

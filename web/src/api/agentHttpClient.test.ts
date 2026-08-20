@@ -104,6 +104,13 @@ describe('AgentHttpClient', () => {
     expect(requestWithAuth).toHaveBeenCalledWith('/agent/runs/run-2/cancel', {method: 'POST'});
   });
 
+  it('creates a standard message conversation only for an Agent-ranked candidate', async () => {
+    const {client, requestWithAuth} = setup({data: {conversationId: 'msg-1'}});
+    await expect(client.startOutreachConversation('run/1', 'candidate/1')).resolves.toBe('msg-1');
+    expect(requestWithAuth).toHaveBeenCalledWith(
+      '/agent/runs/run%2F1/ranked-candidates/candidate%2F1/conversation', {method: 'POST'});
+  });
+
   it('lists conversations and rejects malformed summaries', async () => {
     const {client, requestWithAuth} = setup({data: summaries});
     await expect(client.listConversations()).resolves.toEqual(summaries);

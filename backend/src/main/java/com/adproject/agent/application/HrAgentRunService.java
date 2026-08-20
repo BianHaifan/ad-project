@@ -305,6 +305,34 @@ public class HrAgentRunService implements AgentRunsPort {
         return response(run);
     }
 
+    /**
+     * Only a completed screening owned by this recruiter can unlock a Talent Pool contact.  The
+     * returned IDs are revalidated by ConversationService before it writes anything.
+     */
+    @Transactional(readOnly = true)
+    public OutreachTarget verifiedOutreachTarget(AuthenticatedUser principal, String rawRunId, String rawCandidateId) {
+        String companyId = requireCompany(principal);
+        AgentRunEntity run = ownedRun(requireUuid(rawRunId, "runId"), principal.userId());
+        if (run.getStatus() != AgentRunStatus.COMPLETED || !"JOB".equals(run.getTargetType())) {
+            throw conflict("AGENT_RUN_NOT_SCREENING", "Only a completed candidate screening can start a conversation");
+        }
+        AgentDtos.ScreeningResult screening = readScreening(run.getResultJson());
+        if (screening == null || screening.jobId() == null || !screening.jobId().equals(run.getTargetId())) {
+            throw conflict("AGENT_SCREENING_RESULT_INVALID", "The screening result is no longer available");
+        }
+        JobEntity job = jobs.findById(screening.jobId())
+                .filter(value -> companyId.equals(value.getCompanyId()))
+                .orElseThrow(HrAgentRunService::notFound);
+        String candidateId = requireUuid(rawCandidateId, "candidateId");
+        boolean ranked = screening.ranked().stream().anyMatch(value -> candidateId.equals(value.candidateId()));
+        if (!ranked) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Candidate was not included in this screening");
+        }
+        return new OutreachTarget(job.getId(), candidateId);
+    }
+
+    public record OutreachTarget(String jobId, String candidateId) {}
+
     // ------------------------------------------------------------------
     // Screening
     // ------------------------------------------------------------------

@@ -73,3 +73,8 @@ img.avatar{object-fit:cover}.profile-main{display:flex;flex-direction:column;gap
 .conversation-item .conversation-delete{position:absolute;top:10px;right:8px;border:0;background:transparent;color:#b3bcc5;font-size:14px;line-height:1;padding:4px 7px;border-radius:6px;cursor:pointer;opacity:0}
 .conversation-item:hover .conversation-delete,.conversation-item:focus-within .conversation-delete{opacity:1}
 .conversation-item .conversation-delete:hover{background:#feecec;color:#c43d3d}
+
+/* Job management no longer exposes the redundant internal owner column. */
+.jobs-table .table-head,.jobs-table .table-row{grid-template-columns:1.7fr 1.4fr .65fr .78fr 1.2fr}
+.profile-form{width:100%;max-width:none}
+@media(max-width:1180px){.jobs-table .table-head,.jobs-table .table-row{grid-template-columns:1.6fr 1.2fr .65fr .65fr 1.2fr}}

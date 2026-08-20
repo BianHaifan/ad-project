@@ -44,7 +44,7 @@ data class JobDetailData(
     val strongMatches: String,
     val gap: String,
     val description: String,
-    val requirements: String,
+    val requirements: List<String>,
     val skills: List<String> = emptyList(),
     val deadline: String? = null,
     val publishedAt: String? = null,

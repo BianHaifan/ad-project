@@ -3,6 +3,7 @@ package com.adproject.agent.api;
 import com.adproject.agent.application.AgentRunService;
 import com.adproject.agent.application.AgentRunsPort;
 import com.adproject.agent.application.HrAgentRunService;
+import com.adproject.conversation.application.ConversationService;
 import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.user.domain.UserRole;
 import jakarta.validation.Valid;
@@ -22,10 +23,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class AgentRunController {
     private final AgentRunsPort candidateRuns;
     private final AgentRunsPort recruiterRuns;
+    private final HrAgentRunService recruiterScreeningRuns;
+    private final ConversationService conversations;
 
-    public AgentRunController(AgentRunService candidateRuns, HrAgentRunService recruiterRuns) {
+    public AgentRunController(AgentRunService candidateRuns, HrAgentRunService recruiterRuns,
+                              ConversationService conversations) {
         this.candidateRuns = candidateRuns;
         this.recruiterRuns = recruiterRuns;
+        this.recruiterScreeningRuns = recruiterRuns;
+        this.conversations = conversations;
     }
 
     @PostMapping
@@ -44,6 +50,16 @@ public class AgentRunController {
     AgentDtos.RunResponse cancel(@AuthenticationPrincipal AuthenticatedUser principal,
                                  @PathVariable String runId) {
         return service(principal).cancel(principal, runId);
+    }
+
+    @PostMapping("/{runId}/ranked-candidates/{candidateId}/conversation")
+    ResponseEntity<AgentDtos.OutreachConversationResponse> startOutreach(
+            @AuthenticationPrincipal AuthenticatedUser principal, @PathVariable String runId,
+            @PathVariable String candidateId) {
+        var target = recruiterScreeningRuns.verifiedOutreachTarget(principal, runId, candidateId);
+        String conversationId = conversations.createRecruiterOutreach(principal, target.candidateId(), target.jobId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(new AgentDtos.OutreachConversationResponse(
+                new AgentDtos.OutreachConversation(conversationId)));
     }
 
     @PostMapping("/{runId}/confirm")

@@ -132,11 +132,20 @@ private fun JobDetailContent(state: JobDetailUiState, onBack: () -> Unit, onAppl
             }
             AdCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("About this role", color = Color(0xFF111827), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text(data.description, color = AdMuted, fontSize = 12.sp, lineHeight = 17.sp)
-                    if (data.requirements.isNotBlank()) {
+                    Text("Job description", color = Color(0xFF111827), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(data.description, Modifier.fillMaxWidth(), color = AdMuted, fontSize = 12.sp,
+                        lineHeight = 17.sp, softWrap = true)
+                    if (data.requirements.isNotEmpty()) {
                         Text("Requirements", color = Color(0xFF111827), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                        Text(data.requirements, color = AdTealDark, fontSize = 12.sp, lineHeight = 18.sp)
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            data.requirements.forEach { requirement ->
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                                    Text("•", Modifier.padding(end = 8.dp), color = AdTealDark, fontSize = 12.sp)
+                                    Text(requirement, Modifier.weight(1f), color = AdTealDark, fontSize = 12.sp,
+                                        lineHeight = 18.sp, softWrap = true)
+                                }
+                            }
+                        }
                     }
                     data.deadline?.let { Text("Deadline: $it", color = AdMuted, fontSize = 10.sp) }
                     data.publishedAt?.let { Text("Published: $it", color = AdMuted, fontSize = 10.sp) }

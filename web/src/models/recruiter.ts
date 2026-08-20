@@ -292,7 +292,8 @@ export interface ConversationParticipant {
 
 export interface ConversationSummary {
   conversationId: string;
-  applicationId: string;
+  conversationType?: 'APPLICATION' | 'RECRUITER_OUTREACH';
+  applicationId: string | null;
   jobId: string;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
@@ -304,7 +305,8 @@ export interface ConversationSummary {
 
 export interface ConversationDetail {
   conversationId: string;
-  applicationId: string;
+  conversationType?: 'APPLICATION' | 'RECRUITER_OUTREACH';
+  applicationId: string | null;
   jobId: string;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;

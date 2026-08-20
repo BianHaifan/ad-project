@@ -70,3 +70,8 @@ export function useConfirmAgentRun(){
     },
   });
 }
+
+export function useStartAgentOutreach(){
+  return useMutation({mutationFn:({runId,candidateId}:{runId:string;candidateId:string})=>
+    api.startOutreachConversation(runId,candidateId)});
+}

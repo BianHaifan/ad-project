@@ -100,7 +100,9 @@ function parseMessageEnvelope(payload: unknown): Message {
 }
 
 export function parseSummary(value: unknown): ConversationSummary {
-  if (!isRecord(value) || typeof value.conversationId !== 'string' || typeof value.applicationId !== 'string' ||
+  if (!isRecord(value) || typeof value.conversationId !== 'string' ||
+      !(value.conversationType === undefined || isConversationType(value.conversationType)) ||
+      !(value.applicationId === null || typeof value.applicationId === 'string') ||
       typeof value.jobId !== 'string' || typeof value.createdAt !== 'string' || typeof value.updatedAt !== 'string' ||
       !(value.lastMessage === null || isRecord(value.lastMessage)) ||
       typeof value.unreadCount !== 'number' || typeof value.jobTitle !== 'string') throw unexpectedResponse();
@@ -110,11 +112,17 @@ export function parseSummary(value: unknown): ConversationSummary {
 }
 
 function parseDetail(value: unknown): ConversationDetail {
-  if (!isRecord(value) || typeof value.conversationId !== 'string' || typeof value.applicationId !== 'string' ||
+  if (!isRecord(value) || typeof value.conversationId !== 'string' ||
+      !(value.conversationType === undefined || isConversationType(value.conversationType)) ||
+      !(value.applicationId === null || typeof value.applicationId === 'string') ||
       typeof value.jobId !== 'string' || typeof value.createdAt !== 'string' || typeof value.updatedAt !== 'string' ||
       !(value.context === null || isInterviewContext(value.context))) throw unexpectedResponse();
   parseParticipant(value.participant);
   return value as unknown as ConversationDetail;
+}
+
+function isConversationType(value: unknown): value is ConversationSummary['conversationType'] {
+  return value === 'APPLICATION' || value === 'RECRUITER_OUTREACH';
 }
 
 export function parseMessage(value: unknown): Message {

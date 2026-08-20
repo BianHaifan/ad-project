@@ -87,8 +87,9 @@ class CandidatePublicProfileIntegrationTest {
     void candidateSeesCompanyPublicProfileWithoutInternalFields() throws Exception {
         Fixture f = fixture("See Company Candidate");
         submit(f, job(f, "Company Job"));
-        jdbc.update("update companies set description=?, location=?, logo_url=? where id=?",
-                "We build tools", "Singapore", "https://example.com/logo.png", f.companyId());
+        jdbc.update("update companies set description=?, location=?, logo_url=?, stage=?, employee_range=?, website=? where id=?",
+                "We build tools", "Singapore", "https://example.com/logo.png", "Series A", "51-200",
+                "https://example.com", f.companyId());
 
         mvc.perform(get("/api/v1/candidate/companies/{id}", f.companyId()).header("Authorization", candidate(f)))
                 .andExpect(status().isOk())
@@ -98,9 +99,13 @@ class CandidatePublicProfileIntegrationTest {
                 .andExpect(jsonPath("$.data.description").value("We build tools"))
                 .andExpect(jsonPath("$.data.location").value("Singapore"))
                 .andExpect(jsonPath("$.data.verificationStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.data.stage").value("Series A"))
+                .andExpect(jsonPath("$.data.employeeRange").value("51-200"))
+                .andExpect(jsonPath("$.data.website").value("https://example.com"))
+                .andExpect(jsonPath("$.data.activeJobCount").value(1))
+                .andExpect(jsonPath("$.data.openJobs[0].title").value("Company Job"))
                 .andExpect(jsonPath("$.data", not(hasKey("createdBy"))))
                 .andExpect(jsonPath("$.data", not(hasKey("version"))))
-                .andExpect(jsonPath("$.data", not(hasKey("website"))))
                 .andExpect(jsonPath("$.data", not(hasKey("createdAt"))));
     }
 

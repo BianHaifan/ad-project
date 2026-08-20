@@ -75,6 +75,10 @@ public class AuthService {
         this.preferences = preferences;
     }
 
+    /**
+     * 注册仅面向求职者和招聘者开放；管理员只能通过后台授权产生，不能由公开注册接口创建。
+     * 招聘者注册会同时创建一间待审核公司及其管理员成员关系，因此后续发布职位仍须通过公司审核。
+     */
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         UserRole role = parsePublicRole(request.role());
@@ -100,6 +104,9 @@ public class AuthService {
         return authResponse(user, company);
     }
 
+    /**
+     * 登录失败统一返回相同的未授权结果，并始终执行一次密码哈希比对，避免通过响应差异枚举邮箱是否存在。
+     */
     @Transactional
     public AuthResponse login(LoginRequest request) {
         if (request.email() == null || request.password() == null) {
@@ -115,6 +122,9 @@ public class AuthService {
         return authResponse(user, findCompany(user));
     }
 
+    /**
+     * 刷新令牌采用轮换策略：旧令牌在同一事务内失效，新令牌立即签发，降低泄露后的可重放风险。
+     */
     @Transactional
     public TokenResponse refresh(String rawRefreshToken) {
         Instant now = clock.instant();
@@ -149,6 +159,7 @@ public class AuthService {
 
     private AuthResponse authResponse(UserEntity user, CompanyEntity company) {
         var refresh = refreshTokenService.issue(user.getId());
+        // 候选人只有同时具备 Profile、默认 Resume 和求职偏好后，才算完成首次资料引导。
         Boolean onboardingRequired = user.getRole() == UserRole.CANDIDATE
                 ? !(candidateProfiles.existsById(user.getId()) && resumes.findByCandidateId(user.getId()).isPresent()
                     && preferences.existsById(user.getId()))

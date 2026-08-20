@@ -23,7 +23,12 @@ public interface JobRepository extends JpaRepository<JobEntity, String>, JpaSpec
 
     long countByCompanyIdAndStatus(String companyId, JobStatus status);
 
+    long countByCompanyIdAndStatusAndVisibility(String companyId, JobStatus status, Visibility visibility);
+
     List<JobEntity> findByCompanyId(String companyId, Pageable pageable);
+
+    List<JobEntity> findByCompanyIdAndStatusAndVisibility(String companyId, JobStatus status,
+                                                           Visibility visibility, Pageable pageable);
 
     boolean existsByCompanyIdAndStatusAndVisibility(String companyId, JobStatus status, Visibility visibility);
 

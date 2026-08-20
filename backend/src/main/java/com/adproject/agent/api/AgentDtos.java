@@ -103,6 +103,10 @@ public final class AgentDtos {
 
     public record RunResponse(Run data) {}
 
+    /** Reference to the normal message conversation created from a verified screening result. */
+    public record OutreachConversation(String conversationId) {}
+    public record OutreachConversationResponse(OutreachConversation data) {}
+
     public record Conversation(String conversationId, List<Run> runs) {}
 
     public record ConversationResponse(Conversation data) {}

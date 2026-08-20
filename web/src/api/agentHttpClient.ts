@@ -60,6 +60,16 @@ export class AgentHttpClient {
     return parseRunEnvelope(payload);
   }
 
+  async startOutreachConversation(runId: string, candidateId: string): Promise<string> {
+    const payload = await this.client.requestWithAuth<unknown>(
+      apiPaths.agentRunOutreachConversation(encodeURIComponent(runId), encodeURIComponent(candidateId)),
+      {method: 'POST'});
+    if (!isRecord(payload) || !isRecord(payload.data) || typeof payload.data.conversationId !== 'string') {
+      throw unexpectedResponse();
+    }
+    return payload.data.conversationId;
+  }
+
   async listConversations(): Promise<AgentConversationSummary[]> {
     const payload = await this.client.requestWithAuth<unknown>(apiPaths.agentConversations);
     if (!isRecord(payload) || !Array.isArray(payload.data)) throw unexpectedResponse();
