@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record DeepSeekProperties(String apiKey, String model, String baseUrl,
                                  Duration connectTimeout, Duration readTimeout) {
     public DeepSeekProperties {
-        model = model == null || model.isBlank() ? "deepseek-v4-flash" : model;
+        model = model == null || model.isBlank() ? "deepseek-v4-pro" : model;
         baseUrl = baseUrl == null || baseUrl.isBlank() ? "https://api.deepseek.com" : baseUrl;
         connectTimeout = connectTimeout == null ? Duration.ofSeconds(5) : connectTimeout;
         readTimeout = readTimeout == null ? Duration.ofSeconds(60) : readTimeout;

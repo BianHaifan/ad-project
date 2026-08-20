@@ -147,7 +147,7 @@ class DeepSeekPlannerError(RuntimeError):
 @dataclass(frozen=True)
 class DeepSeekConfig:
     api_key: str
-    model: str = "deepseek-v4-flash"
+    model: str = "deepseek-v4-pro"
     base_url: str = "https://api.deepseek.com"
     timeout_seconds: float = 15.0
 
@@ -158,7 +158,7 @@ class DeepSeekConfig:
             return None
         return cls(
             api_key=api_key,
-            model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash").strip() or "deepseek-v4-flash",
+            model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro").strip() or "deepseek-v4-pro",
             base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").strip().rstrip("/"),
             timeout_seconds=float(os.getenv("DEEPSEEK_TIMEOUT_SECONDS", "15")),
         )

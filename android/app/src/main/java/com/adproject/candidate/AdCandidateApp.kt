@@ -363,6 +363,13 @@ fun AdCandidateApp(
                 val resumeState by resumeViewModel.state.collectAsStateWithLifecycle()
                 val applicationsState by applicationListViewModel.state.collectAsStateWithLifecycle()
                 LaunchedEffect(Unit) { applicationListViewModel.load() }
+                ScreenLifecyclePolling(
+                    onStarted = {
+                        profileViewModel.refresh()
+                        resumeViewModel.refresh()
+                    },
+                    onStopped = {},
+                )
                 RealProfileScreen(
                     state = state,
                     resumeState = resumeState,
