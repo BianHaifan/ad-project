@@ -26,4 +26,6 @@
 ## Limits / next safe check
 
 - The fallback score is advisory only and does not alter application state or hiring decisions.
+- V32 uses independent `ALTER TABLE` statements without MySQL-only column-position clauses so the H2 test database running in MySQL mode can apply the same migration.
+- Dashboard integration coverage now expects the deterministic Candidate Fit fallback score instead of the old empty ML-only value.
 - Before merging, run `mvn -B test -Dtest=ConversationIntegrationTest,RecruiterApplicationIntegrationTest` in `backend/` (or let CI do so) to validate Flyway V32 against the test schema.

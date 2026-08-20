@@ -58,7 +58,7 @@ class DashboardIntegrationTest {
                 .andExpect(jsonPath("$.data.recentApplications.length()").value(3))
                 .andExpect(jsonPath("$.data.recentApplications[0].applicationId").value(interview))
                 .andExpect(jsonPath("$.data.recentApplications[0].candidate.fullName").value("Dashboard Candidate"))
-                .andExpect(jsonPath("$.data.recentApplications[0].matchScore").isEmpty())
+                .andExpect(jsonPath("$.data.recentApplications[0].matchScore").value(0))
                 .andExpect(jsonPath("$.data.recentJobs.length()").value(3))
                 .andExpect(jsonPath("$.data.recentJobs[0].jobId").value(draft))
                 .andExpect(jsonPath("$.data.recentJobs[0].title").value("Draft Role"));
