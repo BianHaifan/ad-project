@@ -71,6 +71,9 @@ public class JobService {
         this.clock = clock;
     }
 
+    /**
+     * 创建职位草稿。公司审核通过是写入草稿和后续发布的共同前置条件，避免未审核公司积累可误发布的数据。
+     */
     @Transactional
     public JobResponse create(AuthenticatedUser currentUser, CreateJobRequest request) {
         requireRecruiter(currentUser);
@@ -161,6 +164,9 @@ public class JobService {
         return new JobResponse(toDetail(job, scope.company()));
     }
 
+    /**
+     * 仅允许编辑草稿，并使用版本号防止两个招聘者页面相互覆盖对方的修改。
+     */
     @Transactional
     public JobResponse update(AuthenticatedUser currentUser, String jobId, UpdateJobRequest request) {
         requireRecruiter(currentUser);
@@ -224,6 +230,9 @@ public class JobService {
         return errors;
     }
 
+    /**
+     * 发布会把草稿转换为公开可投递的职位，并在同一事务写入审计记录；已过期的截止日期不能发布。
+     */
     @Transactional
     public JobResponse publish(AuthenticatedUser currentUser, String jobId, PublishJobRequest request,
                                String requestId) {
@@ -256,6 +265,9 @@ public class JobService {
         return new JobResponse(toDetail(job, scope.company()));
     }
 
+    /**
+     * 职位状态只能按状态机允许的方向变化。暂停、关闭或重新开放都会保留审计事件，供后台追踪。
+     */
     @Transactional
     public JobResponse changeStatus(AuthenticatedUser currentUser, String jobId, ChangeJobStatusRequest request,
                                     String requestId) {

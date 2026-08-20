@@ -111,6 +111,19 @@ data class CompanyPublicProfile(
     val description: String?,
     val location: String?,
     val verificationStatus: String?,
+    val stage: String? = null,
+    val employeeRange: String? = null,
+    val website: String? = null,
+    val activeJobCount: Int = 0,
+    val openJobs: List<CompanyOpenJob> = emptyList(),
+)
+
+data class CompanyOpenJob(
+    val jobId: String,
+    val title: String,
+    val location: String,
+    val employmentType: String,
+    val workplaceType: String,
 )
 
 data class Salary(val min: Int, val max: Int, val currency: String = "SGD", val period: String)
@@ -288,7 +301,7 @@ data class ConversationParticipant(
 
 data class ConversationSummary(
     val conversationId: String,
-    val applicationId: String,
+    val applicationId: String?,
     val jobId: String,
     val createdAt: String,
     val updatedAt: String,
@@ -296,16 +309,18 @@ data class ConversationSummary(
     val lastMessage: Message?,
     val unreadCount: Int,
     val jobTitle: String,
+    val conversationType: String = "APPLICATION",
 )
 
 data class ConversationDetail(
     val conversationId: String,
-    val applicationId: String,
+    val applicationId: String?,
     val jobId: String,
     val createdAt: String,
     val updatedAt: String,
     val participant: ConversationParticipant,
     val context: InterviewContext?,
+    val conversationType: String = "APPLICATION",
 )
 
 data class InterviewContext(

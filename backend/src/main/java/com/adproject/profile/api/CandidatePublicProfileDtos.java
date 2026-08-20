@@ -1,5 +1,7 @@
 package com.adproject.profile.api;
 
+import java.util.List;
+
 public final class CandidatePublicProfileDtos {
     private CandidatePublicProfileDtos() {}
 
@@ -15,11 +17,15 @@ public final class CandidatePublicProfileDtos {
 
     public record RecruiterPublicProfileResponse(RecruiterPublicProfile data) {}
 
-    /**
-     * Public company projection. Contains only the reliably available public fields and never internal audit data.
-     */
+    /** Public company projection. It exposes public company facts and published openings, never audit metadata. */
     public record CompanyPublicProfile(String companyId, String name, String logoUrl, String description,
-                                       String location, String verificationStatus) {}
+                                       String location, String verificationStatus, String stage,
+                                       String employeeRange, String website, long activeJobCount,
+                                       List<CompanyOpenJob> openJobs) {}
+
+    /** A compact public job projection used only inside the company profile. */
+    public record CompanyOpenJob(String jobId, String title, String location, String employmentType,
+                                 String workplaceType) {}
 
     public record CompanyPublicProfileResponse(CompanyPublicProfile data) {}
 }

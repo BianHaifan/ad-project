@@ -13,6 +13,7 @@ import com.adproject.job.domain.Visibility;
 import com.adproject.job.infrastructure.JobRepository;
 import com.adproject.profile.api.CandidatePublicProfileDtos.CompanyPublicProfile;
 import com.adproject.profile.api.CandidatePublicProfileDtos.CompanyPublicProfileResponse;
+import com.adproject.profile.api.CandidatePublicProfileDtos.CompanyOpenJob;
 import com.adproject.profile.api.CandidatePublicProfileDtos.CompanySummary;
 import com.adproject.profile.api.CandidatePublicProfileDtos.RecruiterPublicProfile;
 import com.adproject.profile.api.CandidatePublicProfileDtos.RecruiterPublicProfileResponse;
@@ -21,6 +22,9 @@ import com.adproject.profile.infrastructure.RecruiterProfileRepository;
 import com.adproject.user.domain.UserRole;
 import com.adproject.user.infrastructure.UserEntity;
 import com.adproject.user.infrastructure.UserRepository;
+import java.util.List;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,13 +85,25 @@ public class CandidatePublicProfileService {
         if (!canSeeCompany(principal.userId(), companyId)) {
             throw notFound();
         }
+        List<CompanyOpenJob> openJobs = jobs.findByCompanyIdAndStatusAndVisibility(companyId,
+                        JobStatus.ACTIVE, Visibility.PUBLIC,
+                        PageRequest.of(0, 3, Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.desc("id"))))
+                .stream()
+                .map(job -> new CompanyOpenJob(job.getId(), job.getTitle(), job.getLocation(),
+                        job.getEmploymentType().name(), job.getWorkplaceType().name()))
+                .toList();
         return new CompanyPublicProfileResponse(new CompanyPublicProfile(
                 company.getId(),
                 company.getName(),
                 company.getLogoUrl(),
                 company.getDescription(),
                 company.getLocation(),
-                company.getVerificationStatus() == null ? null : company.getVerificationStatus().name()));
+                company.getVerificationStatus() == null ? null : company.getVerificationStatus().name(),
+                company.getStage(),
+                company.getEmployeeRange(),
+                company.getWebsite(),
+                jobs.countByCompanyIdAndStatusAndVisibility(companyId, JobStatus.ACTIVE, Visibility.PUBLIC),
+                openJobs));
     }
 
     private boolean canSeeRecruiter(String candidateId, String recruiterId) {

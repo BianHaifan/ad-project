@@ -56,6 +56,8 @@ export const apiPaths = {
   agentRun: (runId: string) => `/agent/runs/${runId}`,
   agentRunConfirm: (runId: string) => `/agent/runs/${runId}/confirm`,
   agentRunCancel: (runId: string) => `/agent/runs/${runId}/cancel`,
+  agentRunOutreachConversation: (runId: string, candidateId: string) =>
+    `/agent/runs/${runId}/ranked-candidates/${candidateId}/conversation`,
   agentConversations: '/agent/conversations',
   agentConversation: (conversationId: string) => `/agent/conversations/${conversationId}`,
   communityPosts: '/community/posts',

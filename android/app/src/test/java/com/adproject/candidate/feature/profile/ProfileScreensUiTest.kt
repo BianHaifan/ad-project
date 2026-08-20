@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.adproject.candidate.data.contract.ApplicationCounts
 import com.adproject.candidate.data.contract.CandidateProfileDto
 import com.adproject.candidate.data.contract.CandidateStats
+import com.adproject.candidate.data.contract.CompanyOpenJob
 import com.adproject.candidate.data.contract.CompanyPublicProfile
 import com.adproject.candidate.data.contract.EmploymentType
 import com.adproject.candidate.data.contract.Experience
@@ -596,7 +597,10 @@ class ProfileScreensUiTest {
             CompanyPublicProfileScreen(
                 CompanyPublicProfileUiState(
                     loading = false,
-                    data = CompanyPublicProfile("c1", "Acme Corp", null, "Great place.", "Singapore", status),
+                    data = CompanyPublicProfile("c1", "Acme Corp", null, "Great place.", "Singapore", status,
+                        stage = "Series A", employeeRange = "51-200", website = "https://acme.example",
+                        activeJobCount = 1, openJobs = listOf(CompanyOpenJob("job-1", "Platform Engineer",
+                            "Singapore", "FULL_TIME", "HYBRID"))),
                 ),
                 onBack = {}, onRetry = {},
             )
@@ -609,6 +613,11 @@ class ProfileScreensUiTest {
         composeRule.onNodeWithText("Acme Corp").assertIsDisplayed()
         composeRule.onNodeWithText("Great place.").assertExists()
         composeRule.onNodeWithText("Location: Singapore").assertExists()
+        composeRule.onNodeWithText("Stage: Series A").assertExists()
+        composeRule.onNodeWithText("Team size: 51-200").assertExists()
+        composeRule.onNodeWithText("Website: https://acme.example").assertExists()
+        composeRule.onNodeWithText("Open roles (1)").assertExists()
+        composeRule.onNodeWithText("Platform Engineer").assertExists()
         composeRule.onNodeWithText("Verified").assertExists()
     }
 

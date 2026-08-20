@@ -65,6 +65,7 @@ function renderAgent(path: string) {
   const router = createMemoryRouter([
     {path: '/recruiter/agent', element: <AgentPage/>},
     {path: '/recruiter/applications/:applicationId', element: <div>Application detail page</div>},
+    {path: '/recruiter/messages/:conversationId', element: <div>Message conversation page</div>},
   ], {initialEntries: [path]});
   const view = render(<QueryClientProvider client={client}><RouterProvider router={router}/></QueryClientProvider>);
   return {router, client, ...view};
@@ -81,6 +82,7 @@ describe('AgentPage', () => {
         completedAt: '2026-08-18T08:01:00Z', appliedChanges: [], queryResult: null}});
     vi.spyOn(agentHttpClient, 'cancelRun').mockResolvedValue({...previewRun, status: 'CANCELLED'});
     vi.spyOn(agentHttpClient, 'deleteConversation').mockResolvedValue(undefined);
+    vi.spyOn(agentHttpClient, 'startOutreachConversation').mockResolvedValue('message-1');
   });
   afterEach(() => {cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals();});
 
@@ -142,7 +144,8 @@ describe('AgentPage', () => {
     expect(screen.getByText('Not applied')).toBeInTheDocument();
     expect(screen.getByText('Screening finished.', {selector: '.agent-thread span'}))
       .toBeInTheDocument();
-    // Only candidates who applied offer scheduling and a link to the application.
+    // Every ranked candidate can be contacted; only applicants can be scheduled.
+    expect(screen.getAllByRole('button', {name: 'Message'})).toHaveLength(2);
     expect(screen.getAllByRole('button', {name: /^Schedule interview for/})).toHaveLength(1);
 
     fireEvent.click(screen.getByRole('button', {name: 'Schedule interview for Ada Lovelace'}));
@@ -150,6 +153,12 @@ describe('AgentPage', () => {
 
     fireEvent.click(screen.getByRole('button', {name: 'View'}));
     await waitFor(() => expect(router.state.location.pathname).toBe('/recruiter/applications/app-1'));
+
+    const rerendered = renderAgent('/recruiter/agent?conversation=conv-1');
+    await screen.findByText('Grace Hopper');
+    fireEvent.click(screen.getAllByRole('button', {name: 'Message'})[1]);
+    await waitFor(() => expect(agentHttpClient.startOutreachConversation).toHaveBeenCalledWith('run-1', 'cand-2'));
+    expect(rerendered.router.state.location.pathname).toBe('/recruiter/messages/message-1');
   });
 
   it('previews interview changes and confirms with an idempotency key', async () => {

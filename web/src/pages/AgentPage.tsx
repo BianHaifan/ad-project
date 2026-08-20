@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState, type FormEvent} from 'react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
-import {useAgentConversation, useAgentConversations, useCancelAgentRun, useConfirmAgentRun, useCreateAgentRun, useDeleteAgentConversation} from '../api/agentQueries';
+import {useAgentConversation, useAgentConversations, useCancelAgentRun, useConfirmAgentRun, useCreateAgentRun, useDeleteAgentConversation, useStartAgentOutreach} from '../api/agentQueries';
 import {AuthApiError} from '../api/authClient';
 import {useJob} from '../api/queries';
 import {EmptyState, ErrorState, LoadingState} from '../components/AsyncState';
@@ -35,6 +35,7 @@ export function AgentPage() {
   const confirm = useConfirmAgentRun();
   const cancel = useCancelAgentRun();
   const del = useDeleteAgentConversation();
+  const outreach = useStartAgentOutreach();
   const [draft, setDraft] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -108,6 +109,14 @@ export function AgentPage() {
     setSendError(null);
     setDraft(`Schedule an interview with the #${candidate.rank} candidate (${candidate.fullName})`);
   };
+  const startOutreach = (runId: string, candidate: AgentRankedCandidate) => {
+    if (outreach.isPending) return;
+    setSendError(null);
+    outreach.mutate({runId, candidateId: candidate.candidateId}, {
+      onSuccess: id => nav(`/recruiter/messages/${id}`),
+      onError: caught => setSendError(presentRunError(caught)),
+    });
+  };
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -172,7 +181,8 @@ export function AgentPage() {
               {runs.map(run => (
                 <RunThread key={run.runId} run={run} busy={busyRunId === run.runId}
                   onPrefill={prefillSchedule} onConfirm={confirmRun} onCancel={cancelRun}
-                  onViewApplication={viewApplication}/>
+                  onViewApplication={viewApplication} onStartOutreach={startOutreach}
+                  outreachCandidateId={outreach.isPending ? outreach.variables?.candidateId ?? null : null}/>
               ))}
               {create.isPending && create.variables && (
                 <div className="agent-thread">
@@ -240,28 +250,33 @@ function WelcomeView({jobTitle, onSuggestion}: {
   </>;
 }
 
-function RunThread({run, busy, onPrefill, onConfirm, onCancel, onViewApplication}: {
+function RunThread({run, busy, onPrefill, onConfirm, onCancel, onViewApplication, onStartOutreach, outreachCandidateId}: {
   run: AgentRun;
   busy: boolean;
   onPrefill: (candidate: AgentRankedCandidate) => void;
   onConfirm: (run: AgentRun) => void;
   onCancel: (runId: string) => void;
   onViewApplication: (applicationId: string) => void;
+  onStartOutreach: (runId: string, candidate: AgentRankedCandidate) => void;
+  outreachCandidateId: string | null;
 }) {
   return <div className="agent-thread">
     <div className="message recruiter">{run.instruction}</div>
     <AgentBubble run={run} busy={busy} onPrefill={onPrefill} onConfirm={onConfirm} onCancel={onCancel}
-      onViewApplication={onViewApplication}/>
+      onViewApplication={onViewApplication} onStartOutreach={onStartOutreach}
+      outreachCandidateId={outreachCandidateId}/>
   </div>;
 }
 
-function AgentBubble({run, busy, onPrefill, onConfirm, onCancel, onViewApplication}: {
+function AgentBubble({run, busy, onPrefill, onConfirm, onCancel, onViewApplication, onStartOutreach, outreachCandidateId}: {
   run: AgentRun;
   busy: boolean;
   onPrefill: (candidate: AgentRankedCandidate) => void;
   onConfirm: (run: AgentRun) => void;
   onCancel: (runId: string) => void;
   onViewApplication: (applicationId: string) => void;
+  onStartOutreach: (runId: string, candidate: AgentRankedCandidate) => void;
+  outreachCandidateId: string | null;
 }) {
   if (run.status === 'PROCESSING' || run.status === 'EXECUTING') {
     return <div className="message agent agent-pending" aria-live="polite">
@@ -286,7 +301,8 @@ function AgentBubble({run, busy, onPrefill, onConfirm, onCancel, onViewApplicati
   if (run.screening && run.screening.ranked.length > 0) {
     return <div className="message agent agent-wide">
       <span>{run.message}</span>
-      <ScreeningCard screening={run.screening} onPrefill={onPrefill} onViewApplication={onViewApplication}/>
+      <ScreeningCard screening={run.screening} onPrefill={onPrefill} onViewApplication={onViewApplication}
+        onStartOutreach={candidate => onStartOutreach(run.runId, candidate)} outreachCandidateId={outreachCandidateId}/>
     </div>;
   }
   return <div className="message agent">
@@ -296,10 +312,12 @@ function AgentBubble({run, busy, onPrefill, onConfirm, onCancel, onViewApplicati
   </div>;
 }
 
-function ScreeningCard({screening, onPrefill, onViewApplication}: {
+function ScreeningCard({screening, onPrefill, onViewApplication, onStartOutreach, outreachCandidateId}: {
   screening: {jobTitle: string; ranked: AgentRankedCandidate[]};
   onPrefill: (candidate: AgentRankedCandidate) => void;
   onViewApplication: (applicationId: string) => void;
+  onStartOutreach: (candidate: AgentRankedCandidate) => void;
+  outreachCandidateId: string | null;
 }) {
   return <div className="agent-card">
     <b>Top candidates for {screening.jobTitle}</b>
@@ -321,6 +339,10 @@ function ScreeningCard({screening, onPrefill, onViewApplication}: {
             {gaps.length > 0 && <small className="gap-line">✗ {gaps.join(' · ')}</small>}
           </span>
           <span className="row-actions">
+            <button className="button tiny secondary" disabled={outreachCandidateId === candidate.candidateId}
+              onClick={() => onStartOutreach(candidate)}>
+              {outreachCandidateId === candidate.candidateId ? 'Opening…' : 'Message'}
+            </button>
             {candidate.applicationId &&
               <button className="button tiny secondary"
                 onClick={() => onViewApplication(candidate.applicationId!)}>View</button>}
