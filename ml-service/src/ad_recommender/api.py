@@ -11,6 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from ad_recommender.model import ModelBundle, load_bundle
 from ad_recommender.schemas import (
     HealthResponse,
+    HybridDiagnostics,
     RecommendationResponse,
     RecommendCandidatesRequest,
     RecommendJobsRequest,
@@ -70,6 +71,7 @@ def create_app(
             status="ready",
             model_version=loaded.manifest.model_version,
             feature_version=loaded.manifest.feature_version,
+            components=model_components(loaded),
         )
 
     @application.post(
@@ -87,6 +89,7 @@ def create_app(
             generated_at=datetime.now(UTC),
             inference_ms=max(0, round((time.perf_counter() - started) * 1000)),
             items=items,
+            hybrid=hybrid_diagnostics(loaded),
         )
 
     @application.post(
@@ -106,9 +109,34 @@ def create_app(
             generated_at=datetime.now(UTC),
             inference_ms=max(0, round((time.perf_counter() - started) * 1000)),
             items=items,
+            hybrid=hybrid_diagnostics(loaded),
         )
 
     return application
 
 
 app = create_app()
+
+
+def model_components(bundle: ModelBundle) -> list[str]:
+    if getattr(bundle, "hybrid_runtime", None) is None:
+        return ["RANKER"]
+    return ["RANKER", "LSA_EMBEDDING", "COLLABORATIVE_SVD"]
+
+
+def hybrid_diagnostics(bundle: ModelBundle) -> HybridDiagnostics | None:
+    runtime = getattr(bundle, "hybrid_runtime", None)
+    if runtime is None:
+        return None
+    return HybridDiagnostics(
+        enabled=True,
+        components=model_components(bundle),
+        weights={
+            "ranker": runtime.ranker_weight,
+            "embedding": runtime.embedding_weight,
+            "collaborative": runtime.collaborative_weight,
+        },
+        embedding_algorithm="TFIDF_TRUNCATED_SVD_LSA",
+        collaborative_algorithm="IMPLICIT_FEEDBACK_TRUNCATED_SVD",
+        collaborative_feedback_source=runtime.feedback_source,
+    )

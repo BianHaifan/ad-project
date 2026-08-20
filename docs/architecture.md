@@ -5,7 +5,7 @@
 - Spring Boot 是唯一对客户端公开的业务后端。
 - Android 和 React 不得直接访问数据库、ML 服务或大模型供应商。
 - 先采用模块化单体，避免 MVP 阶段拆分大量微服务。
-- Python 仅承载自训练推荐模型的数据处理、训练、评估与推理，通过内部 API 被 Spring Boot 调用。
+- Python 仅承载自训练推荐模型的数据处理、训练、评估与推理，以及不接触业务数据的 Agent 结构化计划生成；两者都只通过内部 API 被 Spring Boot 调用，不承载认证或招聘业务写入。
 - 核心业务在 ML/LLM 不可用时仍能运行。
 - OpenAPI 是前后端接口契约的唯一来源。
 
@@ -26,10 +26,13 @@
              ┌──────▼───┐ ┌───▼────────────┐
              │  MySQL   │ │ Python ML API  │
              └──────────┘ └────────────────┘
+                    │ internal HTTP
+          ┌─────────▼──────────────┐
+          │ Python Agent Planner   │
+          │ LangGraph + LLM adapter│
+          └─────────┬──────────────┘
                     │
-                Agent Adapter
-                    │
-             Approved LLM Provider
+          Approved LLM Provider
 ```
 
 ## 3. 仓库结构建议
@@ -42,6 +45,7 @@ adproject/
 ├── android/                 # Kotlin + Jetpack Compose
 ├── web/                     # React + TypeScript
 ├── ml-service/              # Python 推荐模型训练、评估与推理
+├── agent-service/           # Python Agent 计划生成；不执行业务写操作
 ├── contracts/               # OpenAPI、共享 schema 和生成物
 ├── infra/                   # Docker Compose、部署配置
 └── scripts/                 # 本地开发与验证脚本
@@ -131,6 +135,8 @@ POST /internal/v1/recommend
 
 ## 9. Agent 安全边界
 
+Agent 采用“Python 规划、Spring Boot 授权与执行”的内部服务模式，详细契约见 `docs/agent-design.md`。Python Agent Planner 只把自然语言转换为结构化计划，不对客户端公开、不接收客户端 JWT、不访问业务数据库，也不直接执行任何有副作用的业务操作。
+
 - Agent 所有工具调用必须携带当前用户上下文并由服务端鉴权。
 - 读取工具和写入工具分开注册。
 - Agent 工具复用现有业务服务，例如 `get_my_resume`、`preview_resume_patch`、`apply_resume_patch`、`save_job`、`create_application`。
@@ -139,6 +145,13 @@ POST /internal/v1/recommend
 - 不允许模型自行构造数据库查询或绕过业务服务。
 - 保存 Agent Run、步骤、工具名称、输入摘要、结果和错误。
 - 日志不得保存密码、完整 JWT、API Key 或不必要的敏感简历原文。
+
+Recruiter Agent 在同一组接口上按角色分派到 `HrAgentRunService`：
+
+- 规划阶段由 agent-service 的 Recruiter 系统提示生成白名单计划，仅携带指令与历史，不接收岗位、简历等业务数据。
+- 筛选执行由 Spring Boot 直接调用后端 Java DeepSeek 客户端：后端先汇集自己岗位的候选人简历池（上限 30 条、不含 `age`），再让模型输出按 `applicationId` 索引的排名与事实性理由。模型失败只保存安全错误码，供应商响应正文与简历内容绝不进入 Run message 或 Step。
+- 面试工具复用 `InterviewService`，只允许 ONLINE 模式；调度/改期/取消全部先预览后确认，确认时重查面试版本并校验 15 分钟有效期与幂等键。
+- Run 所有权按用户隔离：他人的 Run 返回 403，不存在的 Run 返回 404。
 
 ## 10. 配置与环境
 

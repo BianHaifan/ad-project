@@ -130,6 +130,45 @@ class ConversationIntegrationTest {
                 .andExpect(jsonPath("$.data[0].deliveryStatus").value("SENT"));
     }
 
+    @Test void recruiterCanStartOneIdempotentOutreachOnlyForOwnCompletedScreeningResult() throws Exception {
+        Fixture f = fixture("Agent outreach");
+        String jobId = job(f, "Talent Pool Job");
+        String runId = UUID.randomUUID().toString();
+        jdbc.update("insert into agent_runs (id,user_id,conversation_id,job_id,instruction,target_type,target_id,"
+                        + "status,confirmation_status,result_json,version,created_at,updated_at) values (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                runId, f.recruiterId(), UUID.randomUUID().toString(), jobId, "Screen candidates", "JOB", jobId,
+                "COMPLETED", "NOT_REQUIRED", "{\"jobId\":\"" + jobId + "\",\"jobTitle\":\"Talent Pool Job\","
+                        + "\"ranked\":[{\"candidateId\":\"" + f.candidateId() + "\",\"applicationId\":null,"
+                        + "\"fullName\":\"Candidate\",\"applicationStatus\":null,\"rank\":1,"
+                        + "\"strongMatches\":[],\"gaps\":[],\"recommendation\":\"Strong fit\"}],"
+                        + "\"message\":\"Done\"}", 1, Instant.now(), Instant.now());
+
+        String endpoint = "/api/v1/agent/runs/{runId}/ranked-candidates/{candidateId}/conversation";
+        String first = mvc.perform(post(endpoint, runId, f.candidateId()).header("Authorization", recruiter(f)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.conversationId").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        String conversationId = mapper.readTree(first).at("/data/conversationId").asText();
+
+        mvc.perform(post("/api/v1/recruiter/conversations/{id}/messages", conversationId)
+                        .header("Authorization", recruiter(f)).header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Hello from Talent Pool\",\"clientMessageId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isCreated());
+        mvc.perform(get("/api/v1/candidate/conversations/{id}/messages", conversationId)
+                        .header("Authorization", candidate(f)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].body").value("Hello from Talent Pool"));
+
+        mvc.perform(post(endpoint, runId, f.candidateId()).header("Authorization", recruiter(f)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.conversationId").value(conversationId));
+        assertThat(jdbc.queryForObject("select count(*) from conversations where id=? and application_id is null "
+                + "and conversation_type='RECRUITER_OUTREACH'", Integer.class, conversationId)).isEqualTo(1);
+
+        mvc.perform(post(endpoint, runId, UUID.randomUUID().toString()).header("Authorization", recruiter(f)))
+                .andExpect(status().isNotFound());
+    }
+
     @Test void conversationIsCompanyScoped() throws Exception {
         Fixture a = fixture("Company A Candidate");
         String jobId = job(a, "A Job");

@@ -56,7 +56,7 @@ import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneOffset
 
-// The Me page is a fixed five-entry menu. Profile and Resume each open a dedicated edit screen
+// Profile and Resume each open a dedicated edit screen
 // (no inline forms here), My applications shows the three grouping totals, and Job preferences
 // and Sign out are unchanged.
 @Composable
@@ -70,6 +70,7 @@ fun RealProfileScreen(
     onOpenResume: () -> Unit,
     onOpenPreferences: () -> Unit,
     onOpenSavedJobs: () -> Unit,
+    onOpenAgent: () -> Unit,
     onLogout: () -> Unit,
     onTab: (MainTab) -> Unit,
 ) {
@@ -92,6 +93,7 @@ fun RealProfileScreen(
                     onOpenResume = onOpenResume,
                     onOpenPreferences = onOpenPreferences,
                     onOpenSavedJobs = onOpenSavedJobs,
+                    onOpenAgent = onOpenAgent,
                     onLogout = onLogout,
                 )
             }
@@ -125,6 +127,7 @@ private fun MeContent(
     onOpenResume: () -> Unit,
     onOpenPreferences: () -> Unit,
     onOpenSavedJobs: () -> Unit,
+    onOpenAgent: () -> Unit,
     onLogout: () -> Unit,
 ) {
     val data = state.data ?: return
@@ -141,6 +144,9 @@ private fun MeContent(
         }
         AdCard(Modifier.fillMaxWidth()) {
             ActionRow("Job preferences", "Tune titles, locations and salary", onOpenPreferences)
+        }
+        AdCard(Modifier.fillMaxWidth()) {
+            ActionRow("AI Agent", "Review and confirm account changes", onOpenAgent)
         }
         SignOutCard(onLogout)
         Spacer(Modifier.height(4.dp))

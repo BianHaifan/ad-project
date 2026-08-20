@@ -4,6 +4,7 @@ import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.company.infrastructure.CompanyEntity;
 import com.adproject.company.infrastructure.CompanyRepository;
+import com.adproject.job.application.RecruiterContactResolver;
 import com.adproject.job.domain.EmploymentType;
 import com.adproject.job.domain.JobStatus;
 import com.adproject.job.domain.Visibility;
@@ -64,6 +65,7 @@ public class CandidateRecommendationService {
     private final JobRepository jobs;
     private final CompanyRepository companies;
     private final CandidateSavedJobRepository savedJobs;
+    private final RecruiterContactResolver recruiterResolver;
     private final MlRecommendationClient mlClient;
     private final RecommendationSnapshotService snapshots;
     private final RecommendationProperties properties;
@@ -76,6 +78,7 @@ public class CandidateRecommendationService {
             JobRepository jobs,
             CompanyRepository companies,
             CandidateSavedJobRepository savedJobs,
+            RecruiterContactResolver recruiterResolver,
             MlRecommendationClient mlClient,
             RecommendationSnapshotService snapshots,
             RecommendationProperties properties,
@@ -86,6 +89,7 @@ public class CandidateRecommendationService {
         this.jobs = jobs;
         this.companies = companies;
         this.savedJobs = savedJobs;
+        this.recruiterResolver = recruiterResolver;
         this.mlClient = mlClient;
         this.snapshots = snapshots;
         this.properties = properties;
@@ -288,7 +292,7 @@ public class CandidateRecommendationService {
                 job.getLocation(), job.getEmploymentType(), job.getWorkplaceType(),
                 job.getSalaryMin(), job.getSalaryMax(), job.getSalaryCurrency(), job.getSalaryPeriod(),
                 job.getDescription(), readStrings(job.getSkillsJson()), value.score(), rank,
-                value.analysis(), saved);
+                value.analysis(), saved, recruiterResolver.resolve(job));
     }
 
     private List<String> readStrings(String value) {

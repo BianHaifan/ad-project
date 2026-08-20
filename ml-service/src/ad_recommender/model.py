@@ -12,6 +12,7 @@ from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestClassifi
 from sklearn.metrics import accuracy_score, f1_score, mean_absolute_error
 
 from ad_recommender.features import FEATURE_VERSION, PairFeatureExtractor
+from ad_recommender.hybrid import HybridRuntime
 from ad_recommender.prelabeling import (
     PRELABEL_FEATURE_NAMES,
     PRELABEL_FEATURE_VERSION,
@@ -58,6 +59,7 @@ class ModelBundle:
     manifest: ModelManifest
     scoring_extractor: PrelabelFeatureExtractorV2 | None = None
     prediction_mode: str = "regression"
+    hybrid_runtime: HybridRuntime | None = None
 
     def warm_up(self) -> None:
         if self.regressor is None:
@@ -136,6 +138,9 @@ class ModelBundle:
     def recommend_jobs(
         self, candidate: CandidateInput, jobs: list[JobInput], limit: int
     ) -> list[RecommendationItem]:
+        hybrid_runtime = getattr(self, "hybrid_runtime", None)
+        if hybrid_runtime is not None:
+            return self._recommend_jobs_hybrid(candidate, jobs, limit, hybrid_runtime)
         if self.regressor is not None and self.scoring_extractor is not None:
             scores = self._score_for_ranking([candidate] * len(jobs), jobs)
             selected = sorted(
@@ -160,9 +165,60 @@ class ModelBundle:
         ]
         return rank_items(scored, limit)
 
+    def _recommend_jobs_hybrid(
+        self,
+        candidate: CandidateInput,
+        jobs: list[JobInput],
+        limit: int,
+        runtime: HybridRuntime,
+    ) -> list[RecommendationItem]:
+        if self.regressor is not None and self.scoring_extractor is not None:
+            ranker_scores = self._score_for_ranking([candidate] * len(jobs), jobs)
+        else:
+            ranker_scores = [score for score, _ in self.score_pairs([candidate] * len(jobs), jobs)]
+        hybrid = runtime.score_jobs(candidate, jobs, ranker_scores)
+        order = sorted(
+            range(len(jobs)),
+            key=lambda index: (-int(hybrid.final_scores[index]), jobs[index].entity_id),
+        )[:limit]
+        selected_jobs = [jobs[index] for index in order]
+        explanations = self.extractor.transform_explanations(
+            [candidate] * len(selected_jobs), selected_jobs
+        )
+        results: list[RecommendationItem] = []
+        for rank, (index, features) in enumerate(zip(order, explanations, strict=True), start=1):
+            job = jobs[index]
+            strong, gaps, evidence = explain(features, job)
+            results.append(
+                RecommendationItem(
+                    entity_id=job.entity_id,
+                    score=int(hybrid.final_scores[index]),
+                    rank=rank,
+                    strong_matches=strong,
+                    gaps=gaps,
+                    evidence=evidence,
+                    component_scores={
+                        "ranker": round(float(hybrid.ranker_scores[index]), 6),
+                        "embedding_cosine": round(float(hybrid.embedding_scores[index]), 6),
+                        "collaborative_latent": round(
+                            float(hybrid.collaborative_scores[index]), 6
+                        ),
+                        "hybrid_final": float(hybrid.final_scores[index]),
+                    },
+                    component_modes={
+                        "candidate_cf": hybrid.candidate_mode,
+                        "job_cf": hybrid.job_modes[index],
+                    },
+                )
+            )
+        return results
+
     def recommend_candidates(
         self, job: JobInput, candidates: list[CandidateInput], limit: int
     ) -> list[RecommendationItem]:
+        hybrid_runtime = getattr(self, "hybrid_runtime", None)
+        if hybrid_runtime is not None:
+            return self._recommend_candidates_hybrid(job, candidates, limit, hybrid_runtime)
         if self.regressor is not None and self.scoring_extractor is not None:
             scores = self._score_for_ranking(candidates, [job] * len(candidates))
             selected = sorted(
@@ -188,6 +244,57 @@ class ModelBundle:
             for candidate, (score, features) in zip(candidates, scored_pairs, strict=True)
         ]
         return rank_items(scored, limit)
+
+    def _recommend_candidates_hybrid(
+        self,
+        job: JobInput,
+        candidates: list[CandidateInput],
+        limit: int,
+        runtime: HybridRuntime,
+    ) -> list[RecommendationItem]:
+        if self.regressor is not None and self.scoring_extractor is not None:
+            ranker_scores = self._score_for_ranking(candidates, [job] * len(candidates))
+        else:
+            ranker_scores = [
+                score
+                for score, _ in self.score_pairs(candidates, [job] * len(candidates))
+            ]
+        hybrid = runtime.score_candidates(job, candidates, ranker_scores)
+        order = sorted(
+            range(len(candidates)),
+            key=lambda index: (-int(hybrid.final_scores[index]), candidates[index].entity_id),
+        )[:limit]
+        selected_candidates = [candidates[index] for index in order]
+        explanations = self.extractor.transform_explanations(
+            selected_candidates, [job] * len(selected_candidates)
+        )
+        results: list[RecommendationItem] = []
+        for rank, (index, features) in enumerate(zip(order, explanations, strict=True), start=1):
+            candidate = candidates[index]
+            strong, gaps, evidence = explain(features, job)
+            results.append(
+                RecommendationItem(
+                    entity_id=candidate.entity_id,
+                    score=int(hybrid.final_scores[index]),
+                    rank=rank,
+                    strong_matches=strong,
+                    gaps=gaps,
+                    evidence=evidence,
+                    component_scores={
+                        "ranker": round(float(hybrid.ranker_scores[index]), 6),
+                        "embedding_cosine": round(float(hybrid.embedding_scores[index]), 6),
+                        "collaborative_latent": round(
+                            float(hybrid.collaborative_scores[index]), 6
+                        ),
+                        "hybrid_final": float(hybrid.final_scores[index]),
+                    },
+                    component_modes={
+                        "candidate_cf": hybrid.candidate_modes[index],
+                        "job_cf": hybrid.job_mode,
+                    },
+                )
+            )
+        return results
 
     def _score_for_ranking(
         self, candidates: list[CandidateInput], jobs: list[JobInput]
@@ -451,11 +558,12 @@ def load_bundle(path: Path) -> ModelBundle:
     bundle = joblib.load(path)
     if not isinstance(bundle, ModelBundle):
         raise TypeError("The model artifact does not contain a ModelBundle")
-    if bundle.manifest.feature_version not in {
+    compatible = bundle.manifest.feature_version in {
         FEATURE_VERSION,
         LEGACY_PSEUDO_FEATURE_VERSION,
         PSEUDO_FEATURE_VERSION,
-    }:
+    } or bundle.manifest.feature_version.startswith(f"{PSEUDO_FEATURE_VERSION}+")
+    if not compatible:
         raise ValueError("The model feature version is incompatible with this service")
     return bundle
 

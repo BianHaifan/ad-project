@@ -4,6 +4,7 @@ import androidx.annotation.RawRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -36,7 +38,13 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.adproject.candidate.R
 
-enum class MainTab(val label: String) { Jobs("Jobs"), Community("Community"), Messages("Messages"), Me("Me") }
+enum class MainTab(val label: String) {
+    Jobs("Jobs"),
+    Community("Community"),
+    Agent("Agent"),
+    Messages("Messages"),
+    Me("Me"),
+}
 
 @Composable
 fun FigmaSvg(@RawRes resource: Int, contentDescription: String?, modifier: Modifier = Modifier) {
@@ -135,10 +143,11 @@ fun LabeledField(
 
 @Composable
 fun Logo(size: Int = 56) {
-    Box(
-        Modifier.size(size.dp).clip(RoundedCornerShape((size * .32f).dp)).background(AdTeal),
-        contentAlignment = Alignment.Center,
-    ) { Text("HX", color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size * .32f).sp) }
+    Image(
+        painterResource(R.drawable.app_logo),
+        contentDescription = "HireX",
+        modifier = Modifier.size(size.dp),
+    )
 }
 
 @Composable
@@ -146,6 +155,7 @@ fun AdBottomBar(selected: MainTab, onSelected: (MainTab) -> Unit) {
     val icons = mapOf(
         MainTab.Jobs to (R.raw.hirex_jobs_active to R.raw.hirex_jobs_inactive),
         MainTab.Community to (R.raw.hirex_community_active to R.raw.hirex_community_inactive),
+        MainTab.Agent to (R.raw.hirex_agent_active to R.raw.hirex_agent_inactive),
         MainTab.Messages to (R.raw.hirex_messages_active to R.raw.hirex_messages_inactive),
         MainTab.Me to (R.raw.hirex_me_active to R.raw.hirex_me_inactive),
     )
@@ -158,7 +168,7 @@ fun AdBottomBar(selected: MainTab, onSelected: (MainTab) -> Unit) {
             MainTab.entries.forEach { tab ->
                 val active = selected == tab
                 Column(
-                    Modifier.width(80.dp).clickable { onSelected(tab) },
+                    Modifier.weight(1f).clickable { onSelected(tab) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {

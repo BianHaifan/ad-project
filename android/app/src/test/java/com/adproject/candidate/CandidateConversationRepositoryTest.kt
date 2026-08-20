@@ -40,7 +40,7 @@ class CandidateConversationRepositoryTest {
 
     @Test fun debugDefaultApiUrlPointsAtLocalEmulator() {
         if (BuildConfig.DEBUG) {
-            assertEquals("http://10.0.2.2:8081/api/v1/", BuildConfig.API_BASE_URL)
+            assertEquals("http://10.0.2.2:8080/api/v1/", BuildConfig.API_BASE_URL)
         }
     }
 

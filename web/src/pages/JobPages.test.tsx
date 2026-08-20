@@ -45,6 +45,7 @@ describe('real recruiter job pages', () => {
     expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
     expect(screen.getByText('1 job posting')).toBeInTheDocument();
     expect(screen.queryByText('DRAFT jobs editable')).not.toBeInTheDocument();
+    expect(screen.queryByText('Owner')).not.toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'View'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'Edit'})).toBeInTheDocument();
     expect(list).toHaveBeenCalledWith({q: '', status: undefined, page: 1, pageSize: 20});

@@ -35,7 +35,7 @@ app:
     access-token-seconds: 7200
     refresh-token-seconds: 2592000
     jwt-secret: ${JWT_SECRET}
-  password-reset:
+  mail:
     smtp-host: ${SMTP_HOST:}
     smtp-port: ${SMTP_PORT:587}
     username: ${SMTP_USERNAME:}
@@ -55,3 +55,14 @@ app:
     connect-timeout: ${ML_CONNECT_TIMEOUT:2s}
     read-timeout: ${ML_READ_TIMEOUT:5s}
     max-jobs: ${ML_MAX_JOBS:500}
+  agent:
+    planner-base-url: ${AGENT_PLANNER_BASE_URL:http://localhost:8090}
+    preview-ttl-seconds: ${AGENT_PREVIEW_TTL_SECONDS:900}
+    connect-timeout: ${AGENT_PLANNER_CONNECT_TIMEOUT:3s}
+    read-timeout: ${AGENT_PLANNER_READ_TIMEOUT:20s}
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY:}
+    model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    connect-timeout: ${DEEPSEEK_CONNECT_TIMEOUT:5s}
+    read-timeout: ${DEEPSEEK_READ_TIMEOUT:60s}

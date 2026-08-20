@@ -18,11 +18,11 @@ public final class ConversationDtos {
     public record Message(String messageId, String conversationId, String body, String senderType, Instant sentAt,
                           String clientMessageId, String deliveryStatus, Attachment attachment) {}
 
-    public record Summary(String conversationId, String applicationId, String jobId, Instant createdAt,
+    public record Summary(String conversationId, String conversationType, String applicationId, String jobId, Instant createdAt,
                           Instant updatedAt, Participant participant, Message lastMessage, long unreadCount,
                           String jobTitle) {}
 
-    public record Detail(String conversationId, String applicationId, String jobId, Instant createdAt,
+    public record Detail(String conversationId, String conversationType, String applicationId, String jobId, Instant createdAt,
                          Instant updatedAt, Participant participant, Object context) {}
 
     public record PageMeta(int page, int pageSize, long total, boolean hasNext) {}

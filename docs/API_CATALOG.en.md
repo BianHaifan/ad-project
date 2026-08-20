@@ -4,12 +4,12 @@
 
 ## Summary and counting
 
-- Unique operations: **45**
-- Candidate operations: **20**
+- Unique operations: **49**
+- Candidate operations: **24**
 - Recruiter operations: **29**
 - Shared operations: **4**
 
-Counting formula: `20 + 29 - 4 = 45`.
+Counting formula: `24 + 29 - 4 = 49`.
 
 ## Frozen unified rules
 
@@ -154,6 +154,21 @@ Counting formula: `20 + 29 - 4 = 45`.
 | Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | DRAFT | MVP | GET | `/features/learning` | `getLearningFeature` | YES | NO | Candidate role | — | 200 | 401, 403 |
+
+### Agent
+
+| Status | MVP scope | Method | Path | operationId | Candidate | Recruiter | Permission | Request | Success | Main errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| IMPLEMENTED | MVP | POST | `/agent/runs` | `createAgentRun` | YES | YES | Candidate or Recruiter, dispatched by role; creation does not write | body: CreateAgentRunRequest (instruction; optional conversationId/jobId/timezone) | 201 | 400, 401, 403, 422 |
+| IMPLEMENTED | MVP | GET | `/agent/runs/{runId}` | `getAgentRun` | YES | YES | Run owner only; another user's run returns 403 | params: runId | 200 | 401, 403, 404 |
+| IMPLEMENTED | MVP | POST | `/agent/runs/{runId}/cancel` | `cancelAgentRun` | YES | YES | Run owner only; another user's run returns 403; no business write | params: runId | 200 | 401, 403, 404, 409 |
+| IMPLEMENTED | MVP | POST | `/agent/runs/{runId}/confirm` | `confirmAgentRun` | YES | YES | Run owner only; another user's run returns 403; confirmation/version/idempotency required | params: runId/Idempotency-Key; body: ConfirmAgentRunRequest | 200 | 401, 403, 404, 409, 422 |
+| IMPLEMENTED | MVP | GET | `/agent/conversations` | `listAgentConversations` | YES | YES | Current user self only; conversations are scoped per role | — | 200 | 401, 403 |
+| IMPLEMENTED | MVP | GET | `/agent/conversations/recent` | `getRecentAgentConversation` | YES | YES | Current user self only; conversations are scoped per role | — | 200 | 401, 403 |
+| IMPLEMENTED | MVP | GET | `/agent/conversations/{conversationId}` | `getAgentConversation` | YES | YES | Conversation owner only; another user's conversation returns 404 | params: conversationId | 200 | 401, 403, 404 |
+| IMPLEMENTED | MVP | DELETE | `/agent/conversations/{conversationId}` | `deleteAgentConversation` | YES | YES | Conversation owner only; another user's conversation returns 404 | params: conversationId | 204 | 401, 403, 404 |
+
+Candidate runs plan resume queries and previews (age, summary, skills, experiences). Recruiter runs rank candidates for the recruiter's own job (`screen_applicants`, pure LLM screening without numeric scores) and prepare ONLINE interview previews (`schedule_interview`, `reschedule_interview`, `cancel_interview` reusing the InterviewService). Nothing is written until the confirm endpoint applies a preview; a rejected confirmation may return the refreshed `AgentRun` body instead of an error envelope.
 
 ## Frozen MVP decisions and deferred scope
 

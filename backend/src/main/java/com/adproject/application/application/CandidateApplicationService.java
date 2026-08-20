@@ -64,6 +64,10 @@ public class CandidateApplicationService {
         this.mapper = mapper; this.clock = clock;
     }
 
+    /**
+     * 提交投递的原子流程：锁定候选人、职位和简历，保存不可变的简历快照、申请与首条状态历史，
+     * 并为双方建立唯一会话。幂等键会缓存首次成功结果，防止网络重试产生重复投递。
+     */
     @Transactional
     public CandidateApplicationDetailResponse submit(AuthenticatedUser principal, String jobId,
                                                      String rawIdempotencyKey,
@@ -104,6 +108,7 @@ public class CandidateApplicationService {
         CompanyEntity company = companies.findById(job.getCompanyId()).orElseThrow(CandidateApplicationService::jobNotFound);
         Instant now = DatabaseTimePrecision.micros(clock.instant());
         String snapshotId = UUID.randomUUID().toString();
+        // 招聘方后续查看的是投递当刻的简历快照，而非候选人日后可能修改过的当前简历。
         ResumeSnapshotEntity snapshot = snapshots.save(new ResumeSnapshotEntity(
                 snapshotId, resume.getId(), candidate.getId(), resume.getFullName(), resume.getAge(),
                 resume.getLocation(), resume.getHeadline(), resume.getSummary(), resume.getExperiencesJson(),
@@ -113,10 +118,12 @@ public class CandidateApplicationService {
         ApplicationEntity application = applications.save(new ApplicationEntity(
                 applicationId, job.getId(), candidate.getId(), resume.getId(), snapshotId,
                 contactEmail, request.shareProfile(), ApplicationStatus.APPLIED, now, now, 1));
+        // 申请与第一条 APPLIED 状态历史必须同事务落库，保证时间线不会缺失起点。
         events.save(new ApplicationStatusEventEntity(UUID.randomUUID().toString(), applicationId,
                 candidate.getId(), job.getCompanyId(), null, ApplicationStatus.APPLIED, now,
                 "Application submitted", requestId));
         job.incrementApplicantCount();
+        // 会话按申请唯一创建，投递完成后双方可立即沟通，无须依赖 Google 等外部集成。
         conversationProvisioning.provision(applicationId, job.getId(), candidate.getId(), job.getCompanyId(), now);
 
         CandidateApplicationDetailResponse response = response(application, snapshot, job, company);

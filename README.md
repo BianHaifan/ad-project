@@ -1,59 +1,60 @@
 # AD Project
 
-面向求职者、招聘者和管理员的智能招聘平台毕业设计。
+An intelligent recruitment platform capstone project for candidates, recruiters, and administrators.
 
-## 技术基线
+## Technology baseline
 
-- 求职者客户端：Kotlin + Jetpack Compose（Android）
-- 招聘者与管理员端：React + TypeScript
-- 核心后端：Java + Spring Boot
-- 数据库：MySQL
-- 机器学习：团队自行训练职位推荐模型，由独立 Python 服务负责训练与推理
-- AI Agent：通过 Spring Boot 的受控工具执行用户本人有权完成的操作
+- Candidate client: Kotlin + Jetpack Compose (Android)
+- Recruiter and administrator clients: React + TypeScript
+- Core backend: Java + Spring Boot
+- Database: MySQL
+- Machine learning: a team-trained job recommendation model, with training and inference handled by a standalone Python service
+- AI Agent: performs operations that the current user is authorized to execute through controlled Spring Boot tools
+- Agent orchestration: an internal Python + LangGraph service generates plans only; Spring Boot handles authorization, tools, previews, and auditing
 
-## 当前目标
+## Current goal
 
-先完成一条可真实运行的 MVP 垂直流程：
+First, complete one fully functional end-to-end MVP flow:
 
 ```text
-招聘者发布职位
-→ Android 展示职位
-→ 求职者查看职位详情并投递
-→ 招聘者查看申请并修改状态
-→ 求职者查看申请进度
+Recruiter publishes a job
+→ The job appears in the Android app
+→ Candidate views the job details and applies
+→ Recruiter reviews the application and updates its status
+→ Candidate views the application progress
 ```
 
-ML 和 AI Agent 是毕业设计亮点，但不得成为登录、浏览、投递等核心业务的前置依赖。
+ML and the AI Agent are key features of the capstone project, but core functionality such as signing in, browsing, and applying must not depend on them.
 
-## 文档入口
+## Documentation
 
-- [产品需求](docs/product-requirements.md)
-- [用户流程](docs/user-flows.md)
-- [系统架构](docs/architecture.md)
-- [数据库设计](docs/database-design.md)
-- [API 设计](docs/api-design.md)
-- [权限规范](docs/permissions.md)
-- [测试计划](docs/testing-plan.md)
-- [开发计划](docs/development-plan.md)
-- [Figma MVP 设计审查](docs/figma-mvp-audit.md)
-- [论文提纲](docs/graduation-thesis-outline.md)
+- [Product requirements](docs/product-requirements.md)
+- [User flows](docs/user-flows.md)
+- [System architecture](docs/architecture.md)
+- [Database design](docs/database-design.md)
+- [API design](docs/api-design.md)
+- [Authorization rules](docs/permissions.md)
+- [Testing plan](docs/testing-plan.md)
+- [Development plan](docs/development-plan.md)
+- [Figma MVP design review](docs/figma-mvp-audit.md)
+- [Graduation thesis outline](docs/graduation-thesis-outline.md)
 
-设计参考： [AD project Copy](https://www.figma.com/design/ellcZx2GjomKwCQNxuryri/AD_project--Copy-?node-id=0-1)
+Design reference: [AD project Copy](https://www.figma.com/design/ellcZx2GjomKwCQNxuryri/AD_project--Copy-?node-id=0-1)
 
-## 后端启动与测试
+## Run and test the backend
 
-后端要求 Java 21、Maven、MySQL 8。复制 `.env.example` 中的变量到自己的本地环境配置（不要提交真实值），然后执行：
+The backend requires Java 21, Maven, and MySQL 8. Copy the variables from `.env.example` into your local environment configuration (do not commit real values), then run:
 
 ```bash
 cd backend
 mvn spring-boot:run
 ```
 
-服务默认监听 `http://localhost:8080`，API 前缀为 `/api/v1`。启动时 Flyway 自动迁移数据库，Hibernate 只校验结构，不创建表。
+By default, the service listens on `http://localhost:8080`, and the API prefix is `/api/v1`. Flyway automatically applies database migrations at startup; Hibernate only validates the schema and does not create tables.
 
-### Resend 密码重置邮件
+### Password reset emails with Resend
 
-密码重置邮件通过 Resend SMTP 发送。先在 Resend 验证发件域名并创建 API Key，然后在本地未跟踪的 `.env` 中设置：
+Password reset emails are sent through Resend SMTP. First verify a sending domain in Resend and create an API key, then set the following values in your local, untracked `.env` file:
 
 ```dotenv
 SMTP_HOST=smtp.resend.com
@@ -64,16 +65,17 @@ SMTP_FROM_ADDRESS=no-reply@your-verified-domain.example
 SMTP_STARTTLS=true
 ```
 
-根目录 `.env` 已被 Git 忽略，真实 API Key 不得写入 `.env.example` 或任何已跟踪文件。
+The root `.env` file is ignored by Git. Never write a real API key to `.env.example` or any tracked file.
 
-生产环境的 CD 使用 GitHub `production` Environment 配置：
+Production CD uses the GitHub `production` Environment configuration:
 
-- Secret `RESEND_API_KEY`：Resend API Key。
-- Variable `RESEND_FROM_ADDRESS`：已验证域名下的发件地址，例如 `no-reply@example.com`。
+- Secret `RESEND_API_KEY`: the Resend API key.
+- Variable `RESEND_FROM_ADDRESS`: a sender address under a verified domain, such as `no-reply@example.com`.
+- Secret `DEEPSEEK_API_KEY`: the DeepSeek API key used by the Agent Planner.
 
-推送 `main` 后，CD 会把这两个值作为运行时环境变量传给服务器上的后端容器，不会把密钥写进 Git 仓库。若 GitHub 中未配置这两个值，部署会继续使用服务器 `/opt/adproject/infra/docker/.env` 内的 `SMTP_PASSWORD` 和 `SMTP_FROM_ADDRESS`；其余 Resend SMTP 参数已有安全默认值。
+After a push to `main`, CD passes these three values to the server containers as runtime environment variables without writing secrets to the Git repository. If the values are not configured in GitHub, the deployment continues to use `SMTP_PASSWORD`, `SMTP_FROM_ADDRESS`, and `DEEPSEEK_API_KEY` from `/opt/adproject/infra/docker/.env` on the server; all other parameters have safe defaults. If `DEEPSEEK_API_KEY` is missing from both locations, the Agent Planner returns 503 and Spring Boot saves the run as `FAILED` without affecting core functionality.
 
-运行全部测试和打包：
+Run all tests and build the package:
 
 ```bash
 cd backend
@@ -81,13 +83,14 @@ mvn test
 mvn package
 ```
 
-测试套件始终使用隔离的 H2 MySQL 兼容模式执行 Auth HTTP 集成测试；Docker 可用时还会通过 Testcontainers MySQL 8.4 验证空库迁移。
+The test suite always runs Auth HTTP integration tests against an isolated H2 database in MySQL compatibility mode. When Docker is available, it also validates clean-database migrations with Testcontainers and MySQL 8.4.
 
-## 管理员系统本地运行
+## Run the administrator system locally
 
-管理员不是第三种业务角色。先按 Candidate 或 Recruiter 正常注册账号，再在第一次启动后设置
-`ADMIN_BOOTSTRAP_EMAIL` 为该账号邮箱。系统仅在没有有效管理员时授予 `PLATFORM_ADMIN` 权限，
-不会创建账号或保存默认密码；授权落库后可以移除这个环境变量。
+Administrator is not a third business role. First register a normal Candidate or Recruiter account, then set
+`ADMIN_BOOTSTRAP_EMAIL` to that account's email address after the initial startup. The system grants
+`PLATFORM_ADMIN` only when no active administrator exists. It does not create an account or store a default
+password; the environment variable can be removed after the authorization has been persisted.
 
 ```powershell
 $env:ADMIN_BOOTSTRAP_EMAIL="your-registered-email@example.com"
@@ -95,7 +98,7 @@ cd backend
 mvn spring-boot:run
 ```
 
-前端使用另一个终端启动：
+Start the frontend in another terminal:
 
 ```powershell
 cd web
@@ -103,5 +106,20 @@ npm install
 npm run dev
 ```
 
-浏览器打开 `http://localhost:5173/admin/sign-in`。管理员工作区包含用户与权限、公司审核、社区审核基础和审计日志；
-`/admin/me` 会在进入工作区时再次从服务端校验授权。完整接口契约见 [OpenAPI](docs/openapi-v1.yaml)。
+Open `http://localhost:5173/admin/sign-in` in a browser. The administrator workspace includes users and permissions, company reviews, basic community moderation, and audit logs. `/admin/me` revalidates authorization with the server whenever the workspace is opened. See [OpenAPI](docs/openapi-v1.yaml) for the complete API contract.
+
+## Run and test the Agent Planner
+
+Before starting the Agent API, start the internal Planner in another terminal:
+
+```bash
+cd agent-service
+python -m venv .venv
+. .venv/bin/activate
+pip install -e '.[test]'
+uvicorn agent_service.main:app --host 127.0.0.1 --port 8090
+```
+
+Run the Planner tests with `pytest -q`. The current MVP supports querying or updating the default resume's age, summary, skills, and experience. The Planner uses `deepseek-v4-flash` to generate a constrained, structured plan and requires `DEEPSEEK_API_KEY` in the process environment. If the key is not configured or the provider call fails, the endpoint returns 503; Spring Boot saves the run as `FAILED` and returns a safe error. Spring Boot reads the current user's resume and generates a field-level preview, which Android displays as a plan. Spring Boot executes `apply_resume_patch` only after the user explicitly confirms through the confirmation endpoint. Confirmation validates a one-time confirmation ID, run version, resume version, expiration time, and `Idempotency-Key`; retries with the same idempotency key do not create duplicate writes.
+
+In the Android app, open **Profile → AI Agent** to access the feature directly. See [`docs/agent-design.md`](docs/agent-design.md) and [`docs/openapi-v1.yaml`](docs/openapi-v1.yaml) for the public Agent API, request examples, and security boundaries.

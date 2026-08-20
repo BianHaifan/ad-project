@@ -17,6 +17,9 @@ infra/docker/certs/*.key
 *.iml
 node_modules/
 **/node_modules/
+**/__pycache__/
+**/.pytest_cache/
+agent-service/.venv/
 android/.gradle/
 android/.kotlin/
 android/app/build/

@@ -1,0 +1,73 @@
+{
+  "data": {
+    "baseline_pairs": 6000,
+    "catalog_jobs": 25298,
+    "mean_new_neural_jobs_at_k": 245.95,
+    "mean_pool_overlap_at_k": 54.05,
+    "neural_pairs": 6000,
+    "query_count": 20,
+    "top_k": 300,
+    "union_pairs": 10919
+  },
+  "evidence": {
+    "deployment_decision": "EXPERIMENT_ONLY_DO_NOT_REPLACE_ACTIVE_RETRIEVAL",
+    "labels": "AI_TEACHER_LABELS_NOT_HUMAN_BLIND_LABELS"
+  },
+  "experiment_type": "FULL_CATALOG_NEURAL_RETRIEVAL_TEACHER_AUDIT",
+  "interpretation_limits": [
+    "Pool relevant counts are teacher labels, not observed user outcomes.",
+    "The existing retrieval pool defines neither complete nor human-verified ground truth.",
+    "Union recall is measured only against relevant items discovered inside that union.",
+    "The neural model is general-purpose and was not fine-tuned on recruitment data."
+  ],
+  "neural_embedding": {
+    "device": "cpu",
+    "dimensions": 384,
+    "max_sequence_length": 256,
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "c315f904dfc467d8b9c40ab4ed50b3a8d0866c15"
+  },
+  "results": {
+    "existing_retrieval_then_v4": {
+      "map_at_10": 0.991667,
+      "mean_relevant_jobs_in_pool": 91.95,
+      "ndcg_at_10": 0.984582,
+      "precision_at_5": 0.97,
+      "query_count": 20.0,
+      "recall_at_10": 0.237906,
+      "total_relevant_pairs_in_pool": 1839
+    },
+    "neural_retrieval_embedding_order": {
+      "map_at_10": 0.251942,
+      "mean_relevant_jobs_in_pool": 81.7,
+      "ndcg_at_10": 0.543739,
+      "precision_at_5": 0.35,
+      "query_count": 20.0,
+      "recall_at_10": 0.077717,
+      "total_relevant_pairs_in_pool": 1634
+    },
+    "neural_retrieval_then_v4": {
+      "map_at_10": 0.985714,
+      "mean_relevant_jobs_in_pool": 81.7,
+      "ndcg_at_10": 0.978334,
+      "precision_at_5": 0.97,
+      "query_count": 20.0,
+      "recall_at_10": 0.234304,
+      "total_relevant_pairs_in_pool": 1634
+    },
+    "union_retrieval_then_v4": {
+      "map_at_10": 0.99,
+      "mean_relevant_jobs_in_pool": 149.8,
+      "ndcg_at_10": 0.983472,
+      "precision_at_5": 0.97,
+      "query_count": 20.0,
+      "recall_at_10": 0.168939,
+      "total_relevant_pairs_in_pool": 2996
+    }
+  },
+  "timing_seconds": {
+    "model_load_and_full_catalog_encoding": 263.043,
+    "teacher_and_ranker_union_scoring": 25.361,
+    "total": 291.705
+  }
+}

@@ -27,13 +27,13 @@ public class PasswordResetService {
     private final PasswordResetCodeRepository codes;
     private final RefreshTokenRepository refreshTokens;
     private final PasswordEncoder passwordEncoder;
-    private final PasswordResetMailSender mailSender;
+    private final MailSender mailSender;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
     public PasswordResetService(UserRepository users, PasswordResetCodeRepository codes,
                                 RefreshTokenRepository refreshTokens, PasswordEncoder passwordEncoder,
-                                PasswordResetMailSender mailSender, Clock clock) {
+                                MailSender mailSender, Clock clock) {
         this.users = users;
         this.codes = codes;
         this.refreshTokens = refreshTokens;
@@ -54,7 +54,8 @@ public class PasswordResetService {
         String code = "%06d".formatted(random.nextInt(1_000_000));
         codes.save(new PasswordResetCodeEntity(UUID.randomUUID().toString(), user.getId(),
                 passwordEncoder.encode(code), now.plus(EXPIRES_AFTER), now));
-        mailSender.sendCode(email, code);
+        mailSender.send(email, "Your HireX password reset code",
+                "Your HireX verification code is " + code + ". It expires in 15 minutes.");
     }
 
     @Transactional(noRollbackFor = ApiException.class)

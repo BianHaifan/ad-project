@@ -14,6 +14,8 @@ import com.adproject.candidate.data.api.CandidateResumeHttpApi
 import com.adproject.candidate.data.api.RealCandidateProfileRepository
 import com.adproject.candidate.data.api.RealCandidateAvatarRepository
 import com.adproject.candidate.data.api.RealCandidateResumeRepository
+import com.adproject.candidate.data.api.CandidateAgentHttpApi
+import com.adproject.candidate.data.api.RealCandidateAgentRepository
 import com.adproject.candidate.data.api.CandidateApplicationHttpApi
 import com.adproject.candidate.data.api.RealCandidateApplicationRepository
 import com.adproject.candidate.data.api.CandidateConversationHttpApi
@@ -34,6 +36,7 @@ import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 
@@ -55,6 +58,7 @@ class CandidateAppContainer(context: Context) {
         .client(
             OkHttpClient.Builder()
                 .addInterceptor(ReadRetryInterceptor())
+                .readTimeout(30, TimeUnit.SECONDS)
                 .sslSocketFactory(sslSocketFactory, trustManager)
                 .certificatePinner(pinner)
                 .build(),
@@ -65,6 +69,7 @@ class CandidateAppContainer(context: Context) {
     private val authenticatedClient = OkHttpClient.Builder()
         .sslSocketFactory(sslSocketFactory, trustManager)
         .certificatePinner(pinner)
+        .readTimeout(30, TimeUnit.SECONDS)
         .addInterceptor(ReadRetryInterceptor())
         .addInterceptor(AccessTokenInterceptor(sessionManager))
         .authenticator(RefreshAuthenticator(sessionManager))
@@ -87,6 +92,9 @@ class CandidateAppContainer(context: Context) {
     val candidateProfileRepository = RealCandidateProfileRepository(authenticatedRetrofit.create(CandidateProfileHttpApi::class.java), moshi)
     val candidateAvatarRepository = RealCandidateAvatarRepository(authenticatedRetrofit.create(CandidateProfileHttpApi::class.java), moshi)
     val candidateResumeRepository = RealCandidateResumeRepository(authenticatedRetrofit.create(CandidateResumeHttpApi::class.java), moshi)
+    val candidateAgentRepository = RealCandidateAgentRepository(
+        authenticatedRetrofit.create(CandidateAgentHttpApi::class.java), moshi,
+    )
     val candidateApplicationRepository = RealCandidateApplicationRepository(
         authenticatedRetrofit.create(CandidateApplicationHttpApi::class.java), moshi,
     )

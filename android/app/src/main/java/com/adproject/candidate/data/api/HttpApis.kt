@@ -116,6 +116,46 @@ interface CandidateResumeHttpApi {
     @PUT("candidate/resume") suspend fun save(@Body request: com.adproject.candidate.data.contract.SaveResumeRequest): Response<DataEnvelope<com.adproject.candidate.data.contract.Resume>>
 }
 
+interface CandidateAgentHttpApi {
+    @POST("agent/runs")
+    suspend fun create(
+        @Body request: com.adproject.candidate.data.contract.CreateAgentRunRequest,
+    ): Response<DataEnvelope<com.adproject.candidate.data.contract.AgentRun>>
+
+    @GET("agent/conversations")
+    suspend fun conversations(): Response<DataEnvelope<List<com.adproject.candidate.data.contract.AgentConversationSummary>>>
+
+    @GET("agent/conversations/recent")
+    suspend fun recentConversation(): Response<DataEnvelope<com.adproject.candidate.data.contract.AgentConversation>>
+
+    @GET("agent/conversations/{conversationId}")
+    suspend fun conversation(
+        @Path("conversationId") conversationId: String,
+    ): Response<DataEnvelope<com.adproject.candidate.data.contract.AgentConversation>>
+
+    @GET("agent/runs/{runId}")
+    suspend fun get(
+        @Path("runId") runId: String,
+    ): Response<DataEnvelope<com.adproject.candidate.data.contract.AgentRun>>
+
+    @POST("agent/runs/{runId}/confirm")
+    suspend fun confirm(
+        @Path("runId") runId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body request: com.adproject.candidate.data.contract.ConfirmAgentRunRequest,
+    ): Response<DataEnvelope<com.adproject.candidate.data.contract.AgentRun>>
+
+    @POST("agent/runs/{runId}/cancel")
+    suspend fun cancel(
+        @Path("runId") runId: String,
+    ): Response<DataEnvelope<com.adproject.candidate.data.contract.AgentRun>>
+
+    @DELETE("agent/conversations/{conversationId}")
+    suspend fun deleteConversation(
+        @Path("conversationId") conversationId: String,
+    ): Response<Unit>
+}
+
 interface CandidateApplicationHttpApi {
     @GET("candidate/applications")
     suspend fun applications(

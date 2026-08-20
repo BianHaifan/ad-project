@@ -23,6 +23,7 @@ import com.adproject.conversation.api.ConversationDtos.ReadStateRequest;
 import com.adproject.conversation.api.ConversationDtos.SendMessageRequest;
 import com.adproject.conversation.api.ConversationDtos.Summary;
 import com.adproject.conversation.domain.SenderType;
+import com.adproject.conversation.domain.ConversationType;
 import com.adproject.conversation.infrastructure.ConversationEntity;
 import com.adproject.conversation.infrastructure.ConversationReadStateEntity;
 import com.adproject.conversation.infrastructure.ConversationReadStateId;
@@ -118,6 +119,9 @@ public class ConversationService {
 
     // ---- Candidate endpoints ----
 
+    /**
+     * 求职者只能读取自己作为参与方的会话；分页读取不会改变未读状态，已读状态必须由显式接口更新。
+     */
     @Transactional(readOnly = true)
     public ListResponse listCandidate(AuthenticatedUser principal, int page, int pageSize) {
         requireCandidate(principal);
@@ -140,6 +144,9 @@ public class ConversationService {
         return listMessages(conversation, before, limit);
     }
 
+    /**
+     * 发送文本消息时以会话参与者身份和客户端幂等键双重约束，避免跨会话越权及网络重试造成重复消息。
+     */
     @Transactional
     public MessageResponse sendCandidate(AuthenticatedUser principal, String conversationId, String idempotencyKey,
                                          SendMessageRequest request) {
@@ -155,6 +162,9 @@ public class ConversationService {
 
     // ---- Recruiter endpoints ----
 
+    /**
+     * 招聘者会话仅限其所属公司。搜索、未读筛选和分页都在服务端做，前端不能通过本地过滤扩大可见范围。
+     */
     @Transactional(readOnly = true)
     public ListResponse listRecruiter(AuthenticatedUser principal, String q, boolean unreadOnly, int page, int pageSize,
                                       String applicationId) {
@@ -199,6 +209,9 @@ public class ConversationService {
         return listMessages(conversation, before, limit);
     }
 
+    /**
+     * 招聘者发送消息与候选人发送消息走同一核心写入流程；是否绑定 Google 账号不是站内消息的前置条件。
+     */
     @Transactional
     public MessageResponse sendRecruiter(AuthenticatedUser principal, String conversationId, String idempotencyKey,
                                          SendMessageRequest request) {
@@ -242,6 +255,27 @@ public class ConversationService {
         updateReadState(conversation, principal.userId(), request);
     }
 
+    /**
+     * 建立人才池主动联系会话。调用者已经由 Agent 端点验证为该次筛选结果中的候选人；这里仍再次
+     * 校验公司、职位和候选人角色，防止这个领域服务被其他入口误用成任意陌生人私信接口。
+     */
+    @Transactional
+    public String createRecruiterOutreach(AuthenticatedUser principal, String candidateId, String jobId) {
+        String companyId = requireCompany(principal);
+        JobEntity job = jobs.findById(requireUuid(jobId, "jobId"))
+                .filter(value -> companyId.equals(value.getCompanyId()))
+                .orElseThrow(this::notFound);
+        UserEntity candidate = users.findById(requireUuid(candidateId, "candidateId"))
+                .filter(value -> value.getRole() == UserRole.CANDIDATE)
+                .orElseThrow(this::notFound);
+        return conversations.findByConversationTypeAndJobIdAndCandidateIdAndCompanyIdAndInitiatorRecruiterId(
+                        ConversationType.RECRUITER_OUTREACH, job.getId(), candidate.getId(), companyId,
+                        principal.userId())
+                .map(ConversationEntity::getId)
+                .orElseGet(() -> conversations.save(ConversationEntity.recruiterOutreach(UUID.randomUUID().toString(),
+                        job.getId(), candidate.getId(), companyId, principal.userId(), clock.instant())).getId());
+    }
+
     // ---- Shared internals ----
 
     private MessageListResponse listMessages(ConversationEntity conversation, String before, int limit) {
@@ -275,6 +309,7 @@ public class ConversationService {
      */
     @Transactional
     public void appendInterviewNotice(String applicationId, String recruiterId, String noticeId, String body) {
+        // 面试通知使用 interviewId 作为幂等键，因此创建、重试或更新流程不会重复向候选人写同一条系统消息。
         if (messages.findById(noticeId).isPresent()) {
             return;
         }
@@ -317,8 +352,7 @@ public class ConversationService {
             return new MessageResponse(message(byClient.get()));
         }
 
-        ApplicationEntity application = applications.findById(conversation.getApplicationId()).orElseThrow(this::notFound);
-        if (application.getStatus() == ApplicationStatus.REJECTED || application.getStatus() == ApplicationStatus.WITHDRAWN) {
+        if (isClosedApplicationConversation(conversation)) {
             throw new ApiException(HttpStatus.CONFLICT, "CONVERSATION_CLOSED",
                     "This conversation is read-only because the application is no longer active");
         }
@@ -369,8 +403,7 @@ public class ConversationService {
             return new MessageResponse(message(byClient.get()));
         }
 
-        ApplicationEntity application = applications.findById(conversation.getApplicationId()).orElseThrow(this::notFound);
-        if (application.getStatus() == ApplicationStatus.REJECTED || application.getStatus() == ApplicationStatus.WITHDRAWN) {
+        if (isClosedApplicationConversation(conversation)) {
             throw new ApiException(HttpStatus.CONFLICT, "CONVERSATION_CLOSED",
                     "This conversation is read-only because the application is no longer active");
         }
@@ -548,7 +581,7 @@ public class ConversationService {
 
     private Summary summary(ConversationEntity conversation, String viewerId) {
         boolean viewerIsCandidate = conversation.getCandidateId().equals(viewerId);
-        return new Summary(conversation.getId(), conversation.getApplicationId(), conversation.getJobId(),
+        return new Summary(conversation.getId(), conversation.getConversationType().name(), conversation.getApplicationId(), conversation.getJobId(),
                 conversation.getCreatedAt(), conversation.getUpdatedAt(),
                 viewerIsCandidate ? recruiterParticipant(conversation) : candidateParticipant(conversation),
                 lastMessage(conversation.getId()), unreadCount(conversation.getId(), viewerId),
@@ -557,14 +590,15 @@ public class ConversationService {
 
     private Detail detail(ConversationEntity conversation, String viewerId) {
         boolean viewerIsCandidate = conversation.getCandidateId().equals(viewerId);
-        return new Detail(conversation.getId(), conversation.getApplicationId(), conversation.getJobId(),
+        return new Detail(conversation.getId(), conversation.getConversationType().name(), conversation.getApplicationId(), conversation.getJobId(),
                 conversation.getCreatedAt(), conversation.getUpdatedAt(),
                 viewerIsCandidate ? recruiterParticipant(conversation) : candidateParticipant(conversation), null);
     }
 
     private Participant recruiterParticipant(ConversationEntity conversation) {
         JobEntity job = jobs.findById(conversation.getJobId()).orElseThrow(this::notFound);
-        String recruiterId = job.getOwnerId() != null ? job.getOwnerId() : job.getCreatedBy();
+        String recruiterId = conversation.getInitiatorRecruiterId() != null ? conversation.getInitiatorRecruiterId()
+                : job.getOwnerId() != null ? job.getOwnerId() : job.getCreatedBy();
         UserEntity recruiter = users.findById(recruiterId).orElseThrow(this::notFound);
         CompanyEntity company = companies.findById(conversation.getCompanyId()).orElseThrow(this::notFound);
         return new Participant(recruiter.getId(), recruiter.getFullName(), recruiter.getAvatarUrl(), null,
@@ -576,6 +610,14 @@ public class ConversationService {
         var profile = profiles.findById(candidate.getId()).orElse(null);
         return new Participant(candidate.getId(), candidate.getFullName(), candidate.getAvatarUrl(),
                 profile == null ? null : profile.getHeadline(), null, false);
+    }
+
+    private boolean isClosedApplicationConversation(ConversationEntity conversation) {
+        if (conversation.getConversationType() != ConversationType.APPLICATION) {
+            return false;
+        }
+        ApplicationEntity application = applications.findById(conversation.getApplicationId()).orElseThrow(this::notFound);
+        return application.getStatus() == ApplicationStatus.REJECTED || application.getStatus() == ApplicationStatus.WITHDRAWN;
     }
 
     private Message lastMessage(String conversationId) {

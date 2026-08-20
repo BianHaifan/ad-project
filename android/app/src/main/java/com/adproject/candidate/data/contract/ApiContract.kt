@@ -111,6 +111,19 @@ data class CompanyPublicProfile(
     val description: String?,
     val location: String?,
     val verificationStatus: String?,
+    val stage: String? = null,
+    val employeeRange: String? = null,
+    val website: String? = null,
+    val activeJobCount: Int = 0,
+    val openJobs: List<CompanyOpenJob> = emptyList(),
+)
+
+data class CompanyOpenJob(
+    val jobId: String,
+    val title: String,
+    val location: String,
+    val employmentType: String,
+    val workplaceType: String,
 )
 
 data class Salary(val min: Int, val max: Int, val currency: String = "SGD", val period: String)
@@ -288,7 +301,7 @@ data class ConversationParticipant(
 
 data class ConversationSummary(
     val conversationId: String,
-    val applicationId: String,
+    val applicationId: String?,
     val jobId: String,
     val createdAt: String,
     val updatedAt: String,
@@ -296,16 +309,18 @@ data class ConversationSummary(
     val lastMessage: Message?,
     val unreadCount: Int,
     val jobTitle: String,
+    val conversationType: String = "APPLICATION",
 )
 
 data class ConversationDetail(
     val conversationId: String,
-    val applicationId: String,
+    val applicationId: String?,
     val jobId: String,
     val createdAt: String,
     val updatedAt: String,
     val participant: ConversationParticipant,
     val context: InterviewContext?,
+    val conversationType: String = "APPLICATION",
 )
 
 data class InterviewContext(
@@ -442,6 +457,7 @@ data class RecommendedJob(
     val rank: Int,
     val matchAnalysis: MatchAnalysis,
     val isSaved: Boolean? = null,
+    val recruiter: RecruiterContact? = null,
 )
 
 data class RecommendationMeta(
@@ -460,4 +476,67 @@ data class RecommendationMeta(
 data class RecommendationEnvelope(
     val data: List<RecommendedJob>,
     val meta: RecommendationMeta,
+)
+
+data class CreateAgentRunRequest(
+    val instruction: String,
+    val conversationId: String? = null,
+)
+data class ConfirmAgentRunRequest(val confirmationId: String, val expectedRunVersion: Int)
+data class AgentTarget(val id: String)
+data class AgentFieldChange(val field: String, val oldValue: Any?, val newValue: Any?)
+data class AgentPreview(
+    val confirmationId: String,
+    val targetType: String,
+    val targetId: String,
+    val expectedVersion: Int,
+    val expiresAt: String,
+    val changes: List<AgentFieldChange>,
+)
+data class AgentStep(
+    val sequence: Int,
+    val type: String,
+    val tool: String?,
+    val status: String,
+    val errorCode: String?,
+    val createdAt: String,
+)
+data class AgentExecutionResult(
+    val operation: String,
+    val targetType: String,
+    val targetId: String,
+    val previousVersion: Int,
+    val newVersion: Int,
+    val completedAt: String,
+    val appliedChanges: List<AgentFieldChange>,
+    val queryResult: AgentQueryResult? = null,
+)
+data class AgentQueryResult(
+    val section: String,
+    val summary: String? = null,
+    val skills: List<String>? = null,
+    val experiences: List<Experience>? = null,
+)
+data class AgentRun(
+    val runId: String,
+    val conversationId: String,
+    val instruction: String,
+    val status: String,
+    val confirmationStatus: String,
+    val target: AgentTarget?,
+    val steps: List<AgentStep>,
+    val preview: AgentPreview?,
+    val result: AgentExecutionResult?,
+    val message: String?,
+    val errorCode: String?,
+    val version: Int,
+    val createdAt: String,
+    val updatedAt: String,
+)
+data class AgentConversation(val conversationId: String?, val runs: List<AgentRun>)
+data class AgentConversationSummary(
+    val conversationId: String,
+    val lastInstruction: String,
+    val lastMessage: String?,
+    val updatedAt: String,
 )

@@ -77,6 +77,17 @@ class RecommendationItem(StrictModel):
     strong_matches: list[str]
     gaps: list[str]
     evidence: list[str]
+    component_scores: dict[str, float] = Field(default_factory=dict)
+    component_modes: dict[str, str] = Field(default_factory=dict)
+
+
+class HybridDiagnostics(StrictModel):
+    enabled: bool
+    components: list[str]
+    weights: dict[str, float]
+    embedding_algorithm: str
+    collaborative_algorithm: str
+    collaborative_feedback_source: str
 
 
 class RecommendationResponse(StrictModel):
@@ -85,9 +96,11 @@ class RecommendationResponse(StrictModel):
     generated_at: datetime
     inference_ms: int = Field(ge=0)
     items: list[RecommendationItem]
+    hybrid: HybridDiagnostics | None = None
 
 
 class HealthResponse(StrictModel):
     status: Literal["ready", "not_ready"]
     model_version: str | None
     feature_version: str | None
+    components: list[str] = Field(default_factory=list)

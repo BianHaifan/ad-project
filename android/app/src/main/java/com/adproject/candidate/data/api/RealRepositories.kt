@@ -351,6 +351,84 @@ class RealCandidateResumeRepository(private val api: CandidateResumeHttpApi, mos
     private suspend fun call(block:suspend()->retrofit2.Response<com.adproject.candidate.data.contract.DataEnvelope<com.adproject.candidate.data.contract.Resume>>):ApiResult<com.adproject.candidate.data.contract.Resume> = try { val r=block(); val d=r.body()?.data; if(r.isSuccessful&&d!=null) ApiResult.Success(d) else if(r.code()==404) ApiResult.Failure("No resume has been created yet.",statusCode=404) else errors.failure(r.code(),r.errorBody()?.string()) } catch(_:IOException){ApiResult.Failure("Unable to load your resume. Check your network and try again.")} catch(_:Exception){ApiResult.Failure("Unable to load your resume right now.")}
 }
 
+interface CandidateAgentRepository {
+    suspend fun create(request: com.adproject.candidate.data.contract.CreateAgentRunRequest): ApiResult<com.adproject.candidate.data.contract.AgentRun>
+    suspend fun get(runId: String): ApiResult<com.adproject.candidate.data.contract.AgentRun>
+    suspend fun confirm(runId: String, idempotencyKey: String,
+                        request: com.adproject.candidate.data.contract.ConfirmAgentRunRequest): ApiResult<com.adproject.candidate.data.contract.AgentRun>
+    suspend fun cancel(runId: String): ApiResult<com.adproject.candidate.data.contract.AgentRun>
+    suspend fun conversations(): ApiResult<List<com.adproject.candidate.data.contract.AgentConversationSummary>>
+    suspend fun recentConversation(): ApiResult<com.adproject.candidate.data.contract.AgentConversation>
+    suspend fun conversation(conversationId: String): ApiResult<com.adproject.candidate.data.contract.AgentConversation>
+    suspend fun deleteConversation(conversationId: String): ApiResult<Unit>
+}
+
+class RealCandidateAgentRepository(private val api: CandidateAgentHttpApi, moshi: Moshi) : CandidateAgentRepository {
+    private val errors = ApiErrorParser(moshi)
+    override suspend fun create(request: com.adproject.candidate.data.contract.CreateAgentRunRequest) =
+        call { api.create(request) }
+    override suspend fun get(runId: String) = call { api.get(runId) }
+    override suspend fun confirm(runId: String, idempotencyKey: String,
+                                 request: com.adproject.candidate.data.contract.ConfirmAgentRunRequest) =
+        call { api.confirm(runId, idempotencyKey, request) }
+    override suspend fun cancel(runId: String) = call { api.cancel(runId) }
+
+    override suspend fun conversations(): ApiResult<List<com.adproject.candidate.data.contract.AgentConversationSummary>> = try {
+        val response = api.conversations()
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load Agent conversation history.")
+    } catch (_: Exception) {
+        ApiResult.Failure("The Agent conversation list could not be loaded.")
+    }
+
+    override suspend fun recentConversation() = conversationCall { api.recentConversation() }
+
+    override suspend fun conversation(conversationId: String) = conversationCall { api.conversation(conversationId) }
+
+    override suspend fun deleteConversation(conversationId: String): ApiResult<Unit> = try {
+        val response = api.deleteConversation(conversationId)
+        if (response.isSuccessful) ApiResult.Success(Unit)
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to reach the Agent service. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("The Agent request could not be completed.")
+    }
+
+    private suspend fun call(block: suspend () -> retrofit2.Response<com.adproject.candidate.data.contract.DataEnvelope<com.adproject.candidate.data.contract.AgentRun>>): ApiResult<com.adproject.candidate.data.contract.AgentRun> = try {
+        val response = block()
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else {
+            val failure = errors.failure(response.code(), response.errorBody()?.string())
+            when {
+                response.code() == 404 -> failure.copy(message = "This Agent run is no longer available.")
+                response.code() == 409 && failure.code == null ->
+                    failure.copy(message = "This Agent preview is no longer executable. Create a new request.")
+                else -> failure
+            }
+        }
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to reach the Agent service. Check your network and try again.")
+    } catch (_: Exception) {
+        ApiResult.Failure("The Agent request could not be completed.")
+    }
+
+    private suspend fun conversationCall(block: suspend () -> retrofit2.Response<com.adproject.candidate.data.contract.DataEnvelope<com.adproject.candidate.data.contract.AgentConversation>>): ApiResult<com.adproject.candidate.data.contract.AgentConversation> = try {
+        val response = block()
+        val data = response.body()?.data
+        if (response.isSuccessful && data != null) ApiResult.Success(data)
+        else errors.failure(response.code(), response.errorBody()?.string())
+    } catch (_: IOException) {
+        ApiResult.Failure("Unable to load Agent conversation history.")
+    } catch (_: Exception) {
+        ApiResult.Failure("The Agent conversation could not be loaded.")
+    }
+}
+
 interface CandidateApplicationRepository {
     suspend fun applications(filter: ApplicationListFilter?, page: Int, pageSize: Int = 20): ApiResult<CandidateApplicationPage>
     suspend fun application(applicationId: String): ApiResult<CandidateApplication>

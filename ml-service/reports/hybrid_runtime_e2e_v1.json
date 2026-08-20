@@ -1,0 +1,61 @@
+{
+  "artifact": {
+    "algorithm": "GuardedHGBRanker+TfidfTruncatedSvdLsaEmbedding+ImplicitFeedbackTruncatedSvdCF",
+    "feature_version": "pair-features-v1+prelabel-features-v3+lsa64+cf32",
+    "model_size_bytes": 20432318,
+    "model_version": "match-hybrid-lsa-cf-v1"
+  },
+  "components": {
+    "collaborative_filtering": {
+      "algorithm": "ImplicitFeedbackTruncatedSVD",
+      "dimensions": 32,
+      "feedback_source": "AI_TEACHER_DERIVED_SYNTHETIC_IMPLICIT_FEEDBACK",
+      "interactions": 40439,
+      "warm_items": 1500,
+      "warm_users": 284,
+      "weight": 0.05
+    },
+    "embedding": {
+      "algorithm": "TfidfTruncatedSvdLsa",
+      "cold_start_bridge": true,
+      "dimensions": 64,
+      "weight": 0.1
+    },
+    "ranker": {
+      "algorithm": "GuardedMonotonicHistGradientBoostingRegressor",
+      "base_model_version": "match-hgb-retrieval-v4",
+      "weight": 0.85
+    }
+  },
+  "direct_ml_http_test": {
+    "candidate_mode": "EMBEDDING_BRIDGED",
+    "ml_job": {
+      "collaborative_latent": 0.740755,
+      "embedding_cosine": 0.955914,
+      "hybrid_final": 100,
+      "rank": 1,
+      "ranker": 100
+    },
+    "status": "PASSED"
+  },
+  "evidence_level": "REAL_SERVICE_INTEGRATION_WITH_SYNTHETIC_CF_FEEDBACK",
+  "limitations": [
+    "Collaborative feedback is derived from AI teacher relevance, not real user behavior.",
+    "The runtime weights are conservative integration weights, not a demonstrated offline optimum.",
+    "Existing ranking metrics measure teacher agreement and are not hiring-outcome accuracy."
+  ],
+  "spring_boot_mysql_e2e": {
+    "inference_ms": 24,
+    "machine_learning_engineer": {
+      "match_score": 100,
+      "rank": 1
+    },
+    "model_status": "ACTIVE",
+    "retail_sales_associate": {
+      "match_score": 0,
+      "rank": 2
+    },
+    "source": "MODEL",
+    "status": "PASSED"
+  }
+}

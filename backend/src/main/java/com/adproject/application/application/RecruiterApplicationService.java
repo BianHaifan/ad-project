@@ -1,5 +1,6 @@
 package com.adproject.application.application;
 
+import com.adproject.auth.application.MailSender;
 import com.adproject.application.api.InterviewDtos;
 import com.adproject.application.api.RecruiterApplicationDtos;
 import com.adproject.application.domain.ApplicationStatus;
@@ -8,12 +9,18 @@ import com.adproject.common.api.ApiException;
 import com.adproject.common.security.AuthenticatedUser;
 import com.adproject.common.time.DatabaseTimePrecision;
 import com.adproject.company.infrastructure.CompanyMemberRepository;
+import com.adproject.company.infrastructure.CompanyRepository;
 import com.adproject.job.infrastructure.JobEntity;
 import com.adproject.job.infrastructure.JobRepository;
 import com.adproject.profile.infrastructure.CandidateProfileRepository;
 import com.adproject.recommendation.infrastructure.CandidateJobPreferenceEntity;
 import com.adproject.recommendation.infrastructure.CandidateJobPreferenceRepository;
 import com.adproject.recommendation.infrastructure.CandidateJobRecommendationRepository;
+import com.adproject.recommendation.application.MlRecommendationClient.MlCandidate;
+import com.adproject.recommendation.application.MlRecommendationClient.MlJob;
+import com.adproject.recommendation.application.MlRecommendationClient.MlPreferences;
+import com.adproject.recommendation.application.MlRecommendationClient.MlSalary;
+import com.adproject.recommendation.application.RecruiterApplicantRankingService;
 import com.adproject.resume.infrastructure.ResumeEntity;
 import com.adproject.resume.infrastructure.ResumeRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -51,10 +58,13 @@ public class RecruiterApplicationService {
     private final UserRepository users;
     private final CandidateProfileRepository profiles;
     private final CompanyMemberRepository members;
+    private final CompanyRepository companies;
+    private final MailSender mailSender;
     private final CandidateApplicationResponseMapper mapper;
     private final CandidateJobRecommendationRepository recommendations;
     private final CandidateJobPreferenceRepository preferences;
     private final ResumeRepository resumes;
+    private final RecruiterApplicantRankingService applicantRanking;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -64,18 +74,25 @@ public class RecruiterApplicationService {
                                        JobRepository jobs,
                                        UserRepository users, CandidateProfileRepository profiles,
                                        CompanyMemberRepository members,
+                                       CompanyRepository companies, MailSender mailSender,
                                        CandidateApplicationResponseMapper mapper,
                                        CandidateJobRecommendationRepository recommendations,
                                        CandidateJobPreferenceRepository preferences,
                                        ResumeRepository resumes,
+                                       RecruiterApplicantRankingService applicantRanking,
                                        ObjectMapper objectMapper, Clock clock) {
         this.applications = applications; this.events = events; this.snapshots = snapshots; this.interviews = interviews;
         this.jobs = jobs;
-        this.users = users; this.profiles = profiles; this.members = members; this.mapper = mapper;
+        this.users = users; this.profiles = profiles; this.members = members; this.companies = companies;
+        this.mailSender = mailSender; this.mapper = mapper;
         this.recommendations = recommendations; this.preferences = preferences; this.resumes = resumes;
+        this.applicantRanking = applicantRanking;
         this.objectMapper = objectMapper; this.clock = clock;
     }
 
+    /**
+     * 申请列表始终以招聘者所属公司为数据边界；筛选和搜索只是在该边界内执行，不能借参数读取其他公司的候选人。
+     */
     @Transactional(readOnly = true)
     public RecruiterApplicationDtos.ListResponse list(AuthenticatedUser principal, ApplicationStatus status,
                                                        String jobId, String q, int page, int pageSize, String sort) {
@@ -127,6 +144,10 @@ public class RecruiterApplicationService {
         return new RecruiterApplicationDtos.DetailResponse(detail(application));
     }
 
+    /**
+     * 变更申请状态时同时校验公司归属、乐观锁版本和状态机，并写入审计事件。
+     * OFFERED 是附加通知：邮件配置或发送失败不能回滚已经确认的业务状态。
+     */
     @Transactional
     public RecruiterApplicationDtos.TransitionResponse transition(AuthenticatedUser principal, String applicationId,
             RecruiterApplicationDtos.TransitionRequest request, String requestId) {
@@ -148,8 +169,31 @@ public class RecruiterApplicationService {
                 UUID.randomUUID().toString(), application.getId(), principal.userId(), companyId,
                 before, target, now, request.reason().trim(), requestId));
         applications.flush();
+        if (target == ApplicationStatus.OFFERED) {
+            sendOfferEmail(application, companyId, request.reason());
+        }
         return new RecruiterApplicationDtos.TransitionResponse(
                 new RecruiterApplicationDtos.TransitionResult(detail(application), audit(event)));
+    }
+
+    private void sendOfferEmail(ApplicationEntity application, String companyId, String reason) {
+        String recipient = application.getContactEmail();
+        if (recipient == null || recipient.isBlank()) return;
+        String jobTitle = jobs.findById(application.getJobId()).map(JobEntity::getTitle).orElse("the position");
+        String companyName = companies.findById(companyId).map(company -> company.getName()).orElse("the company");
+        String subject = "Job offer: " + jobTitle + " at " + companyName;
+        String body = "Congratulations! " + companyName + " has extended an offer for the position of " + jobTitle
+                + "." + (reason == null || reason.isBlank() ? "" : "\n\n" + reason.trim())
+                + "\n\nLog in to HireX to review your offer.";
+        if (!mailSender.isConfigured()) {
+            log.info("Skipping offer email for application {}: mail not configured", application.getId());
+            return;
+        }
+        try {
+            mailSender.send(recipient, subject, body);
+        } catch (RuntimeException ex) {
+            log.warn("Failed to send offer email for application {}: {}", application.getId(), ex.getMessage());
+        }
     }
 
     private Specification<ApplicationEntity> companyScope(String companyId) {
@@ -179,7 +223,7 @@ public class RecruiterApplicationService {
         var candidateDto = new RecruiterApplicationDtos.CandidateSummary(candidate.getId(), candidate.getFullName(),
                 candidate.getEmail(), profile == null ? null : profile.getHeadline(), candidate.getAvatarUrl(),
                 profile == null ? null : profile.getLocation());
-        RecruiterApplicationDtos.MatchAnalysis match = storedMatch(candidate.getId(), job);
+        RecruiterApplicationDtos.MatchAnalysis match = match(application, job);
         return new RecruiterApplicationDtos.Summary(application.getId(), application.getJobId(),
                 application.getStatus().name(), application.getAppliedAt(), application.getUpdatedAt(),
                 application.getVersion(), candidateDto, job.getTitle(), match == null ? null : match.score(), null);
@@ -193,16 +237,15 @@ public class RecruiterApplicationService {
                 .map(this::audit).toList();
         InterviewDtos.Interview interview = interviews.findByApplicationId(application.getId())
                 .map(this::interviewDto).orElse(null);
-        RecruiterApplicationDtos.MatchAnalysis match = storedMatch(summary.candidate().candidateId(), job);
+        RecruiterApplicationDtos.MatchAnalysis match = match(application, job);
         return new RecruiterApplicationDtos.Detail(summary.applicationId(), summary.jobId(), summary.status(),
                 summary.appliedAt(), summary.updatedAt(), summary.version(), summary.candidate(), summary.jobTitle(),
                 summary.matchScore(), null, mapper.resumeSnapshot(snapshot), timeline, match, interview, List.of());
     }
 
     /**
-     * Reuses a persisted candidate&rarr;job recommendation snapshot when it is still valid for the candidate's
-     * current resume, preference and job versions. Returns null when no snapshot exists or it is stale, in which
-     * case the caller surfaces an empty score ("—") rather than a fabricated value.
+     * 复用已保存的“候选人 → 职位”推荐快照，且仅当候选人当前简历、求职偏好与职位版本均未变化时有效。
+     * 缺失或过期时返回 {@code null}，由调用方显示空分数（“—”），绝不能伪造匹配结果。
      */
     private RecruiterApplicationDtos.MatchAnalysis storedMatch(String candidateId, JobEntity job) {
         int resumeVersion = resumes.findByCandidateId(candidateId)
@@ -217,6 +260,44 @@ public class RecruiterApplicationService {
                         readList(value.getEvidenceJson()), readList(value.getStrongMatchesJson()),
                         readList(value.getGapsJson()), value.getModelVersion(), value.getGeneratedAt()))
                 .orElse(null);
+    }
+
+    /**
+     * A candidate-side recommendation snapshot is an optimisation, not a prerequisite for the
+     * recruiter view.  When it is absent or stale, score the immutable resume submitted with this
+     * application using the same reverse-ranking service as the applications AI list.  That service
+     * safely falls back to deterministic rules if ML is unavailable, so the UI never becomes blank.
+     */
+    private RecruiterApplicationDtos.MatchAnalysis match(ApplicationEntity application, JobEntity job) {
+        RecruiterApplicationDtos.MatchAnalysis stored = storedMatch(application.getCandidateId(), job);
+        if (stored != null) return stored;
+        try {
+            var snapshot = snapshots.findById(application.getResumeSnapshotId()).orElse(null);
+            if (snapshot == null) return null;
+            CandidateJobPreferenceEntity preference = preferences.findById(application.getCandidateId()).orElse(null);
+            MlJob mlJob = new MlJob(job.getId(), job.getTitle(), job.getDescription(),
+                    readList(job.getRequirementsJson()), readList(job.getSkillsJson()), job.getLocation(),
+                    job.getWorkplaceType().name(), job.getEmploymentType().name(),
+                    new MlSalary(job.getSalaryMin(), job.getSalaryMax(), job.getSalaryCurrency().name(),
+                            job.getSalaryPeriod().name()), null);
+            MlPreferences mlPreferences = preference == null ? new MlPreferences(List.of(), List.of(), List.of(),
+                    List.of(), null) : new MlPreferences(readList(preference.getDesiredTitlesJson()),
+                    readList(preference.getPreferredLocationsJson()), readList(preference.getWorkplaceTypesJson()),
+                    readList(preference.getEmploymentTypesJson()), new MlSalary(preference.getMinimumSalary(), null,
+                    preference.getSalaryCurrency().name(), preference.getSalaryPeriod().name()));
+            MlCandidate candidate = new MlCandidate(application.getCandidateId(),
+                    snapshot.getSummary() + " " + snapshot.getExperiencesJson(), snapshot.getHeadline(),
+                    readList(snapshot.getSkillsJson()), null, mlPreferences);
+            var result = applicantRanking.rankCandidates(mlJob, List.of(candidate));
+            var value = result.values().getFirst();
+            return new RecruiterApplicationDtos.MatchAnalysis(value.score(), value.analysis().evidence(),
+                    value.analysis().strongMatches(), value.analysis().gaps(), result.modelVersion(),
+                    result.generatedAt());
+        } catch (RuntimeException exception) {
+            log.warn("Could not derive recruiter match for application {}; showing unavailable score", application.getId(),
+                    exception);
+            return null;
+        }
     }
 
     private List<String> readList(String value) {

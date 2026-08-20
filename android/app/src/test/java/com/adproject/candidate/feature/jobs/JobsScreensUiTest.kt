@@ -125,7 +125,7 @@ class JobsScreensUiTest {
         composeRule.onNodeWithText("Salary: S$5,000+", useUnmergedTree = true).assertExists()
         composeRule.onNodeWithText("Clear all").assertExists()
         composeRule.onNodeWithText("AI Match 90%").assertExists()
-        composeRule.onNodeWithText("Mia Chen - Hiring Manager").assertExists()
+        composeRule.onNodeWithText("Mia Chen").assertExists()
 
         composeRule.onNodeWithText("Backend Engineer").performClick()
         composeRule.onNodeWithContentDescription("Save job").performClick()
@@ -222,7 +222,7 @@ class JobsScreensUiTest {
                         strongMatches = "Skills matched: 2 of 3",
                         gap = "Experience is below the stated requirement",
                         description = "Build production APIs.",
-                        requirements = "Three years of backend development",
+                        requirements = listOf("Three years of backend development", "Experience with REST APIs"),
                         skills = listOf("Python", "FastAPI"),
                         deadline = "2026-09-01",
                         publishedAt = "2026-08-11",
@@ -241,11 +241,13 @@ class JobsScreensUiTest {
             )
         }
 
-        composeRule.onNodeWithText("About this role").assertIsDisplayed()
+        composeRule.onNodeWithText("Job description").assertIsDisplayed()
         composeRule.onNodeWithText("AI Match Analysis").assertExists()
         composeRule.onNodeWithText("Strong matches\nSkills matched: 2 of 3").assertExists()
         composeRule.onNodeWithText("Gaps\nExperience is below the stated requirement").assertExists()
         composeRule.onNodeWithText("Requirements").assertExists()
+        composeRule.onNodeWithText("Three years of backend development").assertExists()
+        composeRule.onNodeWithText("Experience with REST APIs").assertExists()
         composeRule.onNodeWithText("Deadline: 2026-09-01").assertExists()
         composeRule.onNodeWithText("Published: 2026-08-11").assertExists()
 
@@ -276,7 +278,7 @@ class JobsScreensUiTest {
                         strongMatches = "",
                         gap = "",
                         description = "desc",
-                        requirements = "",
+                        requirements = emptyList(),
                         applicationState = CandidateJobApplicationState.INTERVIEW,
                     ),
                 ),

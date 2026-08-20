@@ -1,5 +1,6 @@
 package com.adproject.recommendation.api;
 
+import com.adproject.job.api.CandidateJobResponses.RecruiterContact;
 import com.adproject.job.domain.EmploymentType;
 import com.adproject.job.domain.SalaryCurrency;
 import com.adproject.job.domain.SalaryPeriod;
@@ -57,7 +58,8 @@ public final class RecommendationDtos {
             int matchScore,
             int rank,
             MatchAnalysis matchAnalysis,
-            boolean isSaved) {}
+            boolean isSaved,
+            RecruiterContact recruiter) {}
 
     public record MatchAnalysis(
             List<String> strongMatches,
