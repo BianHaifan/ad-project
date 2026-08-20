@@ -14,7 +14,7 @@ uvicorn agent_service.main:app --host 127.0.0.1 --port 8090
 
 Run tests with `pytest`.
 
-When `DEEPSEEK_API_KEY` is set, the planner uses `deepseek-v4-pro` through DeepSeek's
+When `DEEPSEEK_API_KEY` is set, the planner uses `deepseek-v4-flash` through DeepSeek's
 OpenAI-compatible Chat Completions API. The API key is read only from the process environment.
 If the provider is unavailable or the key is not configured, the endpoint returns 503 with a
 safe error code and Spring Boot saves the run as `FAILED`. `GET /health` reports the configured
@@ -28,4 +28,4 @@ On Windows with Docker Desktop, run `scripts/restart-agent-deepseek.ps1` from Po
 It securely prompts for the key when the current shell does not already have
 `DEEPSEEK_API_KEY`, builds the Agent image, replaces only the stateless Agent container, and
 prints health JSON. A successful configuration reports `"plannerMode":"DEEPSEEK"`
-and `"model":"deepseek-v4-pro"`.
+and `"model":"deepseek-v4-flash"`.
